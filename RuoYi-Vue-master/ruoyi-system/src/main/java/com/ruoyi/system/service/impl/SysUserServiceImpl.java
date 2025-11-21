@@ -30,6 +30,7 @@ import com.ruoyi.system.mapper.SysUserRoleMapper;
 import com.ruoyi.system.service.ISysConfigService;
 import com.ruoyi.system.service.ISysDeptService;
 import com.ruoyi.system.service.ISysUserService;
+import com.ruoyi.system.service.IUserSyncService;
 
 /**
  * 用户 业务层处理
@@ -64,6 +65,9 @@ public class SysUserServiceImpl implements ISysUserService
 
     @Autowired
     protected Validator validator;
+
+    @Autowired
+    private IUserSyncService userSyncService;
 
     /**
      * 根据条件分页查询用户列表
@@ -266,6 +270,14 @@ public class SysUserServiceImpl implements ISysUserService
         insertUserPost(user);
         // 新增用户与角色管理
         insertUserRole(user);
+
+        // 同步到 user 表
+        try {
+            userSyncService.syncCreateUser(user);
+        } catch (Exception e) {
+            log.error("同步用户到user表失败: {}", e.getMessage());
+        }
+
         return rows;
     }
 
@@ -276,9 +288,21 @@ public class SysUserServiceImpl implements ISysUserService
      * @return 结果
      */
     @Override
+    @Transactional
     public boolean registerUser(SysUser user)
     {
-        return userMapper.insertUser(user) > 0;
+        boolean result = userMapper.insertUser(user) > 0;
+
+        // 同步到 user 表
+        if (result) {
+            try {
+                userSyncService.syncCreateUser(user);
+            } catch (Exception e) {
+                log.error("同步注册用户到user表失败: {}", e.getMessage());
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -300,7 +324,18 @@ public class SysUserServiceImpl implements ISysUserService
         userPostMapper.deleteUserPostByUserId(userId);
         // 新增用户与岗位管理
         insertUserPost(user);
-        return userMapper.updateUser(user);
+        int rows = userMapper.updateUser(user);
+
+        // 同步到 user 表
+        if (rows > 0) {
+            try {
+                userSyncService.syncUpdateUser(user);
+            } catch (Exception e) {
+                log.error("同步更新用户到user表失败: {}", e.getMessage());
+            }
+        }
+
+        return rows;
     }
 
     /**
@@ -324,9 +359,21 @@ public class SysUserServiceImpl implements ISysUserService
      * @return 结果
      */
     @Override
+    @Transactional
     public int updateUserStatus(SysUser user)
     {
-        return userMapper.updateUser(user);
+        int rows = userMapper.updateUser(user);
+
+        // 同步到 user 表
+        if (rows > 0) {
+            try {
+                userSyncService.syncUpdateUser(user);
+            } catch (Exception e) {
+                log.error("同步更新用户状态到user表失败: {}", e.getMessage());
+            }
+        }
+
+        return rows;
     }
 
     /**
@@ -449,7 +496,18 @@ public class SysUserServiceImpl implements ISysUserService
         userRoleMapper.deleteUserRoleByUserId(userId);
         // 删除用户与岗位表
         userPostMapper.deleteUserPostByUserId(userId);
-        return userMapper.deleteUserById(userId);
+        int rows = userMapper.deleteUserById(userId);
+
+        // 同步到 user 表（软删除）
+        if (rows > 0) {
+            try {
+                userSyncService.syncDeleteUser(userId);
+            } catch (Exception e) {
+                log.error("同步删除用户到user表失败: {}", e.getMessage());
+            }
+        }
+
+        return rows;
     }
 
     /**
@@ -471,7 +529,20 @@ public class SysUserServiceImpl implements ISysUserService
         userRoleMapper.deleteUserRole(userIds);
         // 删除用户与岗位关联
         userPostMapper.deleteUserPost(userIds);
-        return userMapper.deleteUserByIds(userIds);
+        int rows = userMapper.deleteUserByIds(userIds);
+
+        // 同步到 user 表（批量软删除）
+        if (rows > 0) {
+            for (Long userId : userIds) {
+                try {
+                    userSyncService.syncDeleteUser(userId);
+                } catch (Exception e) {
+                    log.error("同步删除用户到user表失败, userId={}: {}", userId, e.getMessage());
+                }
+            }
+        }
+
+        return rows;
     }
 
     /**
