@@ -240,7 +240,7 @@
 </template>
 
 <script>
-import { listCourse, joinCourse } from "@/api/system/course";
+import { listCourse } from "@/api/system/course";
 // 确认 applyRequest 是从 request.js 中导入的
 import { applyRequest } from "@/api/system/request";
 
@@ -335,6 +335,11 @@ export default {
     },
     /** 判断课程是否已结束 */
     isCourseEnded(course) {
+      // ⭐ 优先判断 status 字段（字典值 "1" 表示已结束）
+      if (course.status === '1' || course.status === '已结束') {
+        return true;
+      }
+      // 兼容：如果没有 status 字段，则通过 endTime 判断
       if (!course.endTime) return false;
       const now = new Date();
       const endTime = new Date(course.endTime);
@@ -373,9 +378,11 @@ export default {
     handleDirectJoin(course) {
       this.$modal.confirm(`课程《${course.title}》已结束，确认要直接加入我的课程吗？`).then(() => {
         this.applyLoadingId = course.id;
-        return joinCourse(course.id);
-      }).then(() => {
-        this.$modal.msgSuccess("课程已直接加入您的课程列表");
+        // ⭐ 使用 applyRequest API，后端会自动判断课程状态并直接加入
+        return applyRequest(course.id, {});
+      }).then(response => {
+        // 显示后端返回的消息
+        this.$modal.msgSuccess(response.msg || "课程已直接加入您的课程列表");
         if(this.drawerVisible) {
           this.drawerVisible = false;
         }
@@ -393,8 +400,9 @@ export default {
         this.applyLoadingId = course.id;
         //【关键修改】: 第一个参数是ID，第二个是请求体
         return applyRequest(course.id, {});
-      }).then(() => {
-        this.$modal.msgSuccess("选课申请已提交，请等待审核");
+      }).then(response => {
+        // 显示后端返回的消息
+        this.$modal.msgSuccess(response.msg || "选课申请已提交，请等待审核");
         if(this.drawerVisible) {
           this.drawerVisible = false;
         }

@@ -64,7 +64,7 @@
 
             <div class="course-footer">
               <el-tag :type="getStatusType(course.status)" size="small">
-                {{ course.status }}
+                {{ getStatusText(course.status) }}
               </el-tag>
               <el-button type="primary" size="small" icon="el-icon-right">
                 查看题目
@@ -333,7 +333,9 @@ export default {
     // 获取课程列表
     getCourseList() {
       this.loading = true
-      listCourse({ status: '进行中', isDeleted: 0 }).then(response => {
+      // ⭐ 修改：status 字段存储的是字典值 "0"=进行中, "1"=已结束
+      // 查询进行中的课程，使用字典值 "0"
+      listCourse({ status: '0', isDeleted: 0 }).then(response => {
         this.courseList = response.rows || []
         // 获取每个课程的题目数量
         this.getQuestionCounts()
@@ -478,9 +480,21 @@ export default {
       }
       return colorMap[difficulty] || 'info'
     },
+    // 获取状态文本（将字典值转换为中文标签）
+    getStatusText(status) {
+      const textMap = {
+        '0': '进行中',
+        '1': '已结束'
+      }
+      // 如果已经是中文标签，直接返回
+      return textMap[status] || status || '未知'
+    },
     // 获取状态标签类型
     getStatusType(status) {
+      // ⭐ 支持字典值和中文标签两种格式
       const typeMap = {
+        '0': 'success',      // 进行中
+        '1': 'danger',       // 已结束
         '进行中': 'success',
         '未开始': 'info',
         '已结束': 'danger'
