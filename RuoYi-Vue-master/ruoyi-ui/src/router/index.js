@@ -42,6 +42,39 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/course',
+    component: Layout,
+    hidden: true, // 关键：在侧边栏菜单中隐藏这个路由
+    children: [
+      {
+        path: 'chapter/:courseId(\\d+)', // 动态路由，匹配 /course/chapter/任意数字
+        component: () => import('@/views/system/chapter/index'), // 指向我们改造后的课程章节页面
+        name: 'CourseDetail', // 给路由起一个唯一的名字
+        meta: { title: '课程详情', icon: 'education' } // 页面标题等信息
+      },
+      {
+        path: 'section/:sectionId(\\d+)', // 匹配 /course/section/任意数字
+        // ⭐ 指向我们刚刚改造的 index.vue 文件
+        component: () => import('@/views/system/section/index'),
+        name: 'CourseSectionPlayer', // 新的路由名称
+        meta: { title: '小节学习', noCache: true } // noCache确保每次都重新加载数据
+      }
+    ]
+  },
+  {
+    path: '/learning',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: 'detail/:id',
+        component: () => import('@/views/system/behavior/detail'),
+        name: 'LearningDetail',
+        meta: { title: '学习详情', noCache: true }
+      }
+    ]
+  },
+  {
     path: '/login',
     component: () => import('@/views/login'),
     hidden: true

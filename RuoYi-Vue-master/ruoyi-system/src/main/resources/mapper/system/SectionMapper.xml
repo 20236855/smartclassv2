@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SectionMapper">
+
+    <resultMap type="Section" id="SectionResult">
+        <result property="id"    column="id"    />
+        <result property="chapterId"    column="chapter_id"    />
+        <result property="title"    column="title"    />
+        <result property="description"    column="description"    />
+        <result property="videoUrl"    column="video_url"    />
+        <result property="duration"    column="duration"    />
+        <result property="sortOrder"    column="sort_order"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="deleteTime"    column="delete_time"    />
+    </resultMap>
+
+    <sql id="selectSectionVo">
+        select s.id, s.chapter_id, s.title, s.description, s.video_url, s.duration, s.sort_order, s.create_time, s.update_time, s.is_deleted, s.delete_time
+        from section s
+    </sql>
+
+    <!-- ⭐【核心修改】修改这里的查询逻辑 -->
+    <select id="selectSectionList" parameterType="Section" resultMap="SectionResult">
+        select s.id, s.chapter_id, s.title, s.description, s.video_url, s.duration, s.sort_order, s.create_time, s.update_time, s.is_deleted, s.delete_time
+        from section s
+        <!-- ⭐ 只有在需要通过 courseId 查询时，才进行 JOIN 操作 -->
+        <if test="courseId != null">
+            join chapter c on s.chapter_id = c.id
+        </if>
+        <where>
+            <!-- ⭐ 添加 course_id 的查询条件 -->
+            <if test="courseId != null "> and c.course_id = #{courseId}</if>
+            <!-- 保留原有的查询条件 -->
+            <if test="chapterId != null "> and s.chapter_id = #{chapterId}</if>
+            <if test="title != null  and title != ''"> and s.title like concat('%', #{title}, '%')</if>
+            <if test="sortOrder != null "> and s.sort_order = #{sortOrder}</if>
+        </where>
+    </select>
+
+    <select id="selectSectionById" parameterType="Long" resultMap="SectionResult">
+        <include refid="selectSectionVo"/>
+        where s.id = #{id}
+    </select>
+
+    <!-- 其他 insert, update, delete 语句保持不变，这里省略以保持简洁 -->
+    <insert id="insertSection" parameterType="Section" useGeneratedKeys="true" keyProperty="id">
+        insert into section
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="chapterId != null">chapter_id,</if>
+            <if test="title != null and title != ''">title,</if>
+            <if test="description != null">description,</if>
+            <if test="videoUrl != null and videoUrl != ''">video_url,</if>
+            <if test="duration != null">duration,</if>
+            <if test="sortOrder != null">sort_order,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="deleteTime != null">delete_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="chapterId != null">#{chapterId},</if>
+            <if test="title != null and title != ''">#{title},</if>
+            <if test="description != null">#{description},</if>
+            <if test="videoUrl != null and videoUrl != ''">#{videoUrl},</if>
+            <if test="duration != null">#{duration},</if>
+            <if test="sortOrder != null">#{sortOrder},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="deleteTime != null">#{deleteTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateSection" parameterType="Section">
+        update section
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="chapterId != null">chapter_id = #{chapterId},</if>
+            <if test="title != null and title != ''">title = #{title},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="videoUrl != null and videoUrl != ''">video_url = #{videoUrl},</if>
+            <if test="duration != null">duration = #{duration},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="deleteTime != null">delete_time = #{deleteTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSectionById" parameterType="Long">
+        delete from section where id = #{id}
+    </delete>
+
+    <delete id="deleteSectionByIds" parameterType="String">
+        delete from section where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

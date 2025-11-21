@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.VideoLearningBehaviorMapper">
+    
+    <resultMap type="VideoLearningBehavior" id="VideoLearningBehaviorResult">
+        <result property="id"    column="id"    />
+        <result property="studentId"    column="student_id"    />
+        <result property="videoId"    column="video_id"    />
+        <result property="watchDuration"    column="watch_duration"    />
+        <result property="videoDuration"    column="video_duration"    />
+        <result property="completionRate"    column="completion_rate"    />
+        <result property="watchCount"    column="watch_count"    />
+        <result property="heatmapData"    column="heatmap_data"    />
+        <result property="isCompleted"    column="is_completed"    />
+        <result property="fastForwardCount"    column="fast_forward_count"    />
+        <result property="pauseCount"    column="pause_count"    />
+        <result property="playbackSpeed"    column="playback_speed"    />
+        <result property="firstWatchAt"    column="first_watch_at"    />
+        <result property="lastWatchAt"    column="last_watch_at"    />
+        <result property="createdAt"    column="created_at"    />
+        <result property="updatedAt"    column="updated_at"    />
+        <result property="lastPosition"    column="last_position"    />
+        <!-- 关联的视频、课程、章节信息 -->
+        <result property="title"    column="section_title"    />
+        <result property="courseName"    column="course_name"    />
+        <result property="chapterName"    column="chapter_name"    />
+        <result property="courseId"    column="course_id"    />
+    </resultMap>
+
+    <sql id="selectVideoLearningBehaviorVo">
+        select
+            vlb.id,
+            vlb.student_id,
+            vlb.video_id,
+            vlb.watch_duration,
+            vlb.video_duration,
+            vlb.completion_rate,
+            vlb.watch_count,
+            vlb.heatmap_data,
+            vlb.is_completed,
+            vlb.fast_forward_count,
+            vlb.pause_count,
+            vlb.playback_speed,
+            vlb.first_watch_at,
+            vlb.last_watch_at,
+            vlb.created_at,
+            vlb.updated_at,
+            vlb.last_position,
+            s.title as section_title,
+            c.title as course_name,
+            ch.title as chapter_name,
+            c.id as course_id
+        from video_learning_behavior vlb
+        left join section s on vlb.video_id = s.id
+        left join chapter ch on s.chapter_id = ch.id
+        left join course c on ch.course_id = c.id
+    </sql>
+
+    <select id="selectVideoLearningBehaviorList" parameterType="VideoLearningBehavior" resultMap="VideoLearningBehaviorResult">
+        <include refid="selectVideoLearningBehaviorVo"/>
+        <where>
+            <if test="isCompleted != null "> and vlb.is_completed = #{isCompleted}</if>
+            <if test="studentId != null "> and vlb.student_id = #{studentId}</if>
+            <if test="videoId != null "> and vlb.video_id = #{videoId}</if>
+        </where>
+        order by vlb.last_watch_at desc, vlb.created_at desc
+    </select>
+    
+    <select id="selectVideoLearningBehaviorById" parameterType="Long" resultMap="VideoLearningBehaviorResult">
+        <include refid="selectVideoLearningBehaviorVo"/>
+        where vlb.id = #{id}
+    </select>
+
+    <insert id="insertVideoLearningBehavior" parameterType="VideoLearningBehavior" useGeneratedKeys="true" keyProperty="id">
+        insert into video_learning_behavior
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="studentId != null">student_id,</if>
+            <if test="videoId != null">video_id,</if>
+            <if test="watchDuration != null">watch_duration,</if>
+            <if test="videoDuration != null">video_duration,</if>
+            <if test="completionRate != null">completion_rate,</if>
+            <if test="watchCount != null">watch_count,</if>
+            <if test="heatmapData != null">heatmap_data,</if>
+            <if test="isCompleted != null">is_completed,</if>
+            <if test="fastForwardCount != null">fast_forward_count,</if>
+            <if test="pauseCount != null">pause_count,</if>
+            <if test="playbackSpeed != null">playback_speed,</if>
+            <if test="firstWatchAt != null">first_watch_at,</if>
+            <if test="lastWatchAt != null">last_watch_at,</if>
+            <if test="lastPosition != null">last_position,</if>
+            <if test="createdAt != null">created_at,</if>
+            <if test="updatedAt != null">updated_at,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="studentId != null">#{studentId},</if>
+            <if test="videoId != null">#{videoId},</if>
+            <if test="watchDuration != null">#{watchDuration},</if>
+            <if test="videoDuration != null">#{videoDuration},</if>
+            <if test="completionRate != null">#{completionRate},</if>
+            <if test="watchCount != null">#{watchCount},</if>
+            <if test="heatmapData != null">#{heatmapData},</if>
+            <if test="isCompleted != null">#{isCompleted},</if>
+            <if test="fastForwardCount != null">#{fastForwardCount},</if>
+            <if test="pauseCount != null">#{pauseCount},</if>
+            <if test="playbackSpeed != null">#{playbackSpeed},</if>
+            <if test="firstWatchAt != null">#{firstWatchAt},</if>
+            <if test="lastWatchAt != null">#{lastWatchAt},</if>
+            <if test="lastPosition != null">#{lastPosition},</if>
+            <if test="createdAt != null">#{createdAt},</if>
+            <if test="updatedAt != null">#{updatedAt},</if>
+         </trim>
+    </insert>
+
+    <!-- UPSERT操作：插入或更新学习行为记录 -->
+    <insert id="upsertVideoLearningBehavior" parameterType="VideoLearningBehavior" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO video_learning_behavior (
+            student_id, video_id, watch_duration, video_duration, completion_rate,
+            watch_count, is_completed, fast_forward_count, pause_count, playback_speed,
+            first_watch_at, last_watch_at, last_position, created_at, updated_at
+        ) VALUES (
+            #{studentId}, #{videoId}, #{watchDuration}, #{videoDuration}, #{completionRate},
+            #{watchCount}, #{isCompleted}, #{fastForwardCount}, #{pauseCount}, #{playbackSpeed},
+            #{firstWatchAt}, #{lastWatchAt}, #{lastPosition}, NOW(), NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+            watch_duration = GREATEST(watch_duration, VALUES(watch_duration)),
+            video_duration = VALUES(video_duration),
+            completion_rate = VALUES(completion_rate),
+            watch_count = VALUES(watch_count),
+            is_completed = VALUES(is_completed),
+            fast_forward_count = VALUES(fast_forward_count),
+            pause_count = VALUES(pause_count),
+            playback_speed = VALUES(playback_speed),
+            first_watch_at = COALESCE(first_watch_at, VALUES(first_watch_at)),
+            last_watch_at = VALUES(last_watch_at),
+            last_position = VALUES(last_position),
+            updated_at = NOW()
+    </insert>
+
+    <update id="updateVideoLearningBehavior" parameterType="VideoLearningBehavior">
+        update video_learning_behavior
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="studentId != null">student_id = #{studentId},</if>
+            <if test="videoId != null">video_id = #{videoId},</if>
+            <if test="watchDuration != null">watch_duration = #{watchDuration},</if>
+            <if test="videoDuration != null">video_duration = #{videoDuration},</if>
+            <if test="completionRate != null">completion_rate = #{completionRate},</if>
+            <if test="watchCount != null">watch_count = #{watchCount},</if>
+            <if test="heatmapData != null">heatmap_data = #{heatmapData},</if>
+            <if test="isCompleted != null">is_completed = #{isCompleted},</if>
+            <if test="fastForwardCount != null">fast_forward_count = #{fastForwardCount},</if>
+            <if test="pauseCount != null">pause_count = #{pauseCount},</if>
+            <if test="playbackSpeed != null">playback_speed = #{playbackSpeed},</if>
+            <if test="firstWatchAt != null">first_watch_at = #{firstWatchAt},</if>
+            <if test="lastWatchAt != null">last_watch_at = #{lastWatchAt},</if>
+            <if test="lastPosition != null">last_position = #{lastPosition},</if>
+            <if test="createdAt != null">created_at = #{createdAt},</if>
+            <if test="updatedAt != null">updated_at = #{updatedAt},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteVideoLearningBehaviorById" parameterType="Long">
+        delete from video_learning_behavior where id = #{id}
+    </delete>
+
+    <delete id="deleteVideoLearningBehaviorByIds" parameterType="String">
+        delete from video_learning_behavior where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

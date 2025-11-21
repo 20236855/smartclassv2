@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SectionCommentMapper">
+
+    <resultMap type="SectionComment" id="SectionCommentResult">
+        <result property="id"    column="id"    />
+        <result property="sectionId"    column="section_id"    />
+        <result property="userId"    column="user_id"    />
+        <result property="content"    column="content"    />
+        <result property="parentId"    column="parent_id"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="deleteTime"    column="delete_time"    />
+    </resultMap>
+
+    <sql id="selectSectionCommentVo">
+        select id, section_id, user_id, content, parent_id, create_time, update_time, is_deleted, delete_time from section_comment
+    </sql>
+
+    <select id="selectSectionCommentList" parameterType="SectionComment" resultMap="SectionCommentResult">
+        <include refid="selectSectionCommentVo"/>
+        <where>
+            <if test="sectionId != null "> and section_id = #{sectionId}</if>
+        </where>
+    </select>
+
+    <select id="selectSectionCommentById" parameterType="Long" resultMap="SectionCommentResult">
+        <include refid="selectSectionCommentVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertSectionComment" parameterType="SectionComment" useGeneratedKeys="true" keyProperty="id">
+        insert into section_comment
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="sectionId != null">section_id,</if>
+            <if test="userId != null">user_id,</if>
+            <if test="content != null and content != ''">content,</if>
+            <if test="parentId != null">parent_id,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="deleteTime != null">delete_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="sectionId != null">#{sectionId},</if>
+            <if test="userId != null">#{userId},</if>
+            <if test="content != null and content != ''">#{content},</if>
+            <if test="parentId != null">#{parentId},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="deleteTime != null">#{deleteTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateSectionComment" parameterType="SectionComment">
+        update section_comment
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="sectionId != null">section_id = #{sectionId},</if>
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="content != null and content != ''">content = #{content},</if>
+            <if test="parentId != null">parent_id = #{parentId},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="deleteTime != null">delete_time = #{deleteTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSectionCommentById" parameterType="Long">
+        delete from section_comment where id = #{id}
+    </delete>
+
+    <delete id="deleteSectionCommentByIds" parameterType="String">
+        delete from section_comment where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+    <!-- ⭐【关键新增】为评论查询增加一个能关联用户信息的 ResultMap -->
+    <resultMap type="SectionComment" id="SectionCommentWithUserResult" extends="SectionCommentResult">
+        <result property="nickName" column="nick_name" />
+        <result property="avatar"   column="avatar"    />
+    </resultMap>
+
+    <!-- ⭐【关键新增】根据小节ID查询评论，并关联查询用户信息 -->
+    <select id="selectCommentsBySectionIdWithUserInfo" parameterType="Long" resultMap="SectionCommentWithUserResult">
+        SELECT
+            sc.id,
+            sc.user_id,
+            sc.content,
+            sc.parent_id,
+            sc.create_time,
+            u.nick_name,
+            u.avatar
+        FROM
+            section_comment sc
+                LEFT JOIN
+            sys_user u ON sc.user_id = u.user_id
+        WHERE
+            sc.section_id = #{sectionId}
+          AND
+            sc.is_deleted = 0
+        ORDER BY
+            sc.create_time ASC
+    </select>
+</mapper>

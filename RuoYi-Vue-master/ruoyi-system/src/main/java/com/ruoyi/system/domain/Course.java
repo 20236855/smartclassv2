@@ -56,6 +56,9 @@ public class Course extends BaseEntity
     @Excel(name = "任课教师ID")
     private Long teacherUserId;
 
+    /** 教师姓名（非数据库字段，用于前端展示） */
+    private String teacherName;
+
     /** 课程状态 */
     @Excel(name = "课程状态")
     private String status;
@@ -149,6 +152,14 @@ public class Course extends BaseEntity
 
     public Long getTeacherUserId() {
         return teacherUserId;
+    }
+
+    public void setTeacherName(String teacherName) {
+        this.teacherName = teacherName;
+    }
+
+    public String getTeacherName() {
+        return teacherName;
     }
 
     public void setStatus(String status) {
