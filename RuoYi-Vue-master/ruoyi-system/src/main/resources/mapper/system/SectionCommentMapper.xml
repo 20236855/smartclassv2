@@ -88,6 +88,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <!-- ⭐【关键新增】根据小节ID查询评论，并关联查询用户信息 -->
+    <!-- 修复：section_comment.user_id → user.id → user.sys_user_id → sys_user.user_id -->
     <select id="selectCommentsBySectionIdWithUserInfo" parameterType="Long" resultMap="SectionCommentWithUserResult">
         SELECT
             sc.id,
@@ -95,12 +96,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             sc.content,
             sc.parent_id,
             sc.create_time,
-            u.nick_name,
-            u.avatar
+            su.nick_name,
+            su.avatar
         FROM
             section_comment sc
-                LEFT JOIN
-            sys_user u ON sc.user_id = u.user_id
+                LEFT JOIN user u ON sc.user_id = u.id
+                LEFT JOIN sys_user su ON u.sys_user_id = su.user_id
         WHERE
             sc.section_id = #{sectionId}
           AND

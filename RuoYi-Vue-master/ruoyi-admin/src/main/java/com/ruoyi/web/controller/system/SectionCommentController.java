@@ -4,6 +4,7 @@ import java.util.List;
 import javax.servlet.http.HttpServletResponse;
 
 import com.ruoyi.common.utils.SecurityUtils;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +36,24 @@ public class SectionCommentController extends BaseController
 {
     @Autowired
     private ISectionCommentService sectionCommentService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /**
+     * 根据 sys_user_id 查询 user 表的 id
+     * @param sysUserId sys_user 表的 user_id
+     * @return user 表的 id，如果不存在返回 null
+     */
+    private Long getUserIdBySysUserId(Long sysUserId) {
+        try {
+            String sql = "SELECT id FROM user WHERE sys_user_id = ?";
+            return jdbcTemplate.queryForObject(sql, Long.class, sysUserId);
+        } catch (Exception e) {
+            logger.error("查询 user.id 失败，sys_user_id: {}", sysUserId, e);
+            return null;
+        }
+    }
 
 
     /**
@@ -92,8 +111,15 @@ public class SectionCommentController extends BaseController
     @PostMapping
     public AjaxResult add(@RequestBody SectionComment sectionComment)
     {
-        // ⭐ 【核心修复】2. 在保存前，从安全上下文中获取当前用户ID并设置
-        sectionComment.setUserId(SecurityUtils.getUserId());
+        // ⭐ 【核心修复】获取当前登录用户的 sys_user_id，然后映射到 user.id
+        Long sysUserId = SecurityUtils.getUserId();
+        Long userId = getUserIdBySysUserId(sysUserId);
+
+        if (userId == null) {
+            return error("用户信息不存在，无法发表评论");
+        }
+
+        sectionComment.setUserId(userId);
 
         return toAjax(sectionCommentService.insertSectionComment(sectionComment));
     }
