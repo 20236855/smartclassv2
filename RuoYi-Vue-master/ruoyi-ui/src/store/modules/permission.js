@@ -111,11 +111,13 @@ export function filterDynamicRoutes(routes) {
 }
 
 export const loadView = (view) => {
+  // 规范化路径，去掉可能的开头 './' 或 '/'
+  const v = (view || '').replace(/^\.\//, '').replace(/^\//, '')
   if (process.env.NODE_ENV === 'development') {
-    return (resolve) => require([`@/views/${view}`], resolve)
+    return (resolve) => require([`@/views/${v}`], resolve)
   } else {
     // 使用 import 实现生产环境的路由懒加载
-    return () => import(`@/views/${view}`)
+    return () => import(`@/views/${v}`)
   }
 }
 

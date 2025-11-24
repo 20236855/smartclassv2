@@ -142,6 +142,17 @@
             </div>
           </el-tab-pane>
 
+          <!-- Tab 3: 知识图谱 -->
+          <el-tab-pane name="knowledge-graph">
+            <span slot="label">
+              <i class="el-icon-share"></i>
+              知识图谱
+            </span>
+            <div class="tab-content-wrapper">
+              <KnowledgeGraphView :courseId="courseId" v-if="activeTab === 'knowledge-graph'" />
+            </div>
+          </el-tab-pane>
+
         </el-tabs>
       </el-card>
     </div>
@@ -156,9 +167,13 @@ import { listSection } from "@/api/system/section";
 import { listResource } from "@/api/system/resource";
 import axios from 'axios';
 import { getToken } from '@/utils/auth';
+import KnowledgeGraphView from '@/views/system/course/components/KnowledgeGraphView.vue';
 
 export default {
   name: "CourseDetail",
+  components: {
+    KnowledgeGraphView
+  },
   data() {
     return {
       courseId: null,

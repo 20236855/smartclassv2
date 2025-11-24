@@ -28,7 +28,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="selectVideoList" parameterType="Video" resultMap="VideoResult">
         <include refid="selectVideoVo"/>
-        <where>  
+        <where>
             <if test="courseId != null "> and course_id = #{courseId}</if>
             <if test="title != null  and title != ''"> and title = #{title}</if>
             <if test="description != null  and description != ''"> and description = #{description}</if>
@@ -44,6 +44,20 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectVideoById" parameterType="Long" resultMap="VideoResult">
         <include refid="selectVideoVo"/>
         where id = #{id}
+    </select>
+
+    <!-- 根据章节ID查询视频列表（通过section表的video_url关联） -->
+    <select id="selectVideosByChapterId" parameterType="Long" resultMap="VideoResult">
+        SELECT v.id, v.course_id, v.title, v.description, v.file_path, v.file_size,
+               v.duration, v.cover_image, v.resolution, v.knowledge_point_ids,
+               v.status, v.view_count, v.uploaded_by, v.created_at, v.updated_at
+        FROM video v
+        INNER JOIN section s ON (
+            s.video_url = v.file_path
+            OR s.video_url LIKE CONCAT('%', SUBSTRING_INDEX(v.file_path, '/', -1))
+        )
+        WHERE s.chapter_id = #{chapterId}
+        ORDER BY s.sort_order
     </select>
 
     <insert id="insertVideo" parameterType="Video" useGeneratedKeys="true" keyProperty="id">

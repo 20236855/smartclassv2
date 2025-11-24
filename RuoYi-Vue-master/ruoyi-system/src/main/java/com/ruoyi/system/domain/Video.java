@@ -88,12 +88,12 @@ public class Video extends BaseEntity
         this.courseId = courseId;
     }
 
-    public Long getCourseId() 
+    public Long getCourseId()
     {
         return courseId;
     }
 
-    public void setTitle(String title) 
+    public void setTitle(String title)
     {
         this.title = title;
     }

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.StudentKpMasteryMapper">
+    
+    <resultMap type="StudentKpMastery" id="StudentKpMasteryResult">
+        <result property="id"    column="id"    />
+        <result property="studentUserId"    column="student_user_id"    />
+        <result property="courseId"    column="course_id"    />
+        <result property="kpId"    column="kp_id"    />
+        <result property="correctCount"    column="correct_count"    />
+        <result property="totalCount"    column="total_count"    />
+        <result property="accuracy"    column="accuracy"    />
+        <result property="lastTestScore"    column="last_test_score"    />
+        <result property="lastTestTime"    column="last_test_time"    />
+        <result property="trend"    column="trend"    />
+        <result property="masteryScore"    column="mastery_score"    />
+        <result property="masteryStatus"    column="mastery_status"    />
+        <result property="weightFactors"    column="weight_factors"    />
+        <result property="lastUpdatedBy"    column="last_updated_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="isDeleted"    column="is_deleted"    />
+    </resultMap>
+
+    <sql id="selectStudentKpMasteryVo">
+        select id, student_user_id, course_id, kp_id, correct_count, total_count, accuracy, last_test_score, last_test_time, trend, mastery_score, mastery_status, weight_factors, last_updated_by, create_time, update_time, is_deleted from student_kp_mastery
+    </sql>
+
+    <select id="selectStudentKpMasteryList" parameterType="StudentKpMastery" resultMap="StudentKpMasteryResult">
+        <include refid="selectStudentKpMasteryVo"/>
+        <where>  
+            <if test="studentUserId != null "> and student_user_id = #{studentUserId}</if>
+            <if test="courseId != null "> and course_id = #{courseId}</if>
+            <if test="kpId != null "> and kp_id = #{kpId}</if>
+            <if test="correctCount != null "> and correct_count = #{correctCount}</if>
+            <if test="totalCount != null "> and total_count = #{totalCount}</if>
+            <if test="accuracy != null "> and accuracy = #{accuracy}</if>
+            <if test="lastTestScore != null "> and last_test_score = #{lastTestScore}</if>
+            <if test="lastTestTime != null "> and last_test_time = #{lastTestTime}</if>
+            <if test="trend != null  and trend != ''"> and trend = #{trend}</if>
+            <if test="masteryScore != null "> and mastery_score = #{masteryScore}</if>
+            <if test="masteryStatus != null  and masteryStatus != ''"> and mastery_status = #{masteryStatus}</if>
+            <if test="weightFactors != null  and weightFactors != ''"> and weight_factors = #{weightFactors}</if>
+            <if test="lastUpdatedBy != null  and lastUpdatedBy != ''"> and last_updated_by = #{lastUpdatedBy}</if>
+            <if test="isDeleted != null "> and is_deleted = #{isDeleted}</if>
+        </where>
+    </select>
+    
+    <select id="selectStudentKpMasteryById" parameterType="Long" resultMap="StudentKpMasteryResult">
+        <include refid="selectStudentKpMasteryVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertStudentKpMastery" parameterType="StudentKpMastery" useGeneratedKeys="true" keyProperty="id">
+        insert into student_kp_mastery
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="studentUserId != null">student_user_id,</if>
+            <if test="courseId != null">course_id,</if>
+            <if test="kpId != null">kp_id,</if>
+            <if test="correctCount != null">correct_count,</if>
+            <if test="totalCount != null">total_count,</if>
+            <if test="accuracy != null">accuracy,</if>
+            <if test="lastTestScore != null">last_test_score,</if>
+            <if test="lastTestTime != null">last_test_time,</if>
+            <if test="trend != null">trend,</if>
+            <if test="masteryScore != null">mastery_score,</if>
+            <if test="masteryStatus != null and masteryStatus != ''">mastery_status,</if>
+            <if test="weightFactors != null">weight_factors,</if>
+            <if test="lastUpdatedBy != null and lastUpdatedBy != ''">last_updated_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="studentUserId != null">#{studentUserId},</if>
+            <if test="courseId != null">#{courseId},</if>
+            <if test="kpId != null">#{kpId},</if>
+            <if test="correctCount != null">#{correctCount},</if>
+            <if test="totalCount != null">#{totalCount},</if>
+            <if test="accuracy != null">#{accuracy},</if>
+            <if test="lastTestScore != null">#{lastTestScore},</if>
+            <if test="lastTestTime != null">#{lastTestTime},</if>
+            <if test="trend != null">#{trend},</if>
+            <if test="masteryScore != null">#{masteryScore},</if>
+            <if test="masteryStatus != null and masteryStatus != ''">#{masteryStatus},</if>
+            <if test="weightFactors != null">#{weightFactors},</if>
+            <if test="lastUpdatedBy != null and lastUpdatedBy != ''">#{lastUpdatedBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+         </trim>
+    </insert>
+
+    <update id="updateStudentKpMastery" parameterType="StudentKpMastery">
+        update student_kp_mastery
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="studentUserId != null">student_user_id = #{studentUserId},</if>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="kpId != null">kp_id = #{kpId},</if>
+            <if test="correctCount != null">correct_count = #{correctCount},</if>
+            <if test="totalCount != null">total_count = #{totalCount},</if>
+            <if test="accuracy != null">accuracy = #{accuracy},</if>
+            <if test="lastTestScore != null">last_test_score = #{lastTestScore},</if>
+            <if test="lastTestTime != null">last_test_time = #{lastTestTime},</if>
+            <if test="trend != null">trend = #{trend},</if>
+            <if test="masteryScore != null">mastery_score = #{masteryScore},</if>
+            <if test="masteryStatus != null and masteryStatus != ''">mastery_status = #{masteryStatus},</if>
+            <if test="weightFactors != null">weight_factors = #{weightFactors},</if>
+            <if test="lastUpdatedBy != null and lastUpdatedBy != ''">last_updated_by = #{lastUpdatedBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteStudentKpMasteryById" parameterType="Long">
+        delete from student_kp_mastery where id = #{id}
+    </delete>
+
+    <delete id="deleteStudentKpMasteryByIds" parameterType="String">
+        delete from student_kp_mastery where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

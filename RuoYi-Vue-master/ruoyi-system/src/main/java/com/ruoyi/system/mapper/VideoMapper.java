@@ -2,15 +2,23 @@ package com.ruoyi.system.mapper;
 
 import java.util.List;
 import com.ruoyi.system.domain.Video;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 视频Mapper接口
- * 
+ *
  * @author ruoyi
  * @date 2025-11-20
  */
-public interface VideoMapper 
+public interface VideoMapper
 {
+    /**
+     * 根据章节ID查询视频列表（通过section表关联）
+     *
+     * @param chapterId 章节ID
+     * @return 视频列表
+     */
+    public List<Video> selectVideosByChapterId(@Param("chapterId") Long chapterId);
     /**
      * 查询视频
      * 

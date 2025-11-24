@@ -1,0 +1,775 @@
+package com.ruoyi.system.service.impl;
+
+import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
+import com.ruoyi.common.utils.DateUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import com.ruoyi.system.mapper.KnowledgeGraphMapper;
+import com.ruoyi.system.domain.KnowledgeGraph;
+import com.ruoyi.system.service.IKnowledgeGraphService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
+import com.ruoyi.common.utils.SecurityUtils;
+
+/**
+ * 知识图谱Service业务层处理
+ * 
+ * @author ruoyi
+ * @date 2025-11-21
+ */
+@Service
+public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService 
+{
+    private static final Logger logger = LoggerFactory.getLogger(KnowledgeGraphServiceImpl.class);
+    @Autowired
+    private KnowledgeGraphMapper knowledgeGraphMapper;
+    @Autowired
+    private com.ruoyi.system.service.ICourseService courseService;
+    @Autowired
+    private com.ruoyi.system.service.ICourseResourceService courseResourceService;
+    @Autowired
+    private com.ruoyi.system.service.IQuestionService questionService;
+    @Autowired
+    private com.ruoyi.system.service.IVideoService videoService;
+    @Autowired
+    private com.ruoyi.system.mapper.VideoMapper videoMapper;
+    @Autowired
+    private com.ruoyi.system.service.IChapterService chapterService;
+    @Autowired
+    private AiExtractionService aiExtractionService;
+    @Autowired
+    private VideoTranscriptionService videoTranscriptionService;
+    @Autowired
+    private com.ruoyi.system.service.IKnowledgePointService knowledgePointService;
+    @Autowired
+    private com.ruoyi.system.service.IKpRelationService kpRelationService;
+
+    /**
+     * 查询知识图谱
+     * 
+     * @param id 知识图谱主键
+     * @return 知识图谱
+     */
+    @Override
+    public KnowledgeGraph selectKnowledgeGraphById(Long id)
+    {
+        return knowledgeGraphMapper.selectKnowledgeGraphById(id);
+    }
+
+    /**
+     * 查询知识图谱列表
+     * 
+     * @param knowledgeGraph 知识图谱
+     * @return 知识图谱
+     */
+    @Override
+    public List<KnowledgeGraph> selectKnowledgeGraphList(KnowledgeGraph knowledgeGraph)
+    {
+        return knowledgeGraphMapper.selectKnowledgeGraphList(knowledgeGraph);
+    }
+
+    /**
+     * 新增知识图谱
+     * 
+     * @param knowledgeGraph 知识图谱
+     * @return 结果
+     */
+    @Override
+    public int insertKnowledgeGraph(KnowledgeGraph knowledgeGraph)
+    {
+        knowledgeGraph.setCreateTime(DateUtils.getNowDate());
+        return knowledgeGraphMapper.insertKnowledgeGraph(knowledgeGraph);
+    }
+
+    /**
+     * 修改知识图谱
+     * 
+     * @param knowledgeGraph 知识图谱
+     * @return 结果
+     */
+    @Override
+    public int updateKnowledgeGraph(KnowledgeGraph knowledgeGraph)
+    {
+        knowledgeGraph.setUpdateTime(DateUtils.getNowDate());
+        return knowledgeGraphMapper.updateKnowledgeGraph(knowledgeGraph);
+    }
+
+    /**
+     * 批量删除知识图谱
+     * 
+     * @param ids 需要删除的知识图谱主键
+     * @return 结果
+     */
+    @Override
+    public int deleteKnowledgeGraphByIds(Long[] ids)
+    {
+        return knowledgeGraphMapper.deleteKnowledgeGraphByIds(ids);
+    }
+
+    /**
+     * 删除知识图谱信息
+     * 
+     * @param id 知识图谱主键
+     * @return 结果
+     */
+    @Override
+    public int deleteKnowledgeGraphById(Long id)
+    {
+        return knowledgeGraphMapper.deleteKnowledgeGraphById(id);
+    }
+
+    @Override
+    @Async("taskExecutor")
+    public void generateCourseGraph(Long courseId)
+    {
+        // 最小可用实现：从课程、课件、题目读取文本，调用 AI 抽取（占位），将结果保存为 KnowledgeGraph.graphData JSON
+        try {
+            StringBuilder sb = new StringBuilder();
+            // 读取课程简介
+            com.ruoyi.system.domain.Course course = courseService.selectCourseById(courseId);
+            if (course != null) {
+                if (course.getDescription() != null) sb.append(course.getDescription()).append("。\n");
+                if (course.getTitle() != null) sb.append(course.getTitle()).append("。\n");
+            }
+            // 读取课程资源文本摘要
+            com.ruoyi.system.domain.CourseResource qr = new com.ruoyi.system.domain.CourseResource();
+            qr.setCourseId(courseId);
+            java.util.List<com.ruoyi.system.domain.CourseResource> resources = courseResourceService.selectCourseResourceList(qr);
+            for (com.ruoyi.system.domain.CourseResource r : resources) {
+                if (r.getDescription() != null) sb.append(r.getDescription()).append("。\n");
+                // CourseResource 使用 fileUrl 字段存放文件地址
+                if (r.getFileUrl() != null) sb.append(r.getFileUrl()).append("。\n");
+            }
+
+            // 【新增】读取视频并批量抽取知识点和关系
+            com.ruoyi.system.domain.Video videoQuery = new com.ruoyi.system.domain.Video();
+            videoQuery.setCourseId(courseId);
+            java.util.List<com.ruoyi.system.domain.Video> videos = videoService.selectVideoList(videoQuery);
+            List<Map<String,Object>> allKps = new ArrayList<>();
+            List<Map<String,Object>> allRelations = new ArrayList<>();
+
+            if (!videos.isEmpty()) {
+                StringBuilder allVideosText = new StringBuilder();
+                for (com.ruoyi.system.domain.Video video : videos) {
+                    allVideosText.append("=== 题目 ").append(video.getId()).append(" ===\n");
+                    allVideosText.append("【类型】视频内容\n");
+
+                    // 使用视频转录服务提取文本
+                    String videoText = videoTranscriptionService.extractTextFromVideo(
+                        video.getFilePath(),
+                        video.getTitle(),
+                        video.getDescription()
+                    );
+
+                    allVideosText.append(videoText).append("\n");
+                }
+
+                logger.info("开始批量处理 {} 个视频，总文本长度: {}", videos.size(), allVideosText.length());
+
+                // 只有当文本长度足够时才调用AI
+                if (allVideosText.length() > 50) {
+                    Map<String,Object> videoExtractResult = aiExtractionService.extractKnowledgePointsWithRelations(allVideosText.toString());
+                    List<Map<String,Object>> videoKps = (List<Map<String,Object>>) videoExtractResult.get("candidates");
+                    List<Map<String,Object>> videoRels = (List<Map<String,Object>>) videoExtractResult.get("relations");
+                    if (videoKps != null) allKps.addAll(videoKps);
+                    if (videoRels != null) allRelations.addAll(videoRels);
+                    logger.info("从视频AI抽取到 {} 个知识点，{} 条关系",
+                               videoKps != null ? videoKps.size() : 0, videoRels != null ? videoRels.size() : 0);
+                } else {
+                    logger.warn("视频文本内容太少（{}字符），跳过AI抽取", allVideosText.length());
+                }
+            }
+
+            // 读取题目并批量抽取知识点和关系
+            com.ruoyi.system.domain.Question q = new com.ruoyi.system.domain.Question();
+            q.setCourseId(courseId);
+            java.util.List<com.ruoyi.system.domain.Question> questions = questionService.selectQuestionList(q);
+
+            // 批量处理所有题目（一次性AI调用）
+            if (!questions.isEmpty()) {
+                StringBuilder allQuestionsText = new StringBuilder();
+                for (com.ruoyi.system.domain.Question qu : questions) {
+                    allQuestionsText.append("=== 题目 ").append(qu.getId()).append(" ===\n");
+                    if (qu.getTitle() != null) allQuestionsText.append("题干: ").append(qu.getTitle()).append("\n");
+                    if (qu.getCorrectAnswer() != null) allQuestionsText.append("答案: ").append(qu.getCorrectAnswer()).append("\n");
+                    if (qu.getExplanation() != null) allQuestionsText.append("解析: ").append(qu.getExplanation()).append("\n");
+                    if (qu.getOptions() != null) allQuestionsText.append("选项: ").append(qu.getOptions()).append("\n");
+                    allQuestionsText.append("\n");
+                }
+
+                // 一次性调用AI处理所有题目
+                logger.info("开始批量处理 {} 道题目", questions.size());
+                Map<String,Object> extractResult = aiExtractionService.extractKnowledgePointsWithRelations(allQuestionsText.toString());
+                List<Map<String,Object>> kps = (List<Map<String,Object>>) extractResult.get("candidates");
+                List<Map<String,Object>> rels = (List<Map<String,Object>>) extractResult.get("relations");
+                if (kps != null) allKps.addAll(kps);
+                if (rels != null) allRelations.addAll(rels);
+                logger.info("从题库AI抽取到 {} 个知识点，{} 条关系",
+                           kps != null ? kps.size() : 0, rels != null ? rels.size() : 0);
+            }
+
+            logger.info("多源抽取完成：视频+题库共 {} 个知识点，{} 条关系", allKps.size(), allRelations.size());
+
+
+            // 去重知识点（按 name 去重）
+            Map<String, Map<String,Object>> kpMap = new LinkedHashMap<>();
+            for (Map<String,Object> kp : allKps) {
+                logger.info("AI返回的知识点数据：{}", kp); // 添加调试日志
+                
+                // AI可能返回 "title" 或 "name" 字段，都尝试获取
+                String name = "";
+                if (kp.containsKey("title")) {
+                    name = kp.get("title").toString();
+                } else if (kp.containsKey("name")) {
+                    name = kp.get("name").toString();
+                }
+                name = name.trim();
+                
+                logger.info("提取的知识点名称：'{}'", name); // 添加调试日志
+                
+                if (!name.isEmpty() && !kpMap.containsKey(name)) {
+                    // 统一使用 "name" 字段
+                    Map<String,Object> normalizedKp = new HashMap<>(kp);
+                    normalizedKp.put("name", name);
+                    kpMap.put(name, normalizedKp);
+                    logger.info("添加知识点到映射：{}", name);
+                }
+            }
+            logger.info("去重后知识点数量：{}", kpMap.size());
+
+            // 保存知识点到数据库，并建立 name -> id 的映射
+            Map<String, Long> nameToIdMap = new HashMap<>();
+            for (Map<String,Object> kpData : kpMap.values()) {
+                com.ruoyi.system.domain.KnowledgePoint kp = new com.ruoyi.system.domain.KnowledgePoint();
+                kp.setTitle(kpData.getOrDefault("name", "").toString());
+                kp.setDescription(kpData.getOrDefault("definition", "").toString());
+                kp.setCourseId(courseId);
+                try {
+                    kp.setCreatorUserId(SecurityUtils.getUserId());
+                } catch (Exception e) {
+                    kp.setCreatorUserId(1L); // 使用默认用户ID
+                    logger.warn("无法获取当前用户ID，使用默认值 1：{}", e.getMessage());
+                }
+                kp.setCreateTime(DateUtils.getNowDate());
+                
+                knowledgePointService.insertKnowledgePoint(kp);
+                nameToIdMap.put(kp.getTitle(), kp.getId());
+            }
+
+            // 保存知识点关系到数据库
+            int savedRelations = 0;
+            for (Map<String,Object> rel : allRelations) {
+                String sourceName = rel.getOrDefault("source", "").toString();
+                String targetName = rel.getOrDefault("target", "").toString();
+                String relType = rel.getOrDefault("type", "related").toString();
+
+                // 映射关系类型到数据库枚举值
+                String mappedRelType = mapRelationType(relType);
+
+                Long sourceId = nameToIdMap.get(sourceName);
+                Long targetId = nameToIdMap.get(targetName);
+
+                if (sourceId != null && targetId != null) {
+                    com.ruoyi.system.domain.KpRelation kpRel = new com.ruoyi.system.domain.KpRelation();
+                    kpRel.setFromKpId(sourceId);
+                    kpRel.setToKpId(targetId);
+                    kpRel.setRelationType(mappedRelType); // 使用映射后的值
+                    kpRel.setAiGenerated(1);
+
+                    kpRelationService.insertKpRelation(kpRel);
+                    savedRelations++;
+                    logger.info("保存知识点关系：{} -> {} (原始: {}, 映射: {})", 
+                              sourceName, targetName, relType, mappedRelType);
+                }
+            }
+            logger.info("课程 {} 共保存 {} 个知识点，{} 条关系", courseId, nameToIdMap.size(), savedRelations);
+
+            // 构造 graphData（用于前端可视化）
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            java.util.Map<String,Object> graph = new java.util.HashMap<>();
+            java.util.List<java.util.Map<String,Object>> nodes = new java.util.ArrayList<>();
+            java.util.List<java.util.Map<String,Object>> edges = new java.util.ArrayList<>();
+
+            // 构造节点
+            for (Map.Entry<String, Long> entry : nameToIdMap.entrySet()) {
+                String name = entry.getKey();
+                Long kpId = entry.getValue();
+                Map<String,Object> kpData = kpMap.get(name);
+
+                java.util.Map<String,Object> node = new java.util.HashMap<>();
+                node.put("id", "kp_" + kpId);
+                node.put("kpId", kpId);
+                node.put("label", name);
+                node.put("definition", kpData.getOrDefault("definition", ""));
+                node.put("confidence", kpData.getOrDefault("confidence", 0.0));
+                nodes.add(node);
+            }
+
+            // 构造边
+            int edgeId = 1;
+            for (Map<String,Object> rel : allRelations) {
+                String sourceName = rel.getOrDefault("source", "").toString();
+                String targetName = rel.getOrDefault("target", "").toString();
+                Long sourceId = nameToIdMap.get(sourceName);
+                Long targetId = nameToIdMap.get(targetName);
+
+                if (sourceId != null && targetId != null) {
+                    java.util.Map<String,Object> edge = new java.util.HashMap<>();
+                    edge.put("id", "edge_" + edgeId++);
+                    edge.put("source", "kp_" + sourceId);
+                    edge.put("target", "kp_" + targetId);
+                    edge.put("type", rel.getOrDefault("type", "related"));
+                    edge.put("confidence", rel.getOrDefault("confidence", 0.0));
+                    edges.add(edge);
+                }
+            }
+
+            graph.put("nodes", nodes);
+            graph.put("edges", edges);
+
+            String graphJson = mapper.writeValueAsString(graph);
+
+             // 保存为 KnowledgeGraph 记录
+            KnowledgeGraph kg = new KnowledgeGraph();
+            kg.setTitle((course!=null?course.getTitle():"course_"+courseId) + " 知识图谱");
+            kg.setDescription("自动生成的课程知识图谱（最小可用）");
+            kg.setCourseId(courseId);
+            kg.setGraphType("COURSE");
+            kg.setGraphData(graphJson);
+            kg.setStatus("active");
+            kg.setCreatorId(1L); // 设置默认创建者ID
+            try {
+                kg.setCreatorId(SecurityUtils.getUserId());
+            } catch (Exception e) {
+                logger.warn("无法获取当前用户ID，使用默认值 1：{}", e.getMessage());
+            }
+            knowledgeGraphMapper.insertKnowledgeGraph(kg);
+        } catch (Exception ex) {
+            logger.error("生成课程知识图谱失败，courseId={}", courseId, ex);
+        }
+    }
+
+    @Override
+    @Async("taskExecutor")
+    public void generateChapterGraph(Long courseId, Long chapterId) {
+        try {
+            logger.info("开始生成章节知识图谱：courseId={}, chapterId={}", courseId, chapterId);
+
+            // 获取章节信息（用于显示标题）
+            com.ruoyi.system.domain.Chapter chapter = chapterService.selectChapterById(chapterId);
+            if (chapter == null) {
+                logger.warn("章节不存在：chapterId={}", chapterId);
+                return;
+            }
+            Long chapterSortOrder = chapter.getSortOrder();
+            String chapterTitle = chapter.getTitle();
+            logger.info("章节信息：id={}, sortOrder={}, title={}", chapterId, chapterSortOrder, chapterTitle);
+
+            // 收集所有知识点和关系
+            List<Map<String,Object>> allKps = new ArrayList<>();
+            List<Map<String,Object>> allRelations = new ArrayList<>();
+
+            // 【新增】1. 处理视频数据
+            // 通过VideoMapper的自定义方法查询章节的视频（通过section表关联）
+            java.util.List<com.ruoyi.system.domain.Video> videos = videoMapper.selectVideosByChapterId(chapterId);
+            logger.info("章节 {} (sortOrder={}) 关联的视频数量：{}", chapterId, chapterSortOrder, videos.size());
+
+            if (!videos.isEmpty()) {
+                StringBuilder allVideosText = new StringBuilder();
+                for (com.ruoyi.system.domain.Video video : videos) {
+                    allVideosText.append("=== 题目 ").append(video.getId()).append(" ===\n");
+                    allVideosText.append("【类型】视频内容\n");
+
+                    // 使用视频转录服务提取文本
+                    String videoText = videoTranscriptionService.extractTextFromVideo(
+                        video.getFilePath(),
+                        video.getTitle(),
+                        video.getDescription()
+                    );
+
+                    allVideosText.append(videoText).append("\n");
+                }
+
+                logger.info("开始批量处理 {} 个视频，总文本长度: {}", videos.size(), allVideosText.length());
+
+                // 只有当文本长度足够时才调用AI
+                if (allVideosText.length() > 50) {
+                    Map<String,Object> videoExtractResult = aiExtractionService.extractKnowledgePointsWithRelations(allVideosText.toString());
+                    List<Map<String,Object>> videoKps = (List<Map<String,Object>>) videoExtractResult.get("candidates");
+                    List<Map<String,Object>> videoRels = (List<Map<String,Object>>) videoExtractResult.get("relations");
+                    if (videoKps != null) allKps.addAll(videoKps);
+                    if (videoRels != null) allRelations.addAll(videoRels);
+                    logger.info("从视频AI抽取到 {} 个知识点，{} 条关系",
+                               videoKps != null ? videoKps.size() : 0, videoRels != null ? videoRels.size() : 0);
+                } else {
+                    logger.warn("视频文本内容太少（{}字符），跳过AI抽取", allVideosText.length());
+                }
+            }
+
+            // 2. 读取该章节的所有题目
+            com.ruoyi.system.domain.Question q = new com.ruoyi.system.domain.Question();
+            q.setCourseId(courseId);
+            q.setChapterId(chapterId);
+            java.util.List<com.ruoyi.system.domain.Question> questions = questionService.selectQuestionList(q);
+
+            if (questions == null || questions.isEmpty()) {
+                logger.warn("章节 {} 没有题目", chapterId);
+                // 即使没有题目，也可能有视频数据，继续处理
+            } else {
+                // 检查已处理的题目，分离已处理和未处理的题目
+                List<Long> processedQuestionIds = getProcessedQuestionIds(courseId, chapterId);
+                List<com.ruoyi.system.domain.Question> unprocessedQuestions = new ArrayList<>();
+                List<com.ruoyi.system.domain.Question> processedQuestions = new ArrayList<>();
+
+                for (com.ruoyi.system.domain.Question question : questions) {
+                    if (processedQuestionIds.contains(question.getId())) {
+                        processedQuestions.add(question);
+                    } else {
+                        unprocessedQuestions.add(question);
+                    }
+                }
+
+                logger.info("章节 {} 共 {} 道题目，其中 {} 道已处理，{} 道待处理",
+                           chapterId, questions.size(), processedQuestions.size(), unprocessedQuestions.size());
+
+                // 3. 获取已处理题目的知识点（直接关联，不重新生成）
+                if (!processedQuestions.isEmpty()) {
+                    List<Map<String,Object>> existingKps = getExistingKnowledgePoints(processedQuestions);
+                    allKps.addAll(existingKps);
+                    logger.info("从已处理题目中获取 {} 个现有知识点", existingKps.size());
+                }
+
+                // 4. 批量处理未处理的题目（一次性AI调用）
+                if (!unprocessedQuestions.isEmpty()) {
+                    logger.info("开始批量处理 {} 道未处理题目", unprocessedQuestions.size());
+
+                    // 将所有未处理题目合并为一个文本，使用标准分隔符
+                    StringBuilder allQuestionsText = new StringBuilder();
+                    for (com.ruoyi.system.domain.Question qu : unprocessedQuestions) {
+                        allQuestionsText.append("=== 题目 ").append(qu.getId()).append(" ===\n");
+                        allQuestionsText.append("题干: ").append(qu.getTitle() != null ? qu.getTitle() : "").append("\n");
+                        if (qu.getCorrectAnswer() != null) {
+                            allQuestionsText.append("答案: ").append(qu.getCorrectAnswer()).append("\n");
+                        }
+                        if (qu.getExplanation() != null) {
+                            allQuestionsText.append("解析: ").append(qu.getExplanation()).append("\n");
+                        }
+                        if (qu.getOptions() != null) {
+                            allQuestionsText.append("选项: ").append(qu.getOptions()).append("\n");
+                        }
+                        allQuestionsText.append("\n");
+                    }
+
+                    // 一次性调用AI处理所有未处理题目，使用分隔符分隔题目，以便于提取每个题目的知识点和关系
+                    Map<String,Object> extractResult = aiExtractionService.extractKnowledgePointsWithRelations(allQuestionsText.toString());
+                    List<Map<String,Object>> newKps = (List<Map<String,Object>>) extractResult.get("candidates");
+                    List<Map<String,Object>> newRelations = (List<Map<String,Object>>) extractResult.get("relations");
+
+                    if (newKps != null) {
+                        allKps.addAll(newKps);
+                        logger.info("从题库AI批量抽取到 {} 个新知识点", newKps.size());
+                    }
+                    if (newRelations != null) {
+                        allRelations.addAll(newRelations);
+                        logger.info("从题库AI批量抽取到 {} 条新关系", newRelations.size());
+                    }
+
+                    // 标记这些题目为已处理
+                    List<Long> newQuestionIds = unprocessedQuestions.stream()
+                        .map(com.ruoyi.system.domain.Question::getId)
+                        .collect(Collectors.toList());
+                    markQuestionsAsProcessed(newQuestionIds, courseId, chapterId);
+                }
+            }
+
+            logger.info("章节 {} 多源抽取完成：视频+题库共 {} 个知识点，{} 条关系", chapterId, allKps.size(), allRelations.size());
+
+            // 去重知识点（基于名称）
+            Map<String, Map<String,Object>> uniqueKps = new LinkedHashMap<>();
+            for (Map<String,Object> kp : allKps) {
+                // AI可能返回 "title" 或 "name" 字段，都尝试获取
+                String name = "";
+                if (kp.containsKey("title")) {
+                    name = kp.get("title").toString();
+                } else if (kp.containsKey("name")) {
+                    name = kp.get("name").toString();
+                }
+                name = name.trim();
+
+                if (!name.isEmpty() && !uniqueKps.containsKey(name)) {
+                    // 统一使用 "name" 字段
+                    Map<String,Object> normalizedKp = new HashMap<>(kp);
+                    normalizedKp.put("name", name);
+                    uniqueKps.put(name, normalizedKp);
+                }
+            }
+            logger.info("去重后保留 {} 个唯一知识点", uniqueKps.size());
+
+            // 保存知识点到数据库
+            Map<String, Long> nameToIdMap = new HashMap<>();
+            Map<String, Map<String,Object>> kpMap = new HashMap<>();
+            
+            for (Map.Entry<String, Map<String,Object>> entry : uniqueKps.entrySet()) {
+                String name = entry.getKey();
+                Map<String,Object> kpData = entry.getValue();
+                
+                // 检查是否已存在同名知识点
+                Long existingKpId = findExistingKnowledgePointId(name, courseId);
+                if (existingKpId != null) {
+                    nameToIdMap.put(name, existingKpId);
+                    kpMap.put(name, kpData);
+                    logger.info("复用现有知识点：{} (ID: {})", name, existingKpId);
+                } else {
+                    // 创建新知识点
+                    com.ruoyi.system.domain.KnowledgePoint kp = new com.ruoyi.system.domain.KnowledgePoint();
+                    kp.setTitle(name);  // 使用 setTitle 而不是 setName
+                    kp.setDescription(kpData.getOrDefault("definition", "").toString());
+                    kp.setCourseId(courseId);
+                    kp.setLevel("BASIC");
+                    try {
+                        kp.setCreatorUserId(SecurityUtils.getUserId());
+                    } catch (Exception e) {
+                        kp.setCreatorUserId(1L); // 使用默认用户ID
+                        logger.warn("无法获取当前用户ID以设置 creatorUserId，使用默认值：{}", e.getMessage());
+                    }
+                    knowledgePointService.insertKnowledgePoint(kp);
+                    nameToIdMap.put(name, kp.getId());
+                    kpMap.put(name, kpData);
+                    logger.info("保存新知识点：{} (ID: {})", name, kp.getId());
+                }
+            }
+
+            // 保存知识点关系到数据库
+            int savedRelations = 0;
+            for (Map<String,Object> rel : allRelations) {
+                String sourceName = rel.getOrDefault("source", "").toString();
+                String targetName = rel.getOrDefault("target", "").toString();
+                String relType = rel.getOrDefault("type", "related").toString();
+
+                // 映射关系类型到数据库枚举值
+                String mappedRelType = mapRelationType(relType);
+
+                Long sourceId = nameToIdMap.get(sourceName);
+                Long targetId = nameToIdMap.get(targetName);
+
+                if (sourceId != null && targetId != null) {
+                    // 检查关系是否已存在
+                    if (!relationExists(sourceId, targetId, mappedRelType)) {
+                        com.ruoyi.system.domain.KpRelation kpRel = new com.ruoyi.system.domain.KpRelation();
+                        kpRel.setFromKpId(sourceId);
+                        kpRel.setToKpId(targetId);
+                        kpRel.setRelationType(mappedRelType);
+                        kpRel.setAiGenerated(1);
+
+                        kpRelationService.insertKpRelation(kpRel);
+                        savedRelations++;
+                        logger.info("保存知识点关系：{} -> {} (类型: {})", sourceName, targetName, mappedRelType);
+                    } else {
+                        logger.debug("关系已存在，跳过：{} -> {} (类型: {})", sourceName, targetName, mappedRelType);
+                    }
+                }
+            }
+            logger.info("章节 {} 共保存 {} 个知识点，{} 条关系", chapterId, nameToIdMap.size(), savedRelations);
+
+            // 构造 graphData（用于前端可视化）
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            java.util.Map<String,Object> graph = new java.util.HashMap<>();
+            java.util.List<java.util.Map<String,Object>> nodes = new java.util.ArrayList<>();
+            java.util.List<java.util.Map<String,Object>> edges = new java.util.ArrayList<>();
+
+            // 构造节点
+            for (Map.Entry<String, Long> entry : nameToIdMap.entrySet()) {
+                String name = entry.getKey();
+                Long kpId = entry.getValue();
+                Map<String,Object> kpData = kpMap.get(name);
+
+                java.util.Map<String,Object> node = new java.util.HashMap<>();
+                node.put("id", "kp_" + kpId);
+                node.put("kpId", kpId);
+                node.put("label", name);
+                node.put("definition", kpData.getOrDefault("definition", ""));
+                node.put("confidence", kpData.getOrDefault("confidence", 0.0));
+                nodes.add(node);
+            }
+
+            // 构造边
+            int edgeId = 1;
+            for (Map<String,Object> rel : allRelations) {
+                String sourceName = rel.getOrDefault("source", "").toString();
+                String targetName = rel.getOrDefault("target", "").toString();
+                Long sourceId = nameToIdMap.get(sourceName);
+                Long targetId = nameToIdMap.get(targetName);
+
+                if (sourceId != null && targetId != null) {
+                    java.util.Map<String,Object> edge = new java.util.HashMap<>();
+                    edge.put("id", "edge_" + edgeId++);
+                    edge.put("source", "kp_" + sourceId);
+                    edge.put("target", "kp_" + targetId);
+                    edge.put("type", rel.getOrDefault("type", "related"));
+                    edge.put("confidence", rel.getOrDefault("confidence", 0.0));
+                    edges.add(edge);
+                }
+            }
+
+            graph.put("nodes", nodes);
+            graph.put("edges", edges);
+
+            String graphJson = mapper.writeValueAsString(graph);
+
+            // 保存为 KnowledgeGraph 记录
+            KnowledgeGraph kg = new KnowledgeGraph();
+            // 使用 sortOrder 作为章节序号显示
+            kg.setTitle("第" + chapterSortOrder + "章 " + chapterTitle + " 知识图谱");
+            kg.setDescription("自动生成的章节知识图谱（从视频+题库抽取）");
+            kg.setCourseId(courseId);
+            kg.setGraphType("CHAPTER");
+            kg.setGraphData(graphJson);
+            kg.setStatus("active");
+            try {
+                kg.setCreatorId(SecurityUtils.getUserId());
+            } catch (Exception e) {
+                kg.setCreatorId(1L); // 使用默认用户ID
+                logger.warn("无法获取当前用户ID以设置 creatorId，使用默认值 1：{}", e.getMessage());
+            }
+            knowledgeGraphMapper.insertKnowledgeGraph(kg);
+            logger.info("章节知识图谱生成完成：courseId={}, chapterId={}, sortOrder={}, title={}, graphId={}",
+                courseId, chapterId, chapterSortOrder, chapterTitle, kg.getId());
+        } catch (Exception ex) {
+            logger.error("生成章节知识图谱失败，courseId={}, chapterId={}", courseId, chapterId, ex);
+        }
+    }
+
+    /**
+     * 获取已处理过的题目ID列表
+     */
+    private List<Long> getProcessedQuestionIds(Long courseId, Long chapterId) {
+        try {
+            // 查询该课程章节下所有题目，然后过滤出已有知识点的题目
+            List<com.ruoyi.system.domain.Question> allQuestions = questionService.selectQuestionList(new com.ruoyi.system.domain.Question());
+            return allQuestions.stream()
+                .filter(q -> q.getCourseId().equals(courseId) && 
+                            q.getChapterId().equals(chapterId) && 
+                            q.getKnowledgePoint() != null && 
+                            !q.getKnowledgePoint().trim().isEmpty())
+                .map(com.ruoyi.system.domain.Question::getId)
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.warn("获取已处理题目列表失败：{}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 获取已处理题目的现有知识点
+     */
+    private List<Map<String,Object>> getExistingKnowledgePoints(List<com.ruoyi.system.domain.Question> processedQuestions) {
+        List<Map<String,Object>> existingKps = new ArrayList<>();
+        
+        for (com.ruoyi.system.domain.Question question : processedQuestions) {
+            if (question.getKnowledgePoint() != null && !question.getKnowledgePoint().trim().isEmpty()) {
+                // 根据题目的knowledge_point字段查找对应的知识点
+                com.ruoyi.system.domain.KnowledgePoint searchKp = new com.ruoyi.system.domain.KnowledgePoint();
+                searchKp.setCourseId(question.getCourseId());
+                searchKp.setTitle(question.getKnowledgePoint());
+                List<com.ruoyi.system.domain.KnowledgePoint> kps = knowledgePointService.selectKnowledgePointList(searchKp);
+                
+                for (com.ruoyi.system.domain.KnowledgePoint kp : kps) {
+                    Map<String,Object> kpData = new HashMap<>();
+                    kpData.put("name", kp.getTitle());
+                    kpData.put("definition", kp.getDescription());
+                    kpData.put("confidence", 1.0);
+                    existingKps.add(kpData);
+                }
+            }
+        }
+        
+        return existingKps;
+    }
+
+    /**
+     * 查找现有知识点ID
+     */
+    private Long findExistingKnowledgePointId(String name, Long courseId) {
+        try {
+            com.ruoyi.system.domain.KnowledgePoint searchKp = new com.ruoyi.system.domain.KnowledgePoint();
+            searchKp.setTitle(name);
+            searchKp.setCourseId(courseId);
+            List<com.ruoyi.system.domain.KnowledgePoint> existingKps = knowledgePointService.selectKnowledgePointList(searchKp);
+            return existingKps.isEmpty() ? null : existingKps.get(0).getId();
+        } catch (Exception e) {
+            logger.debug("查找现有知识点失败：{}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 检查关系是否已存在
+     */
+    private boolean relationExists(Long sourceId, Long targetId, String relationType) {
+        try {
+            com.ruoyi.system.domain.KpRelation searchRelation = new com.ruoyi.system.domain.KpRelation();
+            searchRelation.setFromKpId(sourceId);
+            searchRelation.setToKpId(targetId);
+            searchRelation.setRelationType(relationType);
+            List<com.ruoyi.system.domain.KpRelation> existingRelations = kpRelationService.selectKpRelationList(searchRelation);
+            return !existingRelations.isEmpty();
+        } catch (Exception e) {
+            logger.debug("检查关系是否存在失败：{}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 映射 AI 返回的关系类型到数据库枚举值
+     */
+    private String mapRelationType(String type) {
+        if (type == null) return "similar_to";
+        type = type.toLowerCase();
+        
+        // 前置关系映射
+        if (type.contains("prerequisite") || type.contains("前置") || type.contains("基础")) {
+            return "prerequisite_of";
+        }
+        // 相似关系映射  
+        if (type.contains("similar") || type.contains("相似") || type.contains("类似") ||
+            type.contains("related") || type.contains("相关") || type.contains("uses") ||
+            type.contains("应用") || type.contains("使用")) {
+            return "similar_to";
+        }
+        // 扩展关系映射
+        if (type.contains("extension") || type.contains("扩展") || type.contains("进阶")) {
+            return "extension_of";
+        }
+        // 推导关系映射
+        if (type.contains("derived") || type.contains("推导") || type.contains("衍生")) {
+            return "derived_from";
+        }
+        
+        logger.warn("未识别的关系类型：{}，使用默认值 similar_to", type);
+        return "similar_to"; // 默认为相似关系
+    }
+
+    /**
+     * 标记题目为已处理（通过更新题目的knowledge_point字段或其他标识）
+     */
+    private void markQuestionsAsProcessed(List<Long> questionIds, Long courseId, Long chapterId) {
+        try {
+            // 由于题目已经通过AI处理并生成了知识点，这里可以简单记录日志
+            // 实际的"已处理"状态通过题目是否有knowledge_point字段来判断
+            logger.info("标记 {} 道题目为已处理：courseId={}, chapterId={}, questionIds={}",
+                       questionIds.size(), courseId, chapterId, questionIds);
+
+            // 如果需要额外的标记逻辑，可以在这里添加
+            // 例如：更新题目的某个状态字段，或者插入处理记录表等
+
+        } catch (Exception e) {
+            logger.warn("标记题目为已处理失败：{}", e.getMessage());
+        }
+    }
+}

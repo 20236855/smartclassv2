@@ -1,0 +1,82 @@
+========================================
+Whisper 视频转录服务 - 快速启动
+========================================
+
+【作用】
+将视频中的语音转换成文字，用于知识点抽取
+
+视频 → 语音识别 → 文字 → AI分析 → 知识点
+
+
+【快速启动 - 3步】
+
+步骤1：安装依赖（首次使用，约2分钟）
+--------------------------------------
+cd C:\smartclassv2\RuoYi-Vue-master\whisper-service
+pip install openai-whisper flask flask-cors
+
+
+步骤2：启动服务（每次使用）
+--------------------------------------
+python whisper_server.py
+
+
+步骤3：验证成功
+--------------------------------------
+浏览器访问：http://localhost:5000/health
+
+看到这个表示成功：
+{
+  "status": "ok",
+  "service": "whisper-transcription",
+  "loaded_models": ["tiny"]
+}
+
+
+【成功标志】
+
+看到这个输出表示启动成功：
+--------------------------------------
+Loading model: tiny
+Model loaded successfully
+ * Running on http://0.0.0.0:5000
+--------------------------------------
+
+⚠️ 重要：保持窗口打开，不要关闭！
+
+
+【文件说明】
+
+whisper_server.py       - 核心服务程序
+使用说明.md             - 详细使用文档（推荐阅读）
+install_and_start.bat   - Windows一键启动
+test_whisper.py         - 测试转录功能
+
+
+【详细说明】
+
+请打开查看：使用说明.md
+
+包含：
+- 每一步的详细解释
+- 文件作用说明
+- 常见问题解答
+- 性能参数
+
+
+========================================
+现在就开始吧！
+========================================
+
+1. 打开命令行（Win+R，输入cmd，回车）
+2. 复制粘贴以下命令：
+
+cd C:\smartclassv2\RuoYi-Vue-master\whisper-service
+pip install openai-whisper flask flask-cors
+python whisper_server.py
+
+3. 等待启动完成
+4. 保持窗口打开
+5. 启动Java后端
+6. 开始使用！
+
