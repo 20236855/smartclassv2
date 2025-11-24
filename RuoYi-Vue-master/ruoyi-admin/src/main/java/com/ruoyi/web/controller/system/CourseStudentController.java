@@ -4,6 +4,7 @@ import java.util.List;
 import javax.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -34,6 +35,24 @@ public class CourseStudentController extends BaseController
     @Autowired
     private ICourseStudentService courseStudentService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /**
+     * 根据 sys_user_id 查询 user 表的 id
+     * @param sysUserId sys_user 表的 user_id
+     * @return user 表的 id，如果不存在返回 null
+     */
+    private Long getUserIdBySysUserId(Long sysUserId) {
+        try {
+            String sql = "SELECT id FROM user WHERE sys_user_id = ?";
+            return jdbcTemplate.queryForObject(sql, Long.class, sysUserId);
+        } catch (Exception e) {
+            logger.error("查询 user.id 失败，sys_user_id: {}", sysUserId, e);
+            return null;
+        }
+    }
+
     /**
      * ⭐【关键修改】将/my-courses接口调整到/{id}接口之前，解决路由冲突
      * 查询当前登录学生已选上的所有课程
@@ -41,7 +60,17 @@ public class CourseStudentController extends BaseController
     @GetMapping("/my-courses")
     public AjaxResult getMyCourses()
     {
-        Long studentUserId = getUserId();
+        // 获取当前登录用户的 sys_user.user_id
+        Long sysUserId = getUserId();
+
+        // 查询对应的 user.id
+        Long studentUserId = getUserIdBySysUserId(sysUserId);
+
+        if (studentUserId == null) {
+            logger.warn("用户 sys_user_id={} 在 user 表中不存在", sysUserId);
+            return AjaxResult.success(new java.util.ArrayList<>());  // 返回空列表
+        }
+
         List<com.ruoyi.system.domain.Course> list = courseStudentService.selectMyCoursesByStudentId(studentUserId);
         return AjaxResult.success(list);
     }
@@ -122,7 +151,15 @@ public class CourseStudentController extends BaseController
     @DeleteMapping("/withdraw/{courseId}")
     public AjaxResult withdrawCourse(@PathVariable("courseId") Long courseId)
     {
-        Long studentUserId = getUserId();
+        // 获取当前登录用户的 sys_user.user_id
+        Long sysUserId = getUserId();
+
+        // 查询对应的 user.id
+        Long studentUserId = getUserIdBySysUserId(sysUserId);
+
+        if (studentUserId == null) {
+            return error("用户信息不存在，请联系管理员");
+        }
 
         // 1. 查询该学生是否选了这门课
         CourseStudent query = new CourseStudent();

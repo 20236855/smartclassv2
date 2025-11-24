@@ -193,8 +193,9 @@
 </template>
 
 <script>
-import { listCourse, getCourse, delCourse, addCourse, updateCourse } from "@/api/system/course";
-import KnowledgeGraphView from './components/KnowledgeGraphView'
+import { listCourse, joinCourse } from "@/api/system/course";
+// 确认 applyRequest 是从 request.js 中导入的
+import { applyRequest } from "@/api/system/request";
 
 export default {
   name: "Course",
@@ -301,11 +302,12 @@ export default {
       this.resetForm("queryForm");
       this.handleQuery();
     },
-    // 多选框选中数据
-    handleSelectionChange(selection) {
-      this.ids = selection.map(item => item.id)
-      this.single = selection.length!==1
-      this.multiple = !selection.length
+    /** 判断课程是否已结束 */
+    isCourseEnded(course) {
+      if (!course.endTime) return false;
+      const now = new Date();
+      const endTime = new Date(course.endTime);
+      return endTime < now;
     },
     /** 新增按钮操作 */
     handleAdd() {
@@ -313,63 +315,69 @@ export default {
       this.open = true;
       this.title = "添加课程";
     },
-    /** 修改按钮操作 */
-    handleUpdate(row) {
-      this.reset();
-      const id = row.id || this.ids
-      getCourse(id).then(response => {
-        this.form = response.data;
-        this.open = true;
-        this.title = "修改课程";
-        this.activeTab = 'basic';
-      });
+
+    /** 获取课程按钮图标 */
+    getCourseButtonIcon(course) {
+      return this.isCourseEnded(course) ? 'el-icon-check' : 'el-icon-plus';
     },
-    /** 知识图谱按钮操作 */
-    handleKnowledgeGraph(row) {
-      this.reset();
-      const id = row.id || this.ids
-      getCourse(id).then(response => {
-        this.form = response.data;
-        this.open = true;
-        this.title = "课程知识图谱详情";
-        this.activeTab = 'graph';
-      });
+
+    /** 获取课程按钮文本 */
+    getCourseButtonText(course) {
+      return this.isCourseEnded(course) ? '直接加入' : '申请选课';
     },
-    /** 提交按钮 */
-    submitForm() {
-      this.$refs["form"].validate(valid => {
-        if (valid) {
-          if (this.form.id != null) {
-            updateCourse(this.form).then(response => {
-              this.$modal.msgSuccess("修改成功");
-              this.open = false;
-              this.getList();
-            });
-          } else {
-            addCourse(this.form).then(response => {
-              this.$modal.msgSuccess("新增成功");
-              this.open = false;
-              this.getList();
-            });
-          }
-        }
-      });
+
+    /** 智能课程操作 */
+    handleCourseAction(course) {
+      if (!course || !course.id) return;
+
+      if (this.isCourseEnded(course)) {
+        // 课程已结束，直接加入
+        this.handleDirectJoin(course);
+      } else {
+        // 课程未结束，申请选课
+        this.handleApply(course);
+      }
     },
-    /** 删除按钮操作 */
-    handleDelete(row) {
-      const ids = row.id || this.ids;
-      this.$modal.confirm('是否确认删除课程编号为"' + ids + '"的数据项？').then(function() {
-        return delCourse(ids);
+
+    /** 直接加入课程（已结束课程） */
+    handleDirectJoin(course) {
+      this.$modal.confirm(`课程《${course.title}》已结束，确认要直接加入我的课程吗？`).then(() => {
+        this.applyLoadingId = course.id;
+        return joinCourse(course.id);
       }).then(() => {
-        this.getList();
-        this.$modal.msgSuccess("删除成功");
-      }).catch(() => {});
+        this.$modal.msgSuccess("课程已直接加入您的课程列表");
+        if(this.drawerVisible) {
+          this.drawerVisible = false;
+        }
+      }).catch(() => {
+        // 用户点击取消，不做任何事
+      }).finally(() => {
+        this.applyLoadingId = null;
+      });
     },
-    /** 导出按钮操作 */
-    handleExport() {
-      this.download('system/course/export', {
-        ...this.queryParams
-      }, `course_${new Date().getTime()}.xlsx`)
+
+    /** 申请选课（未结束课程） */
+    handleApply(course) {
+      if (!course || !course.id) return;
+      this.$modal.confirm(`确认要申请选修《${course.title}》这门课程吗？`).then(() => {
+        this.applyLoadingId = course.id;
+        //【关键修改】: 第一个参数是ID，第二个是请求体
+        return applyRequest(course.id, {});
+      }).then(() => {
+        this.$modal.msgSuccess("选课申请已提交，请等待审核");
+        if(this.drawerVisible) {
+          this.drawerVisible = false;
+        }
+      }).catch(() => {
+        // 用户点击取消，不做任何事
+      }).finally(() => {
+        this.applyLoadingId = null;
+      });
+    },
+    /** 显示课程详情抽屉 */
+    showCourseDetail(course) {
+      this.selectedCourse = course;
+      this.drawerVisible = true;
     }
   }
 };

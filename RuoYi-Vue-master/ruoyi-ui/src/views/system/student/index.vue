@@ -159,7 +159,9 @@ export default {
      * 跳转到课程中心
      */
     goToCourseCenter() {
-      this.$router.push({ path: '/course/center' });
+      // ⭐ 修正路由路径：根据菜单配置 (menu_id=2006, path='course', parent='系统管理')
+      // 完整路径是 /system/course
+      this.$router.push({ path: '/system/course' });
     },
 
     /**

@@ -1,1136 +1,1087 @@
 <template>
-  <div class="app-container home">
-    <el-row :gutter="20">
-      <el-col :sm="24" :lg="12" style="padding-left: 20px">
-        <h2>若依后台管理框架</h2>
-        <p>
-          一直想做一款后台管理系统，看了很多优秀的开源项目但是发现没有合适自己的。于是利用空闲休息时间开始自己写一套后台系统。如此有了若依管理系统，她可以用于所有的Web应用程序，如网站管理后台，网站会员中心，CMS，CRM，OA等等，当然，您也可以对她进行深度定制，以做出更强系统。所有前端后台代码封装过后十分精简易上手，出错概率低。同时支持移动客户端访问。系统会陆续更新一些实用功能。
-        </p>
-        <p>
-          <b>当前版本:</b> <span>v{{ version }}</span>
-        </p>
-        <p>
-          <el-tag type="danger">&yen;免费开源</el-tag>
-        </p>
-        <p>
-          <el-button
-            type="primary"
-            size="mini"
-            icon="el-icon-cloudy"
-            plain
-            @click="goTarget('https://gitee.com/y_project/RuoYi-Vue')"
-            >访问码云</el-button
-          >
-          <el-button
-            size="mini"
-            icon="el-icon-s-home"
-            plain
-            @click="goTarget('http://ruoyi.vip')"
-            >访问主页</el-button
-          >
-        </p>
-      </el-col>
-
-      <el-col :sm="24" :lg="12" style="padding-left: 50px">
-        <el-row>
-          <el-col :span="12">
-            <h2>技术选型</h2>
-          </el-col>
-        </el-row>
-        <el-row>
-          <el-col :span="6">
-            <h4>后端技术</h4>
-            <ul>
-              <li>SpringBoot</li>
-              <li>Spring Security</li>
-              <li>JWT</li>
-              <li>MyBatis</li>
-              <li>Druid</li>
-              <li>Fastjson</li>
-              <li>...</li>
-            </ul>
-          </el-col>
-          <el-col :span="6">
-            <h4>前端技术</h4>
-            <ul>
-              <li>Vue</li>
-              <li>Vuex</li>
-              <li>Element-ui</li>
-              <li>Axios</li>
-              <li>Sass</li>
-              <li>Quill</li>
-              <li>...</li>
-            </ul>
-          </el-col>
-        </el-row>
-      </el-col>
-    </el-row>
-    <el-divider />
-    <el-row :gutter="20">
-      <el-col :xs="24" :sm="24" :md="12" :lg="8">
-        <el-card class="update-log">
-          <div slot="header" class="clearfix">
-            <span>联系信息</span>
+  <div class="home-container">
+    <!-- 内容层 -->
+    <div class="content-layer">
+      <!-- 顶部第一行：左时钟日期 / 中文字 -->
+      <div class="top-card">
+        <!-- 左：时钟 -->
+        <div class="clock-display">
+          <div class="clock-circle">
+            <div class="clock-face">
+              <div class="hand hour-hand" :style="{ transform: `rotate(${hourDeg}deg)` }"></div>
+              <div class="hand minute-hand" :style="{ transform: `rotate(${minuteDeg}deg)` }"></div>
+              <div class="hand second-hand" :style="{ transform: `rotate(${secondDeg}deg)` }"></div>
+              <div class="clock-center"></div>
+            </div>
           </div>
-          <div class="body">
-            <p>
-              <i class="el-icon-s-promotion"></i> 官网：<el-link
-                href="http://www.ruoyi.vip"
-                target="_blank"
-                >http://www.ruoyi.vip</el-link
-              >
-            </p>
-            <p>
-              <i class="el-icon-user-solid"></i> QQ群：<s> 满937441 </s> <s> 满887144332 </s>
-              <s> 满180251782 </s> <s> 满104180207 </s> <s> 满186866453 </s> <s> 满201396349 </s>
-              <s> 满101456076 </s> <s> 满101539465 </s> <s> 满264312783 </s> <s> 满167385320 </s> 
-              <s> 满104748341 </s> <s> 满160110482 </s> <s> 满170801498 </s> <s> 满108482800 </s> 
-              <s> 满101046199 </s> <s> 满136919097 </s> <s> 满143961921 </s> <s> 满174951577 </s> 
-              <s> 满161281055 </s> <s> 满138988063 </s> <s> 满151450850 </s> <s> 满224622315 </s>
-              <s> 满287842588 </s> <s> 满187944233 </s> <a href="http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=G6r5KGCaa3pqdbUSXNIgYloyb8e0_L0D&authKey=4w8tF1eGW7%2FedWn%2FHAypQksdrML%2BDHolQSx7094Agm7Luakj9EbfPnSTxSi2T1LQ&noverify=0&group_code=228578329" target="_blank">228578329</a>
-            </p>
-            <p>
-              <i class="el-icon-chat-dot-round"></i> 微信：<a
-                href="javascript:;"
-                >/ *若依</a
-              >
-            </p>
-            <p>
-              <i class="el-icon-money"></i> 支付宝：<a
-                href="javascript:;"
-                class="支付宝信息"
-                >/ *若依</a
-              >
-            </p>
+          <div class="time">{{ currentTime }}</div>
+        </div>
+
+        <!-- 中：欢迎文字 -->
+        <div class="welcome-text">
+          <div class="welcome-header">
+            <div class="welcome-sub">{{ currentMotto }}</div>
           </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="24" :md="12" :lg="8">
-        <el-card class="update-log">
-          <div slot="header" class="clearfix">
-            <span>更新日志</span>
+        </div>
+      </div>
+
+      <!-- 第二行：左 日历 / 右 视频 (比例1:2) -->
+      <div class="second-row">
+        <!-- 左列：日历 -->
+        <div class="calendar-card-left">
+          <div class="calendar-header">
+            <button class="calendar-nav" @click="prevMonth">
+              <i class="el-icon-arrow-left"></i>
+            </button>
+            <div class="calendar-title">{{ calendarYear }}年{{ calendarMonth }}月</div>
+            <button class="calendar-nav" @click="nextMonth">
+              <i class="el-icon-arrow-right"></i>
+            </button>
           </div>
-          <el-collapse accordion>
-            <el-collapse-item title="v3.9.0 - 2025-05-28">
-              <ol>
-                <li>优化菜单搜索查询页</li>
-                <li>导航栏显示昵称&设置</li>
-                <li>菜单管理新增路由名称</li>
-                <li>添加底部版权信息&开关</li>
-                <li>分配角色禁用不允许勾选</li>
-                <li>Excel导入导出支持多图片</li>
-                <li>添加页签图标显示开关功能</li>
-                <li>上传组件新增拖动排序属性</li>
-                <li>显隐列组件支持全选/全不选</li>
-                <li>初始密码支持自定义修改策略</li>
-                <li>账号密码支持自定义更新周期</li>
-                <li>代码生成列表支持按时间排序</li>
-                <li>支持富文本复制粘贴图片上传至url</li>
-                <li>支持文件&图片组件自定义地址&参数</li>
-                <li>升级tomcat到最新版本9.0.105</li>
-                <li>升级oshi到最新版本6.8.1</li>
-                <li>升级fastjson到最新版2.0.57</li>
-                <li>升级commons.io到最新版本2.19.0</li>
-                <li>package.json移除runjs依赖</li>
-                <li>package.json移除eslint依赖</li>
-                <li>package.json移除vue-meta依赖</li>
-                <li>修复代码生成主子表校验必填失效问题</li>
-                <li>优化前端树结构性能问题</li>
-                <li>优化前端处理路由函数代码</li>
-                <li>优化文件上传组件新增类型</li>
-                <li>优化顶部菜单搜索栏为多层级显示</li>
-                <li>优化文件&图片上传组件新增disabled属性</li>
-                <li>优化空指针异常时无法获取错误信息问题</li>
-                <li>优化定时任务字符包含多个括号导致数据错误</li>
-                <li>优化登录&注册页表头使用VUE_APP_TITLE配置值</li>
-                <li>优化导出Excel日期格式双击离开后与设定的格式不一致问题</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.9 - 2024-12-30">
-              <ol>
-                <li>用户管理支持分栏拖动</li>
-                <li>修改主题样式本地读取</li>
-                <li>用户头像http(s)链接支持</li>
-                <li>用户管理过滤掉已禁用部门</li>
-                <li>支持自定义显示Excel属性列</li>
-                <li>操作日志记录DELETE请求参数</li>
-                <li>白名单支持对通配符路径匹配</li>
-                <li>校检文件名是否包含特殊字符</li>
-                <li>代码生成创建表屏蔽违规的字符</li>
-                <li>菜单面包屑导航支持多层级显示</li>
-                <li>Excel注解支持wrapText是否允许内容换行</li>
-                <li>代码生成新增配置是否允许文件覆盖到本地</li>
-                <li>修复角色禁用权限不失效问题</li>
-                <li>修复代码生成上级菜单显示问题</li>
-                <li>修复导出子列表对象只能在最后的问题</li>
-                <li>修复TopNav无法正确获取active的问题</li>
-                <li>修复默认关闭Tags-Views内链页面打不开</li>
-                <li>升级oshi到最新版本6.6.5</li>
-                <li>升级tomcat到最新版本9.0.96</li>
-                <li>升级fastjson到最新版2.0.53</li>
-                <li>升级logback到最新版本1.2.13</li>
-                <li>升级spring-framework到最新版本5.3.39</li>
-                <li>升级quill到最新版本2.0.2</li>
-                <li>升级axios到最新版本0.28.1</li>
-                <li>优化身份证脱敏正则</li>
-                <li>优化权限更新后同步缓存</li>
-                <li>优化查询时间范围日期格式</li>
-                <li>优化参数键值更换为多行文本</li>
-                <li>优化导入带标题文件关闭清理</li>
-                <li>优化上传图片带域名不增加前缀</li>
-                <li>优化特殊字符密码修改失败问题</li>
-                <li>优化无用户编号不校验数据权限</li>
-                <li>优化TopNav内链菜单点击没有高亮</li>
-                <li>优化菜单管理切换Mini布局错乱问题</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.8 - 2024-06-30">
-              <ol>
-                <li>菜单管理新增路由名称</li>
-                <li>新增数据脱敏过滤注解</li>
-                <li>用户密码新增非法字符验证</li>
-                <li>限制用户操作数据权限范围</li>
-                <li>代码生成新增创建表结构功能</li>
-                <li>定时任务白名单配置范围缩小</li>
-                <li>优化代码生成主子表关联查询方式</li>
-                <li>Excel注解新增属性comboReadDict</li>
-                <li>Excel注解ColumnType类型新增文本</li>
-                <li>新增国际化资源文件配置</li>
-                <li>升级oshi到最新版本6.6.1</li>
-                <li>升级druid到最新版本1.2.23</li>
-                <li>升级core-js到最新版本3.37.1</li>
-                <li>更新HttpUtils中的User-Agent</li>
-                <li>更新compressionPlugin到6.1.2以兼容node18+</li>
-                <li>升级spring-security到安全版本，防止漏洞风险</li>
-                <li>升级spring-framework到安全版本，防止漏洞风险</li>
-                <li>优化自定义XSS注解匹配方式</li>
-                <li>优化缓存监控键名列表排序显示</li>
-                <li>优化定时任务日志默认按时间排序</li>
-                <li>优化默认文件大小超过2G无效的问题</li>
-                <li>优化查表特殊字符使用反斜杠进行转义</li>
-                <li>优化定时任务cron表达式小时配置显示错误问题</li>
-                <li>优化多个自定数据权限使用in查询,避免多次拼接</li>
-                <li>优化导入Excel时设置dictType属性重复查缓存问题</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.7 - 2023-12-08">
-              <ol>
-                <li>操作日志记录部门名称</li>
-                <li>全局数据存储用户编号</li>
-                <li>新增编程式判断资源访问权限</li>
-                <li>操作日志列表新增IP地址查询</li>
-                <li>定时任务新增页去除状态选项</li>
-                <li>代码生成支持选择前端模板类型</li>
-                <li>显隐列组件支持复选框弹出类型</li>
-                <li>通用排序属性orderBy参数限制长度</li>
-                <li>Excel自定义数据处理器增加单元格/工作簿对象</li>
-                <li>升级oshi到最新版本6.4.8</li>
-                <li>升级druid到最新版本1.2.20</li>
-                <li>升级fastjson到最新版2.0.43</li>
-                <li>升级pagehelper到最新版1.4.7</li>
-                <li>升级commons.io到最新版本2.13.0</li>
-                <li>升级element-ui到最新版本2.15.14</li>
-                <li>修复五级路由缓存无效问题</li>
-                <li>修复外链带端口出现的异常</li>
-                <li>修复树模板父级编码变量错误</li>
-                <li>修复字典表详情页面搜索问题</li>
-                <li>修复内链iframe没有传递参数问题</li>
-                <li>修复自定义字典样式不生效的问题</li>
-                <li>修复字典缓存删除方法参数错误问题</li>
-                <li>修复Excel导入数据临时文件无法删除问题</li>
-                <li>修复未登录带参数访问成功后参数丢失问题</li>
-                <li>修复HeaderSearch组件跳转query参数丢失问题</li>
-                <li>修复代码生成导入后必填项与数据库不匹配问题</li>
-                <li>修复Excels导入时无法获取到dictType字典值问题</li>
-                <li>优化下载zip方法新增遮罩层</li>
-                <li>优化头像上传参数新增文件名称</li>
-                <li>优化字典标签支持自定义分隔符</li>
-                <li>优化菜单管理类型为按钮状态可选</li>
-                <li>优化前端防重复提交数据大小限制</li>
-                <li>优化TopNav菜单没有图标svg不显示</li>
-                <li>优化数字金额大写转换精度丢失问题</li>
-                <li>优化富文本Editor组件检验图片格式</li>
-                <li>优化页签在Firefox浏览器被遮挡的问题</li>
-                <li>优化个人中心/基本资料修改时数据显示问题</li>
-                <li>优化缓存监控图表支持跟随屏幕大小自适应调整</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.6 - 2023-06-30">
-              <ol>
-                <li>支持登录IP黑名单限制</li>
-                <li>新增监控页面图标显示</li>
-                <li>操作日志新增消耗时间属性</li>
-                <li>屏蔽定时任务bean违规的字符</li>
-                <li>日志管理使用索引提升查询性能</li>
-                <li>日志注解支持排除指定的请求参数</li>
-                <li>支持自定义隐藏属性列过滤子对象</li>
-                <li>升级oshi到最新版本6.4.3</li>
-                <li>升级druid到最新版本1.2.16</li>
-                <li>升级fastjson到最新版2.0.34</li>
-                <li>升级spring-boot到最新版本2.5.15</li>
-                <li>升级element-ui到最新版本2.15.13</li>
-                <li>移除apache/commons-fileupload依赖</li>
-                <li>修复页面切换时布局错乱的问题</li>
-                <li>修复匿名注解Anonymous空指针问题</li>
-                <li>修复路由跳转被阻止时内部产生报错信息问题</li>
-                <li>修复isMatchedIp的参数判断产生空指针的问题</li>
-                <li>修复用户多角色数据权限可能出现权限抬升的情况</li>
-                <li>修复开启TopNav后一级菜单路由参数设置无效问题</li>
-                <li>修复DictTag组件value没有匹配的值时则展示value</li>
-                <li>优化文件下载出现的异常</li>
-                <li>优化选择图标组件高亮回显</li>
-                <li>优化弹窗后导航栏偏移的问题</li>
-                <li>优化修改密码日志存储明文问题</li>
-                <li>优化页签栏关闭其他出现的异常问题</li>
-                <li>优化页签关闭左侧选项排除首页选项</li>
-                <li>优化关闭当前tab页跳转最右侧tab页</li>
-                <li>优化缓存列表清除操作提示不变的问题</li>
-                <li>优化字符未使用下划线不进行驼峰式处理</li>
-                <li>优化用户导入更新时需获取用户编号问题</li>
-                <li>优化侧边栏的平台标题与VUE_APP_TITLE保持同步</li>
-                <li>优化导出Excel时设置dictType属性重复查缓存问题</li>
-                <li>连接池Druid支持新的配置connectTimeout和socketTimeout</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.5 - 2023-01-01">
-              <ol>
-                <li>定时任务违规的字符</li>
-                <li>重置时取消部门选中</li>
-                <li>新增返回警告消息提示</li>
-                <li>忽略不必要的属性数据返回</li>
-                <li>修改参数键名时移除前缓存配置</li>
-                <li>导入更新用户数据前校验数据权限</li>
-                <li>兼容Excel下拉框内容过多无法显示的问题</li>
-                <li>升级echarts到最新版本5.4.0</li>
-                <li>升级core-js到最新版本3.25.3</li>
-                <li>升级oshi到最新版本6.4.0</li>
-                <li>升级kaptcha到最新版2.3.3</li>
-                <li>升级druid到最新版本1.2.15</li>
-                <li>升级fastjson到最新版2.0.20</li>
-                <li>升级pagehelper到最新版1.4.6</li>
-                <li>优化弹窗内容过多展示不全问题</li>
-                <li>优化swagger-ui静态资源使用缓存</li>
-                <li>开启TopNav没有子菜单隐藏侧边栏</li>
-                <li>删除fuse无效选项maxPatternLength</li>
-                <li>优化导出对象的子列表为空会出现[]问题</li>
-                <li>优化编辑头像时透明部分会变成黑色问题</li>
-                <li>优化小屏幕上修改头像界面布局错位的问题</li>
-                <li>修复代码生成勾选属性无效问题</li>
-                <li>修复文件上传组件格式验证问题</li>
-                <li>修复回显数据字典数组异常问题</li>
-                <li>修复sheet超出最大行数异常问题</li>
-                <li>修复Log注解GET请求记录不到参数问题</li>
-                <li>修复调度日志点击多次数据不变化的问题</li>
-                <li>修复主题颜色在Drawer组件不会加载问题</li>
-                <li>修复文件名包含特殊字符的文件无法下载问题</li>
-                <li>修复table中更多按钮切换主题色未生效修复问题</li>
-                <li>修复某些特性的环境生成代码变乱码TXT文件问题</li>
-                <li>修复代码生成图片/文件/单选时选择必填无法校验问题</li>
-                <li>修复某些特性的情况用户编辑对话框中角色和部门无法修改问题</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.4 - 2022-09-26">
-              <ol>
-                <li>数据逻辑删除不进行唯一验证</li>
-                <li>Excel注解支持导出对象的子列表方法</li>
-                <li>Excel注解支持自定义隐藏属性列</li>
-                <li>Excel注解支持backgroundColor属性设置背景色</li>
-                <li>支持配置密码最大错误次数/锁定时间</li>
-                <li>登录日志新增解锁账户功能</li>
-                <li>通用下载方法新增config配置选项</li>
-                <li>支持多权限字符匹配角色数据权限</li>
-                <li>页面内嵌iframe切换tab不刷新数据</li>
-                <li>操作日志记录支持排除敏感属性字段</li>
-                <li>修复多文件上传报错出现的异常问题</li>
-                <li>修复图片预览组件src属性为null值控制台报错问题</li>
-                <li>升级oshi到最新版本6.2.2</li>
-                <li>升级fastjson到最新版2.0.14</li>
-                <li>升级pagehelper到最新版1.4.3</li>
-                <li>升级core-js到最新版本3.25.2</li>
-                <li>升级element-ui到最新版本2.15.10</li>
-                <li>优化任务过期不执行调度</li>
-                <li>优化字典数据使用store存取</li>
-                <li>优化修改资料头像被覆盖的问题</li>
-                <li>优化修改用户登录账号重复验证</li>
-                <li>优化代码生成同步后值NULL问题</li>
-                <li>优化定时任务支持执行父类方法</li>
-                <li>优化用户个人信息接口防止修改部门</li>
-                <li>优化布局设置使用el-drawer抽屉显示</li>
-                <li>优化没有权限的用户编辑部门缺少数据</li>
-                <li>优化日志注解记录限制请求地址的长度</li>
-                <li>优化excel/scale属性导出单元格数值类型</li>
-                <li>优化日志操作中重置按钮时重复查询的问题</li>
-                <li>优化多个相同角色数据导致权限SQL重复问题</li>
-                <li>优化表格上右侧工具条（搜索按钮显隐&右侧样式凸出）</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.3 - 2022-06-27">
-              <ol>
-                <li>新增缓存列表菜单功能</li>
-                <li>代码生成树表新增(展开/折叠)</li>
-                <li>Excel注解支持color字体颜色</li>
-                <li>新增Anonymous匿名访问不鉴权注解</li>
-                <li>用户头像上传限制只能为图片格式</li>
-                <li>接口使用泛型使其看到响应属性字段</li>
-                <li>检查定时任务bean所在包名是否为白名单配置</li>
-                <li>添加页签openPage支持传递参数</li>
-                <li>用户缓存信息添加部门ancestors祖级列表</li>
-                <li>升级element-ui到最新版本2.15.8</li>
-                <li>升级oshi到最新版本6.1.6</li>
-                <li>升级druid到最新版本1.2.11</li>
-                <li>升级fastjson到最新版2.0.8</li>
-                <li>升级spring-boot到最新版本2.5.14</li>
-                <li>降级jsencrypt版本兼容IE浏览器</li>
-                <li>删除多余的salt字段</li>
-                <li>新增获取不带后缀文件名称方法</li>
-                <li>新增获取配置文件中的属性值方法</li>
-                <li>新增内容编码/解码方便插件集成使用</li>
-                <li>字典类型必须以字母开头，且只能为（小写字母，数字，下滑线）</li>
-                <li>优化设置分页参数默认值</li>
-                <li>优化对空字符串参数处理的过滤</li>
-                <li>优化显示顺序orderNum类型为整型</li>
-                <li>优化表单构建按钮不显示正则校验</li>
-                <li>优化字典数据回显样式下拉框显示值</li>
-                <li>优化R响应成功状态码与全局保持一致</li>
-                <li>优化druid开启wall过滤器出现的异常问题</li>
-                <li>优化用户管理左侧树型组件增加选中高亮保持</li>
-                <li>优化新增用户与角色信息&用户与岗位信息逻辑</li>
-                <li>优化默认不启用压缩文件缓存防止node_modules过大</li>
-                <li>修复字典数据显示不全问题</li>
-                <li>修复操作日志查询类型条件为0时会查到所有数据</li>
-                <li>修复Excel注解prompt/combo同时使用不生效问题</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.2 - 2022-04-01">
-              <ol>
-                <li>前端支持设置是否需要防止数据重复提交</li>
-                <li>开启TopNav没有子菜单情况隐藏侧边栏</li>
-                <li>侧边栏菜单名称过长悬停显示标题</li>
-                <li>用户访问控制时校验数据权限，防止越权</li>
-                <li>导出Excel时屏蔽公式，防止CSV注入风险</li>
-                <li>组件ImagePreview支持多图预览显示</li>
-                <li>组件ImageUpload支持多图同时选择上传</li>
-                <li>组件FileUpload支持多文件同时选择上传</li>
-                <li>服务监控新增运行参数信息显示</li>
-                <li>定时任务目标字符串过滤特殊字符</li>
-                <li>定时任务目标字符串验证包名白名单</li>
-                <li>代码生成列表图片支持预览</li>
-                <li>代码生成编辑修改打开新页签</li>
-                <li>代码生成新增Java类型Boolean</li>
-                <li>代码生成子表支持日期/字典配置</li>
-                <li>代码生成同步保留必填/类型选项</li>
-                <li>升级oshi到最新版本6.1.2</li>
-                <li>升级fastjson到最新版1.2.80</li>
-                <li>升级pagehelper到最新版1.4.1</li>
-                <li>升级spring-boot到最新版本2.5.11</li>
-                <li>升级spring-boot-mybatis到最新版2.2.2</li>
-                <li>添加遗漏的分页参数合理化属性</li>
-                <li>修改npm即将过期的注册源地址</li>
-                <li>修复分页组件请求两次问题</li>
-                <li>修复通用文件下载接口跨域问题</li>
-                <li>修复Xss注解字段值为空时的异常问题</li>
-                <li>修复选项卡点击右键刷新丢失参数问题</li>
-                <li>修复表单清除元素位置未垂直居中问题</li>
-                <li>修复服务监控中运行参数显示条件错误</li>
-                <li>修复导入Excel时字典字段类型为Long转义为空问题</li>
-                <li>修复登录超时刷新页面跳转登录页面还提示重新登录问题</li>
-                <li>优化加载字典缓存数据</li>
-                <li>优化IP地址获取到多个的问题</li>
-                <li>优化任务队列满时任务拒绝策略</li>
-                <li>优化文件上传兼容Weblogic环境</li>
-                <li>优化定时任务默认保存到内存中执行</li>
-                <li>优化部门修改缩放后出现的错位问题</li>
-                <li>优化Excel格式化不同类型的日期对象</li>
-                <li>优化菜单表关键字导致的插件报错问题</li>
-                <li>优化Oracle用户头像列为空时不显示问题</li>
-                <li>优化页面若未匹配到字典标签则返回原字典值</li>
-                <li>优化修复登录失效后多次请求提示多次弹窗问题</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.1 - 2022-01-01">
-              <ol>
-                <li>新增Vue3前端代码生成模板</li>
-                <li>新增图片预览组件</li>
-                <li>新增压缩插件实现打包Gzip</li>
-                <li>自定义xss校验注解实现</li>
-                <li>自定义文字复制剪贴指令</li>
-                <li>代码生成预览支持复制内容</li>
-                <li>路由支持单独配置菜单或角色权限</li>
-                <li>用户管理部门查询选择节点后分页参数初始</li>
-                <li>修复用户分配角色属性错误</li>
-                <li>修复打包后字体图标偶现的乱码问题</li>
-                <li>修复菜单管理重置表单出现的错误</li>
-                <li>修复版本差异导致的懒加载报错问题</li>
-                <li>修复Cron组件中周回显问题</li>
-                <li>修复定时任务多参数逗号分隔的问题</li>
-                <li>修复根据ID查询列表可能出现的主键溢出问题</li>
-                <li>修复tomcat配置参数已过期问题</li>
-                <li>升级clipboard到最新版本2.0.8</li>
-                <li>升级oshi到最新版本v5.8.6</li>
-                <li>升级fastjson到最新版1.2.79</li>
-                <li>升级spring-boot到最新版本2.5.8</li>
-                <li>升级log4j2到2.17.1，防止漏洞风险</li>
-                <li>优化下载解析blob异常提示</li>
-                <li>优化代码生成字典组重复问题</li>
-                <li>优化查询用户的角色组&岗位组代码</li>
-                <li>优化定时任务cron表达式小时设置24</li>
-                <li>优化用户导入提示溢出则显示滚动条</li>
-                <li>优化防重复提交标识组合为(key+url+header)</li>
-                <li>优化分页方法设置成通用方便灵活调用</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.8.0 - 2021-12-01">
-              <ol>
-                <li>新增配套并同步的Vue3前端版本</li>
-                <li>新增通用方法简化模态/缓存/下载/权限/页签使用</li>
-                <li>优化导出数据/使用通用下载方法</li>
-                <li>Excel注解支持自定义数据处理器</li>
-                <li>Excel注解支持导入导出标题信息</li>
-                <li>Excel导入支持@Excels注解</li>
-                <li>新增组件data-dict，简化数据字典使用</li>
-                <li>新增Jaxb依赖，防止jdk8以上出现的兼容错误</li>
-                <li>生产环境使用路由懒加载提升页面响应速度</li>
-                <li>修复五级以上菜单出现的404问题</li>
-                <li>防重提交注解支持配置间隔时间/提示消息</li>
-                <li>日志注解新增是否保存响应参数</li>
-                <li>任务屏蔽违规字符&参数忽略双引号中的逗号</li>
-                <li>升级SpringBoot到最新版本2.5.6</li>
-                <li>升级pagehelper到最新版1.4.0</li>
-                <li>升级spring-boot-mybatis到最新版2.2.0</li>
-                <li>升级oshi到最新版本v5.8.2</li>
-                <li>升级druid到最新版1.2.8</li>
-                <li>升级velocity到最新版本2.3</li>
-                <li>升级fastjson到最新版1.2.78</li>
-                <li>升级axios到最新版本0.24.0</li>
-                <li>升级dart-sass到版本1.32.13</li>
-                <li>升级core-js到最新版本3.19.1</li>
-                <li>升级jsencrypt到最新版本3.2.1</li>
-                <li>升级js-cookie到最新版本3.0.1</li>
-                <li>升级file-saver到最新版本2.0.5</li>
-                <li>升级sass-loader到最新版本10.1.1</li>
-                <li>升级element-ui到最新版本2.15.6</li>
-                <li>新增sendGet无参请求方法</li>
-                <li>禁用el-tag组件的渐变动画</li>
-                <li>代码生成点击预览重置激活tab</li>
-                <li>AjaxResult重写put方法，以方便链式调用</li>
-                <li>优化登录/验证码请求headers不设置token</li>
-                <li>优化用户个人信息接口防止修改用户名</li>
-                <li>优化Cron表达式生成器关闭时销毁避免缓存</li>
-                <li>优化注册成功提示消息类型success</li>
-                <li>优化aop语法，使用spring自动注入注解</li>
-                <li>优化记录登录信息，移除不必要的修改</li>
-                <li>优化mybatis全局默认的执行器</li>
-                <li>优化Excel导入图片可能出现的异常</li>
-                <li>修复代码生成模板主子表删除缺少事务</li>
-                <li>修复日志记录可能出现的转换异常</li>
-                <li>修复代码生成复选框字典遗漏问题</li>
-                <li>修复关闭xss功能导致可重复读RepeatableFilter失效</li>
-                <li>修复字符串无法被反转义问题</li>
-                <li>修复后端主子表代码模板方法名生成错误问题</li>
-                <li>修复xss过滤后格式出现的异常</li>
-                <li>修复swagger没有指定dataTypeClass导致启动出现warn日志</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.7.0 - 2021-09-13">
-              <ol>
-                <li>参数管理支持配置验证码开关</li>
-                <li>新增是否开启用户注册功能</li>
-                <li>定时任务支持在线生成cron表达式</li>
-                <li>菜单管理支持配置路由参数</li>
-                <li>支持自定义注解实现接口限流</li>
-                <li>Excel注解支持Image图片导入</li>
-                <li>自定义弹层溢出滚动样式</li>
-                <li>自定义可拖动弹窗宽度指令</li>
-                <li>自定义可拖动弹窗高度指令</li>
-                <li>修复任意账户越权问题</li>
-                <li>修改时检查用户数据权限范围</li>
-                <li>修复保存配置主题颜色失效问题</li>
-                <li>新增暗色菜单风格主题</li>
-                <li>菜单&部门新增展开/折叠功能</li>
-                <li>页签新增关闭左侧&添加图标</li>
-                <li>顶部菜单排除隐藏的默认路由</li>
-                <li>顶部菜单同步系统主题样式</li>
-                <li>跳转路由高亮相对应的菜单栏</li>
-                <li>代码生成主子表多选行数据</li>
-                <li>日期范围支持添加多组</li>
-                <li>升级element-ui到最新版本2.15.5</li>
-                <li>升级oshi到最新版本v5.8.0</li>
-                <li>升级commons.io到最新版本v2.11.0</li>
-                <li>定时任务屏蔽ldap远程调用</li>
-                <li>定时任务屏蔽http(s)远程调用</li>
-                <li>补充定时任务表字段注释</li>
-                <li>定时任务对检查异常进行事务回滚</li>
-                <li>启用父部门状态排除顶级节点</li>
-                <li>富文本新增上传文件大小限制</li>
-                <li>默认首页使用keep-alive缓存</li>
-                <li>修改代码生成字典回显样式</li>
-                <li>自定义分页合理化传入参数</li>
-                <li>修复字典组件值为整形不显示问题</li>
-                <li>修复定时任务日志执行状态显示</li>
-                <li>角色&菜单新增字段属性提示信息</li>
-                <li>修复角色分配用户页面参数类型错误提醒</li>
-                <li>优化布局设置动画特效</li>
-                <li>优化异常处理信息</li>
-                <li>优化错误token导致的解析异常</li>
-                <li>密码框新增显示切换密码图标</li>
-                <li>定时任务新增更多操作</li>
-                <li>更多操作按钮添加权限控制</li>
-                <li>导入用户样式优化</li>
-                <li>提取通用方法到基类控制器</li>
-                <li>优化使用权限工具获取用户信息</li>
-                <li>优化用户不能删除自己</li>
-                <li>优化XSS跨站脚本过滤</li>
-                <li>优化代码生成模板</li>
-                <li>验证码默认20s超时</li>
-                <li>BLOB下载时清除URL对象引用</li>
-                <li>代码生成导入表按创建时间排序</li>
-                <li>修复代码生成页面数据编辑保存之后总是跳转第一页的问题</li>
-                <li>修复带safari浏览器无法格式化utc日期格式yyyy-MM-dd'T'HH:mm:ss.SSS问题</li>
-                <li>多图上传组件移除多余的api地址&验证失败导致图片删除问题&无法删除相应图片修复</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.6.0 - 2021-07-12">
-              <ol>
-                <li>角色管理新增分配用户功能</li>
-                <li>用户管理新增分配角色功能</li>
-                <li>日志列表支持排序操作</li>
-                <li>优化参数&字典缓存操作</li>
-                <li>系统布局配置支持动态标题开关</li>
-                <li>菜单路由配置支持内链访问</li>
-                <li>默认访问后端首页新增提示语</li>
-                <li>富文本默认上传返回url类型</li>
-                <li>新增自定义弹窗拖拽指令</li>
-                <li>全局注册常用通用组件</li>
-                <li>全局挂载字典标签组件</li>
-                <li>ImageUpload组件支持多图片上传</li>
-                <li>FileUpload组件支持多文件上传</li>
-                <li>文件上传组件添加数量限制属性</li>
-                <li>富文本编辑组件添加类型属性</li>
-                <li>富文本组件工具栏配置视频</li>
-                <li>封装通用iframe组件</li>
-                <li>限制超级管理员不允许操作</li>
-                <li>用户信息长度校验限制</li>
-                <li>分页组件新增pagerCount属性</li>
-                <li>添加bat脚本执行应用</li>
-                <li>升级oshi到最新版本v5.7.4</li>
-                <li>升级element-ui到最新版本2.15.2</li>
-                <li>升级pagehelper到最新版1.3.1</li>
-                <li>升级commons.io到最新版本v2.10.0</li>
-                <li>升级commons.fileupload到最新版本v1.4</li>
-                <li>升级swagger到最新版本v3.0.0</li>
-                <li>修复关闭confirm提示框控制台报错问题</li>
-                <li>修复存在的SQL注入漏洞问题</li>
-                <li>定时任务屏蔽rmi远程调用</li>
-                <li>修复用户搜索分页变量错误</li>
-                <li>修复导出角色数据范围翻译缺少仅本人</li>
-                <li>修复表单构建选择下拉选择控制台报错问题</li>
-                <li>优化图片工具类读取文件</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.5.0 - 2021-05-25">
-              <ol>
-                <li>新增菜单导航显示风格TopNav（false为左侧导航菜单，true为顶部导航菜单）</li>
-                <li>布局设置支持保存&重置配置</li>
-                <li>修复树表数据显示不全&加载慢问题</li>
-                <li>新增IE浏览器版本过低提示页面</li>
-                <li>用户登录后记录最后登录IP&时间</li>
-                <li>页面导出按钮点击之后添加遮罩</li>
-                <li>富文本编辑器支持自定义上传地址</li>
-                <li>富文本编辑组件新增readOnly属性</li>
-                <li>页签TagsView新增关闭右侧功能</li>
-                <li>显隐列组件加载初始默认隐藏列</li>
-                <li>关闭头像上传窗口还原默认图片</li>
-                <li>个人信息添加手机&邮箱重复验证</li>
-                <li>代码生成模板导出按钮点击后添加遮罩</li>
-                <li>代码生成模板树表操作列添加新增按钮</li>
-                <li>代码生成模板修复主子表字段重名问题</li>
-                <li>升级fastjson到最新版1.2.76</li>
-                <li>升级druid到最新版本v1.2.6</li>
-                <li>升级mybatis到最新版3.5.6 阻止远程代码执行漏洞</li>
-                <li>升级oshi到最新版本v5.6.0</li>
-                <li>velocity剔除commons-collections版本，防止3.2.1版本的反序列化漏洞</li>
-                <li>数据监控页默认账户密码防止越权访问</li>
-                <li>修复firefox下表单构建拖拽会新打卡一个选项卡</li>
-                <li>修正后端导入表权限标识</li>
-                <li>修正前端操作日志&登录日志权限标识</li>
-                <li>设置Redis配置HashKey序列化</li>
-                <li>删除操作日志记录信息</li>
-                <li>上传媒体类型添加视频格式</li>
-                <li>修复请求形参未传值记录日志异常问题</li>
-                <li>优化xss校验json请求条件</li>
-                <li>树级结构更新子节点使用replaceFirst</li>
-                <li>优化ExcelUtil空值处理</li>
-                <li>日志记录过滤BindingResult对象，防止异常</li>
-                <li>修改主题后mini类型按钮无效问题</li>
-                <li>优化通用下载完成后删除节点</li>
-                <li>通用Controller添加响应返回消息</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.4.0 - 2021-02-22">
-              <ol>
-                <li>代码生成模板支持主子表</li>
-                <li>表格右侧工具栏组件支持显隐列</li>
-                <li>图片组件添加预览&移除功能</li>
-                <li>Excel注解支持Image图片导出</li>
-                <li>操作按钮组调整为朴素按钮样式</li>
-                <li>代码生成支持文件上传组件</li>
-                <li>代码生成日期控件区分范围</li>
-                <li>代码生成数据库文本类型生成表单文本域</li>
-                <li>用户手机邮箱&菜单组件修改允许空字符串</li>
-                <li>升级SpringBoot到最新版本2.2.13 提升启动速度</li>
-                <li>升级druid到最新版本v1.2.4</li>
-                <li>升级fastjson到最新版1.2.75</li>
-                <li>升级element-ui到最新版本2.15.0</li>
-                <li>修复IE11浏览器报错问题</li>
-                <li>优化多级菜单之间切换无法缓存的问题</li>
-                <li>修复四级菜单无法显示问题</li>
-                <li>修正侧边栏静态路由丢失问题</li>
-                <li>修复角色管理-编辑角色-功能权限显示异常</li>
-                <li>配置文件新增redis数据库索引属性</li>
-                <li>权限工具类增加admin判断</li>
-                <li>角色非自定义权限范围清空选择值</li>
-                <li>修复导入数据为负浮点数时丢失精度问题</li>
-                <li>移除path-to-regexp正则匹配插件</li>
-                <li>修复生成树表代码异常</li>
-                <li>修改ip字段长度防止ipv6地址长度不够</li>
-                <li>防止get请求参数值为false或0等特殊值会导致无法正确的传参</li>
-                <li>登录后push添加catch防止出现检查错误</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.3.0 - 2020-12-14">
-              <ol>
-                <li>新增缓存监控功能</li>
-                <li>支持主题风格配置</li>
-                <li>修复多级菜单之间切换无法缓存的问题</li>
-                <li>多级菜单自动配置组件</li>
-                <li>代码生成预览支持高亮显示</li>
-                <li>支持Get请求映射Params参数</li>
-                <li>删除用户和角色解绑关联</li>
-                <li>去除用户手机邮箱部门必填验证</li>
-                <li>Excel支持注解align对齐方式</li>
-                <li>Excel支持导入Boolean型数据</li>
-                <li>优化头像样式，鼠标移入悬停遮罩</li>
-                <li>代码生成预览提供滚动机制</li>
-                <li>代码生成删除多余的数字float类型</li>
-                <li>修正转换字符串的目标字符集属性</li>
-                <li>回显数据字典防止空值报错</li>
-                <li>日志记录增加过滤多文件场景</li>
-                <li>修改缓存Set方法可能导致嵌套的问题</li>
-                <li>移除前端一些多余的依赖</li>
-                <li>防止安全扫描YUI出现的风险提示</li>
-                <li>修改node-sass为dart-sass</li>
-                <li>升级SpringBoot到最新版本2.1.18</li>
-                <li>升级poi到最新版本4.1.2</li>
-                <li>升级oshi到最新版本v5.3.6</li>
-                <li>升级bitwalker到最新版本1.21</li>
-                <li>升级axios到最新版本0.21.0</li>
-                <li>升级element-ui到最新版本2.14.1</li>
-                <li>升级vue到最新版本2.6.12</li>
-                <li>升级vuex到最新版本3.6.0</li>
-                <li>升级vue-cli到版本4.5.9</li>
-                <li>升级vue-router到最新版本3.4.9</li>
-                <li>升级vue-cli到最新版本4.4.6</li>
-                <li>升级vue-cropper到最新版本0.5.5</li>
-                <li>升级clipboard到最新版本2.0.6</li>
-                <li>升级core-js到最新版本3.8.1</li>
-                <li>升级echarts到最新版本4.9.0</li>
-                <li>升级file-saver到最新版本2.0.4</li>
-                <li>升级fuse.js到最新版本6.4.3</li>
-                <li>升级js-beautify到最新版本1.13.0</li>
-                <li>升级js-cookie到最新版本2.2.1</li>
-                <li>升级path-to-regexp到最新版本6.2.0</li>
-                <li>升级quill到最新版本1.3.7</li>
-                <li>升级screenfull到最新版本5.0.2</li>
-                <li>升级sortablejs到最新版本1.10.2</li>
-                <li>升级vuedraggable到最新版本2.24.3</li>
-                <li>升级chalk到最新版本4.1.0</li>
-                <li>升级eslint到最新版本7.15.0</li>
-                <li>升级eslint-plugin-vue到最新版本7.2.0</li>
-                <li>升级lint-staged到最新版本10.5.3</li>
-                <li>升级runjs到最新版本4.4.2</li>
-                <li>升级sass-loader到最新版本10.1.0</li>
-                <li>升级script-ext-html-webpack-plugin到最新版本2.1.5</li>
-                <li>升级svg-sprite-loader到最新版本5.1.1</li>
-                <li>升级vue-template-compiler到最新版本2.6.12</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.2.1 - 2020-11-18">
-              <ol>
-                <li>阻止任意文件下载漏洞</li>
-                <li>代码生成支持上传控件</li>
-                <li>新增图片上传组件</li>
-                <li>调整默认首页</li>
-                <li>升级druid到最新版本v1.2.2</li>
-                <li>mapperLocations配置支持分隔符</li>
-                <li>权限信息调整</li>
-                <li>调整sql默认时间</li>
-                <li>解决代码生成没有bit类型的问题</li>
-                <li>升级pagehelper到最新版1.3.0</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v3.2.0 - 2020-10-10">
-              <ol>
-                <li>升级springboot版本到2.1.17 提升安全性</li>
-                <li>升级oshi到最新版本v5.2.5</li>
-                <li>升级druid到最新版本v1.2.1</li>
-                <li>升级jjwt到版本0.9.1</li>
-                <li>升级fastjson到最新版1.2.74</li>
-                <li>修改sass为node-sass，避免el-icon图标乱码</li>
-                <li>代码生成支持同步数据库</li>
-                <li>代码生成支持富文本控件</li>
-                <li>代码生成页面时不忽略remark属性</li>
-                <li>代码生成添加select必填选项</li>
-                <li>Excel导出类型NUMERIC支持精度浮点类型</li>
-                <li>Excel导出targetAttr优化获取值，防止get方法不规范</li>
-                <li>Excel注解支持自动统计数据总和</li>
-                <li>Excel注解支持设置BigDecimal精度&舍入规则</li>
-                <li>菜单&数据权限新增（展开/折叠 全选/全不选 父子联动）</li>
-                <li>允许用户分配到部门父节点</li>
-                <li>菜单新增是否缓存keep-alive</li>
-                <li>表格操作列间距调整</li>
-                <li>限制系统内置参数不允许删除</li>
-                <li>富文本组件优化，支持自定义高度&图片冲突问题</li>
-                <li>富文本工具栏样式对齐</li>
-                <li>导入excel整形值校验优化</li>
-                <li>修复页签关闭所有时固定标签路由不刷新问题</li>
-                <li>表单构建布局型组件新增按钮</li>
-                <li>左侧菜单文字过长显示省略号</li>
-                <li>修正根节点为子部门时，树状结构显示问题</li>
-                <li>修正调用目标字符串最大长度</li>
-                <li>修正菜单提示信息错误</li>
-                <li>修正定时任务执行一次权限标识</li>
-                <li>修正数据库字符串类型nvarchar</li>
-                <li>优化递归子节点</li>
-                <li>优化数据权限判断</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-
-            <el-collapse-item title="v3.1.0 - 2020-08-13">
-              <ol>
-                <li>表格工具栏右侧添加刷新&显隐查询组件</li>
-                <li>后端支持CORS跨域请求</li>
-                <li>代码生成支持选择上级菜单</li>
-                <li>代码生成支持自定义路径</li>
-                <li>代码生成支持复选框</li>
-                <li>Excel导出导入支持dictType字典类型</li>
-                <li>Excel支持分割字符串组内容</li>
-                <li>验证码类型支持（数组计算、字符验证）</li>
-                <li>升级vue-cli版本到4.4.4</li>
-                <li>修改 node-sass 为 dart-sass</li>
-                <li>表单类型为Integer/Long设置整形默认值</li>
-                <li>代码生成器默认mapper路径与默认mapperScan路径不一致</li>
-                <li>优化防重复提交拦截器</li>
-                <li>优化上级菜单不能选择自己</li>
-                <li>修复角色的权限分配后，未实时生效问题</li>
-                <li>修复在线用户日志记录类型</li>
-                <li>修复富文本空格和缩进保存后不生效问题</li>
-                <li>修复在线用户判断逻辑</li>
-                <li>唯一限制条件只返回单条数据</li>
-                <li>添加获取当前的环境配置方法</li>
-                <li>超时登录后页面跳转到首页</li>
-                <li>全局异常状态汉化拦截处理</li>
-                <li>HTML过滤器改为将html转义</li>
-                <li>检查字符支持小数点&降级改成异常提醒</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-
-            <el-collapse-item title="v3.0.0 - 2020-07-20">
-              <ol>
-                <li>单应用调整为多模块项目</li>
-                <li>升级element-ui版本到2.13.2</li>
-                <li>删除babel，提高编译速度。</li>
-                <li>新增菜单默认主类目</li>
-                <li>编码文件名修改为uuid方式</li>
-                <li>定时任务cron表达式验证</li>
-                <li>角色权限修改时已有权限未自动勾选异常修复</li>
-                <li>防止切换权限用户后登录出现404</li>
-                <li>Excel支持sort导出排序</li>
-                <li>创建用户不允许选择超级管理员角色</li>
-                <li>修复代码生成导入表结构出现异常页面不提醒问题</li>
-                <li>修复代码生成点击多次表修改数据不变化的问题</li>
-                <li>修复头像上传成功二次打开无法改变裁剪框大小和位置问题</li>
-                <li>修复布局为small者mini用户表单显示错位问题</li>
-                <li>修复热部署导致的强换异常问题</li>
-                <li>修改用户管理复选框宽度，防止部分浏览器出现省略号</li>
-                <li>IpUtils工具，清除Xss特殊字符，防止Xff注入攻击</li>
-                <li>生成domain 如果是浮点型 统一用BigDecimal</li>
-                <li>定时任务调整label-width，防止部署出现错位</li>
-                <li>调整表头固定列默认样式</li>
-                <li>代码生成模板调整，字段为String并且必填则加空串条件</li>
-                <li>代码生成字典Integer/Long使用parseInt</li>
-                <li>
-                  修复dict_sort不可update为0的问题&查询返回增加dict_sort升序排序
-                </li>
-                <li>修正岗位导出权限注解</li>
-                <li>禁止加密密文返回前端</li>
-                <li>修复代码生成页面中的查询条件创建时间未生效的问题</li>
-                <li>修复首页搜索菜单外链无法点击跳转问题</li>
-                <li>修复菜单管理选择图标，backspace删除时不过滤数据</li>
-                <li>用户管理部门分支节点不可检查&显示计数</li>
-                <li>数据范围过滤属性调整</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-
-            <el-collapse-item title="v2.3.0 - 2020-06-01">
-              <ol>
-                <li>升级fastjson到最新版1.2.70 修复高危安全漏洞</li>
-                <li>dev启动默认打开浏览器</li>
-                <li>vue-cli使用默认source-map</li>
-                <li>slidebar eslint报错优化</li>
-                <li>当tags-view滚动关闭右键菜单</li>
-                <li>字典管理添加缓存读取</li>
-                <li>参数管理支持缓存操作</li>
-                <li>支持一级菜单（和主页同级）在main区域显示</li>
-                <li>限制外链地址必须以http(s)开头</li>
-                <li>tagview & sidebar 主题颜色与element ui(全局)同步</li>
-                <li>修改数据源类型优先级，先根据方法，再根据类</li>
-                <li>支持是否需要设置token属性，自定义返回码消息。</li>
-                <li>swagger请求前缀加入配置。</li>
-                <li>登录地点设置内容过长则隐藏显示</li>
-                <li>修复定时任务执行一次按钮后不提示消息问题</li>
-                <li>修改上级部门（选择项排除本身和下级）</li>
-                <li>通用http发送方法增加参数 contentType 编码类型</li>
-                <li>更换IP地址查询接口</li>
-                <li>修复页签变量undefined</li>
-                <li>添加校验部门包含未停用的子部门</li>
-                <li>修改定时任务详情下次执行时间日期显示错误</li>
-                <li>角色管理查询设置默认排序字段</li>
-                <li>swagger添加enable参数控制是否启用</li>
-                <li>只对json类型请求构建可重复读取inputStream的request</li>
-                <li>修改代码生成字典字段int类型没有自动选中问题</li>
-                <li>vuex用户名取值修正</li>
-                <li>表格树模板去掉多余的)</li>
-                <li>代码生成序号修正</li>
-                <li>全屏情况下不调整上外边距</li>
-                <li>代码生成Date字段添加默认格式</li>
-                <li>用户管理角色选择权限控制</li>
-                <li>修复路由懒加载报错问题</li>
-                <li>模板sql.vm添加菜单状态</li>
-                <li>设置用户名称不能修改</li>
-                <li>dialog添加append-to-body属性，防止ie遮罩</li>
-                <li>菜单区分状态和显示隐藏功能</li>
-                <li>升级fastjson到最新版1.2.68 修复安全加固</li>
-                <li>修复代码生成如果选择字典类型缺失逗号问题</li>
-                <li>登录请求params更换为data，防止暴露url</li>
-                <li>日志返回时间格式处理</li>
-                <li>添加handle控制允许拖动的元素</li>
-                <li>布局设置点击扩大范围</li>
-                <li>代码生成列属性排序查询</li>
-                <li>代码生成列支持拖动排序</li>
-                <li>修复时间格式不支持ios问题</li>
-                <li>表单构建添加父级class，防止冲突</li>
-                <li>定时任务并发属性修正</li>
-                <li>角色禁用&菜单隐藏不查询权限</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-
-            <el-collapse-item title="v2.2.0 - 2020-03-18">
-              <ol>
-                <li>系统监控新增定时任务功能</li>
-                <li>添加一个打包Web工程bat</li>
-                <li>修复页签鼠标滚轮按下的时候，可以关闭不可关闭的tag</li>
-                <li>修复点击退出登录有时会无提示问题</li>
-                <li>修复防重复提交注解无效问题</li>
-                <li>修复通知公告批量删除异常问题</li>
-                <li>添加菜单时路由地址必填限制</li>
-                <li>代码生成字段描述可编辑</li>
-                <li>修复用户修改个人信息导致缓存不过期问题</li>
-                <li>个人信息创建时间获取正确属性值</li>
-                <li>操作日志详细显示正确类型</li>
-                <li>导入表单击行数据时选中对应的复选框</li>
-                <li>批量替换表前缀逻辑调整</li>
-                <li>固定重定向路径表达式</li>
-                <li>升级element-ui版本到2.13.0</li>
-                <li>操作日志排序调整</li>
-                <li>修复charts切换侧边栏或者缩放窗口显示bug</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-
-            <el-collapse-item title="v2.1.0 - 2020-02-24">
-              <ol>
-                <li>新增表单构建</li>
-                <li>代码生成支持树表结构</li>
-                <li>新增用户导入</li>
-                <li>修复动态加载路由页面刷新问题</li>
-                <li>修复地址开关无效问题</li>
-                <li>汉化错误提示页面</li>
-                <li>代码生成已知问题修改</li>
-                <li>修复多数据源下配置关闭出现异常处理</li>
-                <li>添加HTML过滤器，用于去除XSS漏洞隐患</li>
-                <li>修复上传头像控制台出现异常</li>
-                <li>修改用户管理分页不正确的问题</li>
-                <li>修复验证码记录提示错误</li>
-                <li>修复request.js缺少Message引用</li>
-                <li>修复表格时间为空出现的异常</li>
-                <li>添加Jackson日期反序列化时区配置</li>
-                <li>调整根据用户权限加载菜单数据树形结构</li>
-                <li>调整成功登录不恢复按钮，防止多次点击</li>
-                <li>修改用户个人资料同步缓存信息</li>
-                <li>修复页面同时出现el-upload和Editor不显示处理</li>
-                <li>修复在角色管理页修改菜单权限偶尔未选中问题</li>
-                <li>配置文件新增redis密码属性</li>
-                <li>设置mybatis全局的配置文件</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-
-            <el-collapse-item title="v2.0.0 - 2019-12-02">
-              <ol>
-                <li>新增代码生成</li>
-                <li>新增@RepeatSubmit注解，防止重复提交</li>
-                <li>新增菜单主目录添加/删除操作</li>
-                <li>日志记录过滤特殊对象，防止转换异常</li>
-                <li>修改代码生成路由脚本错误</li>
-                <li>用户上传头像实时同步缓存，无需重新登录</li>
-                <li>调整切换页签后不重新加载数据</li>
-                <li>添加jsencrypt实现参数的前端加密</li>
-                <li>系统退出删除用户缓存记录</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v1.1.0 - 2019-11-11">
-              <ol>
-                <li>新增在线用户管理</li>
-                <li>新增按钮组功能实现（批量删除、导出、清空）</li>
-                <li>新增查询条件重置按钮</li>
-                <li>新增Swagger全局Token配置</li>
-                <li>新增后端参数校验</li>
-                <li>修复字典管理页面的日期查询异常</li>
-                <li>修改时间函数命名防止冲突</li>
-                <li>去除菜单上级校验，默认为顶级</li>
-                <li>修复用户密码无法修改问题</li>
-                <li>修复菜单类型为按钮时不显示权限标识</li>
-                <li>其他细节优化</li>
-              </ol>
-            </el-collapse-item>
-            <el-collapse-item title="v1.0.0 - 2019-10-08">
-              <ol>
-                <li>若依前后端分离系统正式发布</li>
-              </ol>
-            </el-collapse-item>
-          </el-collapse>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="24" :md="12" :lg="8">
-        <el-card class="update-log">
-          <div slot="header" class="clearfix">
-            <span>捐赠支持</span>
+          <div class="calendar-weekdays">
+            <div v-for="day in weekdays" :key="day" class="weekday">{{ day }}</div>
           </div>
-          <div class="body">
-            <img
-              src="@/assets/images/pay.png"
-              alt="donate"
-              width="100%"
-            />
-            <span style="display: inline-block; height: 30px; line-height: 30px"
-              >你可以请作者喝杯咖啡表示鼓励</span
+          <div class="calendar-days">
+            <div
+              v-for="(day, index) in calendarDays"
+              :key="index"
+              class="calendar-day"
+              :class="{
+                'other-month': !day.isCurrentMonth,
+                'today': day.isToday,
+                'selected': day.isSelected
+              }"
+              @click="selectDate(day)"
             >
+              {{ day.day }}
+            </div>
           </div>
-        </el-card>
-      </el-col>
-    </el-row>
+        </div>
+
+        <!-- 右侧：视频 -->
+        <div class="center-video-card">
+          <video :src="gifVideo" autoplay loop muted class="center-video"></video>
+        </div>
+      </div>
+
+      <!-- 第三层：快捷功能 -->
+      <div class="content-section">
+        <h2 class="section-title">
+          <i class="el-icon-star-on"></i>
+          快捷功能
+        </h2>
+
+        <div class="quick-actions">
+          <div class="action-card" @click="handleAction('course')">
+            <i class="el-icon-reading action-icon-simple" style="color: #667eea"></i>
+            <div class="action-info">
+              <div class="action-title">我的课程</div>
+              <div class="action-count">{{ quickStats.courseCount }} 门</div>
+            </div>
+          </div>
+          <div class="action-card" @click="handleAction('homework')">
+            <i class="el-icon-edit-outline action-icon-simple" style="color: #5b86e5"></i>
+            <div class="action-info">
+              <div class="action-title">题目练习</div>
+              <div class="action-count">{{ quickStats.questionCount }} 个</div>
+            </div>
+          </div>
+          <div class="action-card" @click="handleAction('exam')">
+            <i class="el-icon-tickets action-icon-simple" style="color: #4facfe"></i>
+            <div class="action-info">
+              <div class="action-title">作业考试</div>
+              <div class="action-count">{{ quickStats.assignmentCount }} 场</div>
+            </div>
+          </div>
+          <div class="action-card" @click="handleAction('message')">
+            <i class="el-icon-video-camera action-icon-simple" style="color: #43e97b"></i>
+            <div class="action-info">
+              <div class="action-title">课程中心</div>
+              <div class="action-count">{{ quickStats.videoCount }} 个</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 第四层：学习统计 -->
+      <div class="content-section">
+      <h2 class="section-title">
+        <i class="el-icon-data-line"></i>
+        学习统计
+      </h2>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon" style="color: #667eea">
+            <i class="el-icon-time"></i>
+          </div>
+          <div class="stat-info">
+            <div class="stat-label">学习时长</div>
+            <div class="stat-value">{{ learningStats.studyHours }} 小时</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="color: #5b86e5">
+            <i class="el-icon-trophy"></i>
+          </div>
+          <div class="stat-info">
+            <div class="stat-label">课程学习</div>
+            <div class="stat-value">{{ learningStats.completedCourses }} 门</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="color: #4facfe">
+            <i class="el-icon-medal"></i>
+          </div>
+          <div class="stat-info">
+            <div class="stat-label">已掌握知识点</div>
+            <div class="stat-value">{{ learningStats.knowledgePoints }} 个</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="color: #43e97b">
+            <i class="el-icon-star-on"></i>
+          </div>
+          <div class="stat-info">
+            <div class="stat-label">平均分数</div>
+            <div class="stat-value">{{ learningStats.averageScore }} 分</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 内容层结束 -->
+    </div>
   </div>
 </template>
 
+
 <script>
+import gifVideo from '@/assets/images/GIF1.mp4'
+import { getMyCourses } from "@/api/system/student"
+import { listQuestion } from "@/api/system/question"
+import { listAssignment } from "@/api/system/assignment"
+import { listBehavior } from "@/api/system/behavior"
+
 export default {
-  name: "Index",
+  name: "HomePage",
   data() {
     return {
-      // 版本号
-      version: "3.9.0"
+      gifVideo,
+      // 时钟
+      currentTime: '',
+      currentDate: '',
+      currentWeek: '',
+      hourDeg: 0,
+      minuteDeg: 0,
+      secondDeg: 0,
+      timeTimer: null,
+
+      // 鼓励语轮播
+      mottos: [
+        '不积跬步，无以至千里 📚',
+        '业精于勤，荒于嬉 💼',
+        '宝剑锋从磨砺出，梅花香自苦寒来 🌸',
+        '长风破浪会有时，直挂云帆济沧海 📖',
+        '青春须早为，岂能长少年 💡',
+        '少壮不努力，老大徒伤悲 ✏️',
+        '锲而不舍，金石可镂 🌟',
+        '纸上得来终觉浅，绝知此事要躬行 🗒️',
+        '黑发不知勤学早，白首方悔读书迟 ⚡',
+        '古人学问无遗力，少壮工夫老始成  🎉',
+        '问渠那得清如许 为有源头活水来 🏆',
+        '书当快意读易尽，客有可人期不来 🎯',
+        '路漫漫其修远兮，吾将上下而求索 📈'
+
+      ],
+      currentMottoIndex: 0,
+      currentMotto: '',
+      mottoTimer: null,
+
+      // 日历
+      calendarYear: new Date().getFullYear(),
+      calendarMonth: new Date().getMonth() + 1,
+      calendarDays: [],
+      weekdays: ['日', '一', '二', '三', '四', '五', '六'],
+      selectedDate: null,
+
+      // 快捷功能统计数据
+      quickStats: {
+        courseCount: 0,      // 我的课程数量
+        questionCount: 0,    // 题目练习数量
+        assignmentCount: 0,  // 作业考试数量
+        videoCount: 0        // 视频学习数量
+      },
+
+      // 学习统计数据
+      learningStats: {
+        studyHours: 0,        // 学习时长
+        completedCourses: 0,  // 完成课程
+        knowledgePoints: 0,   // 已掌握知识点
+        averageScore: 0       // 平均分数
+      }
     }
   },
+
+  mounted() {
+    this.initClock()
+    this.initCalendar()
+    this.initMottos()
+    this.loadQuickStats()
+    this.loadLearningStats()
+  },
+
+  beforeDestroy() {
+    if (this.timeTimer) {
+      clearInterval(this.timeTimer)
+    }
+    if (this.mottoTimer) {
+      clearInterval(this.mottoTimer)
+    }
+  },
+
   methods: {
-    goTarget(href) {
-      window.open(href, "_blank")
+    // ========== 时钟相关 ==========
+    initClock() {
+      this.updateClock()
+      this.timeTimer = setInterval(() => {
+        this.updateClock()
+      }, 1000)
+    },
+
+    updateClock() {
+      const now = new Date()
+
+      // 更新时间显示
+      const hours = String(now.getHours()).padStart(2, '0')
+      const minutes = String(now.getMinutes()).padStart(2, '0')
+      const seconds = String(now.getSeconds()).padStart(2, '0')
+      this.currentTime = `${hours}:${minutes}:${seconds}`
+
+      // 更新日期显示
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const date = String(now.getDate()).padStart(2, '0')
+      this.currentDate = `${year}年${month}月${date}日`
+
+      // 更新星期显示
+      const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+      this.currentWeek = weekdays[now.getDay()]
+
+      // 更新时钟指针角度（transform-origin 改为 0% 50%，所以不需要减90度）
+      const h = now.getHours() % 12
+      const m = now.getMinutes()
+      const s = now.getSeconds()
+
+      this.hourDeg = (h * 30) + (m * 0.5)
+      this.minuteDeg = (m * 6) + (s * 0.1)
+      this.secondDeg = (s * 6)
+    },
+
+    // ========== 鼓励语轮播 ==========
+    initMottos() {
+      if (!this.mottos || this.mottos.length === 0) return
+      this.currentMottoIndex = 0
+      this.currentMotto = this.mottos[0]
+      this.mottoTimer = setInterval(() => {
+        this.nextMotto()
+      }, 5000)
+    },
+
+    nextMotto() {
+      if (!this.mottos || this.mottos.length === 0) return
+      this.currentMottoIndex = (this.currentMottoIndex + 1) % this.mottos.length
+      this.currentMotto = this.mottos[this.currentMottoIndex]
+    },
+
+    // ========== 日历相关 ==========
+    initCalendar() {
+      this.generateCalendarDays()
+    },
+
+    generateCalendarDays() {
+      const year = this.calendarYear
+      const month = this.calendarMonth
+
+      // 当月第一天
+      const firstDay = new Date(year, month - 1, 1)
+      const firstDayWeek = firstDay.getDay()
+
+      // 当月天数
+      const daysInMonth = new Date(year, month, 0).getDate()
+
+      // 上月天数
+      const prevMonthDays = new Date(year, month - 1, 0).getDate()
+
+      const days = []
+
+      // 上月日期
+      for (let i = firstDayWeek - 1; i >= 0; i--) {
+        days.push({
+          day: prevMonthDays - i,
+          isCurrentMonth: false,
+          isToday: false,
+          isSelected: false
+        })
+      }
+
+      // 当月日期
+      const today = new Date()
+      for (let i = 1; i <= daysInMonth; i++) {
+        const isToday = year === today.getFullYear() &&
+                       month === today.getMonth() + 1 &&
+                       i === today.getDate()
+        days.push({
+          day: i,
+          isCurrentMonth: true,
+          isToday: isToday,
+          isSelected: false
+        })
+      }
+
+      // 下月日期
+      const remainingDays = 42 - days.length
+      for (let i = 1; i <= remainingDays; i++) {
+        days.push({
+          day: i,
+          isCurrentMonth: false,
+          isToday: false,
+          isSelected: false
+        })
+      }
+
+      this.calendarDays = days
+    },
+
+
+    prevMonth() {
+      if (this.calendarMonth === 1) {
+        this.calendarYear--
+        this.calendarMonth = 12
+      } else {
+        this.calendarMonth--
+      }
+      this.generateCalendarDays()
+    },
+
+    nextMonth() {
+      if (this.calendarMonth === 12) {
+        this.calendarYear++
+        this.calendarMonth = 1
+      } else {
+        this.calendarMonth++
+      }
+      this.generateCalendarDays()
+    },
+
+    selectDate(day) {
+      if (!day.isCurrentMonth) return
+
+      this.calendarDays.forEach(d => {
+        d.isSelected = false
+      })
+      day.isSelected = true
+
+      this.$message.success(`选择日期：${this.calendarYear}年${this.calendarMonth}月${day.day}日`)
+    },
+
+    // ========== 快捷功能 ==========
+    handleAction(type) {
+      const routes = {
+        course: '/system/student',              // 我的课程（动态路由）
+        homework: '/system/question/courses',   // 题目练习（静态路由）
+        exam: '/system/assignment',             // 作业考试（动态路由）
+        message: '/system/course'               // 视频学习（跳转到课程中心，动态路由）
+      }
+
+      if (routes[type]) {
+        this.$router.push(routes[type])
+      } else {
+        this.$message.info('功能开发中...')
+      }
+    },
+
+    // ========== 加载快捷功能统计数据 ==========
+    async loadQuickStats() {
+      try {
+        // 获取我的课程数量
+        const coursesRes = await getMyCourses()
+        this.quickStats.courseCount = coursesRes.data ? coursesRes.data.length : 0
+
+        // 获取题目练习数量（所有课程的题目总数）
+        const questionsRes = await listQuestion({ pageNum: 1, pageSize: 1 })
+        this.quickStats.questionCount = questionsRes.total || 0
+
+        // 获取作业考试数量
+        const assignmentsRes = await listAssignment({ pageNum: 1, pageSize: 1 })
+        this.quickStats.assignmentCount = assignmentsRes.total || 0
+
+        // 获取系统总课程数量（课程中心）
+        const { listCourse } = await import("@/api/system/course")
+        const allCoursesRes = await listCourse({ pageNum: 1, pageSize: 1, isDeleted: 0 })
+        this.quickStats.videoCount = allCoursesRes.total || 0
+      } catch (error) {
+        console.error('加载快捷功能统计数据失败:', error)
+      }
+    },
+
+    // ========== 加载学习统计数据 ==========
+    async loadLearningStats() {
+      try {
+        // 获取学习时长（通过学习行为记录计算）
+        const behaviorRes = await listBehavior({ pageNum: 1, pageSize: 9999 })
+        if (behaviorRes.rows && behaviorRes.rows.length > 0) {
+          // 计算总学习时长（秒转小时）
+          const totalSeconds = behaviorRes.rows.reduce((sum, item) => {
+            return sum + (item.watchDuration || 0)
+          }, 0)
+          this.learningStats.studyHours = Math.round(totalSeconds / 3600)
+        }
+
+        // 获取我的课程列表，计算完成课程数（使用课程总数）
+        const coursesRes = await getMyCourses()
+        if (coursesRes.data && coursesRes.data.length > 0) {
+          // 使用我的课程总数作为完成课程数
+          this.learningStats.completedCourses = coursesRes.data.length
+        }
+
+        // 获取已掌握知识点数量（使用题目总数）
+        const questionsRes = await listQuestion({ pageNum: 1, pageSize: 1 })
+        this.learningStats.knowledgePoints = questionsRes.total || 0
+
+        // 获取平均分数（使用作业的totalScore字段计算平均值）
+        const assignmentsRes = await listAssignment({ pageNum: 1, pageSize: 9999 })
+        if (assignmentsRes.rows && assignmentsRes.rows.length > 0) {
+          // 计算所有作业的平均总分
+          const totalScore = assignmentsRes.rows.reduce((sum, item) => {
+            return sum + (item.totalScore || 0)
+          }, 0)
+          this.learningStats.averageScore = assignmentsRes.rows.length > 0
+            ? Math.round(totalScore / assignmentsRes.rows.length)
+            : 0
+        }
+      } catch (error) {
+        console.error('加载学习统计数据失败:', error)
+      }
     }
   }
 }
 </script>
 
+
 <style scoped lang="scss">
-.home {
-  blockquote {
-    padding: 10px 20px;
-    margin: 0 0 20px;
-    font-size: 17.5px;
-    border-left: 5px solid #eee;
-  }
-  hr {
-    margin-top: 20px;
-    margin-bottom: 20px;
-    border: 0;
-    border-top: 1px solid #eee;
-  }
-  .col-item {
-    margin-bottom: 20px;
-  }
-
-  ul {
-    padding: 0;
-    margin: 0;
-  }
-
-  font-family: "open sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-size: 13px;
-  color: #676a6c;
+.home-container {
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
   overflow-x: hidden;
+  background: #f8fafc;
+}
 
-  ul {
-    list-style-type: none;
-  }
+// ========== 内容层 ==========
+.content-layer {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  padding: 24px 20px 20px;
+}
+.welcome-header {
+  margin-bottom: 24px;
+  text-align: center;
+  position: relative;
+  padding-bottom: 18px;
+}
 
-  h4 {
-    margin-top: 0px;
-  }
+// ========== 左侧时钟显示 ==========
+.clock-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 
-  h2 {
-    margin-top: 10px;
-    font-size: 26px;
-    font-weight: 100;
-  }
+  .clock-circle {
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9) 55%);
+    box-shadow: 0 4px 12px rgba(198, 132, 172, 0.2), inset 0 2px 8px rgba(255, 255, 255, 0.8);
+    border: 5px solid rgba(152, 197, 252, 0.7);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
-  p {
-    margin-top: 10px;
+    .clock-face {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
 
-    b {
-      font-weight: 700;
+    .hand {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform-origin: 50% 0%;
+      background: #63aeff;
+      border-radius: 7px;
+    }
+
+    .hour-hand {
+      width: 4px;
+      height: 25px;
+      margin-left: -2px;
+      margin-top: 0;
+    }
+
+    .minute-hand {
+      width: 3px;
+      height: 35px;
+      margin-left: -1.5px;
+      margin-top: 0;
+    }
+
+    .second-hand {
+      width: 2px;
+      height: 50px;
+      margin-left: -1px;
+      margin-top: 0;
+      background: #ffaeee;
+    }
+
+    .clock-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      background: #1e293b;
+      border-radius: 50%;
+      z-index: 10;
     }
   }
 
-  .update-log {
-    ol {
-      display: block;
-      list-style-type: decimal;
-      margin-block-start: 1em;
-      margin-block-end: 1em;
-      margin-inline-start: 0;
-      margin-inline-end: 0;
-      padding-inline-start: 40px;
+  .time {
+    font-size: 25px;
+    font-weight: 600;
+    color: #ffffff;
+  }
+}
+
+// ========== 中间欢迎文字 ==========
+.welcome-text {
+  text-align: center;
+
+  .welcome-header {
+    position: relative;
+    padding-bottom: 20px;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: 300px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(59, 130, 246, 0), rgba(59, 130, 246, 0.6), rgba(59, 130, 246, 0));
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+    }
+  }
+
+
+
+  .welcome-sub {
+    font-size: 40px;
+    color: #1958b0;
+    font-weight: bold;
+  }
+}
+
+.welcome-sub {
+  font-size: 24px;
+  letter-spacing: 0.20em;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.welcome-main {
+  margin-top: 4px;
+  font-size: 78px; /* 顶部主标题再大一档 */
+  font-weight: 700; /* 更粗一点，突出主体 */
+  letter-spacing: 0.07em; /* 稍微再拉开一点间距 */
+  color: #1e293b;
+  text-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+.welcome-motto {
+  margin-top: 12px;
+  font-size: 25px;
+  color: #b1d2ff;
+}
+
+// ========== 左侧日历（第二层） ==========
+.calendar-card-left {
+  background: linear-gradient(135deg, rgba(147, 197, 253, 0.6) 0%, rgba(191, 219, 254, 0.55) 100%);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.2), 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(96, 165, 250, 0.7);
+
+  .calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid rgba(96, 165, 250, 0.3);
+
+    .calendar-nav {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(248, 250, 252, 0.7));
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      border-radius: 8px;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      color: #698cff;
+      font-weight: 600;
+
+      &:hover {
+        background: linear-gradient(135deg, #98b9ff, #3b82f6);
+        color: white;
+        border-color: #7594f9;
+        transform: scale(1.1);
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+      }
+    }
+
+    .calendar-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #ffffff;
+      text-shadow: 0 1px 2px rgba(30, 64, 175, 0.1);
+    }
+  }
+
+  .calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+
+    .weekday {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      padding: 8px 0;
+      background: rgba(255, 255, 255, 0.4);
+      border-radius: 6px;
+    }
+  }
+
+  .calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+
+    .calendar-day {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #1e293b;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(147, 197, 253, 0.3);
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.9);
+        transform: scale(1.05);
+        border-color: rgba(96, 165, 250, 0.5);
+      }
+
+      &.other-month {
+        color: #cbd5e1;
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      &.today {
+        background: linear-gradient(135deg, #87a3ff, #bbd1ff);
+        color: white;
+        font-weight: 700;
+        box-shadow: 0 3px 10px rgba(30, 64, 175, 0.5);
+        border: none;
+      }
+
+      &.selected {
+        background: rgba(37, 99, 235, 0.2);
+        border: 2px solid #7e9cff;
+        font-weight: 600;
+      }
     }
   }
 }
-</style>
 
+// 第二行：快捷功能 + 视频布局 (1:2)
+.second-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr; /* 两列，右侧视频占2份 */
+  gap: 20px;
+  margin-bottom: 24px;
+  align-items: stretch;
+}
+
+// ========== 顶部区域：整体背景卡片 ==========
+.top-section {
+  margin-bottom: 24px;
+}
+
+.top-card {
+  background: linear-gradient(135deg, rgba(147, 197, 253, 0.6) 0%, rgba(191, 219, 254, 0.55) 100%);
+  border-radius: 20px;
+  padding: 20px 40px;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.2), 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(96, 165, 250, 0.7);
+  display: grid;
+  grid-template-columns: 1fr 3fr;
+  align-items: center;
+  column-gap: 40px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 24px;
+  height: 230px;
+}
+
+.top-digital {
+  display: flex;
+  justify-content: flex-start; /* 稍微向左一点，让两边时钟距离更大 */
+  color: #1e293b;
+}
+
+.top-center {
+  display: flex;
+  justify-content: center;
+}
+
+.top-analog {
+  display: flex;
+  justify-content: flex-end; /* 稍微向右一点 */
+}
+
+// ========== 时钟区域（仅保留指针圆盘） ==========
+.clock-card {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  color: #6077a9;
+  box-shadow: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.clock-display {
+  .time {
+    font-size: 40px;
+    font-weight: 550;
+    margin-bottom: 10px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .date {
+    font-size: 20px;
+    margin-bottom: 6px;
+    opacity: 0.8;
+    color: #475569;
+  }
+
+  .week {
+    font-size: 18px;
+    opacity: 0.7;
+    color: #64748b;
+  }
+}
+
+.clock-animation {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0;
+}
+
+.clock-circle {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9) 55%);
+  border: 2px solid rgba(226, 232, 240, 0.8);
+  position: relative;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(59, 130, 246, 0.1);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 1px dashed rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.1);
+    animation: orbit-ring 14s linear infinite;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.05), transparent 70%);
+    opacity: 0.7;
+    filter: blur(4px);
+  }
+
+  .hour-hand,
+  .minute-hand,
+  .second-hand {
+    position: absolute;
+    background: #1e293b;
+    transform-origin: 0% 50%;
+    top: 50%;
+    left: 50%;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  .hour-hand {
+    width: 40px;
+    height: 4px;
+  }
+
+  .minute-hand {
+    width: 55px;
+    height: 3px;
+  }
+
+  .second-hand {
+    width: 65px;
+    height: 2px;
+    background: #3b82f6;
+    box-shadow: 0 1px 4px rgba(59, 130, 246, 0.4);
+  }
+
+  .clock-center {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #1e293b;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+}
+
+// ========== 视频卡片 ==========
+.center-video-card {
+  position: relative;
+  background: #000;
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15), 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(147, 197, 253, 0.5);
+  overflow: hidden;
+  padding: 0;
+  height: 100%;
+
+  .center-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scale(1.5);
+  }
+}
+
+
+
+// ========== 内容区域 ==========
+.content-section {
+  margin-bottom: 30px;
+  background: linear-gradient(135deg, rgba(147, 197, 253, 0.6) 0%, rgba(191, 219, 254, 0.55) 100%);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.2), 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(96, 165, 250, 0.7);
+  position: relative;
+
+  .section-title {
+    font-size: 22px;
+    font-weight: 600;
+    font-kerning:100;
+    color: #1e293b;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    i {
+      color: #3b82f6;
+    }
+  }
+}
+
+
+
+// ========== 快捷功能 ==========
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 四个功能块横向排列 */
+  gap: 20px;
+  position: relative;
+  z-index: 1;
+
+  .action-card {
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 16px;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(96, 165, 250, 0.5);
+
+    &:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+      background: rgba(255, 255, 255, 0.95);
+      border-color: rgba(59, 130, 246, 0.6);
+    }
+
+    .action-icon-simple {
+      font-size: 48px;
+      flex-shrink: 0;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+    }
+
+    .action-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .action-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .action-count {
+      font-size: 14px;
+      color: #64748b;
+      font-weight: 500;
+    }
+  }
+}
+
+
+// ========== 学习统计 ==========
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+
+  .stat-card {
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 15px;
+    padding: 25px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(96, 165, 250, 0.5);
+    transition: all 0.3s;
+
+    &:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+      background: rgba(255, 255, 255, 0.95);
+      border-color: rgba(59, 130, 246, 0.6);
+    }
+
+    .stat-icon {
+      font-size: 36px;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+    }
+
+    .stat-info {
+      flex: 1;
+
+      .stat-label {
+        font-size: 14px;
+        color: #64748b;
+        margin-bottom: 8px;
+      }
+
+      .stat-value {
+        font-size: 22px;
+        font-weight: 600;
+        color: #1e293b;
+      }
+    }
+  }
+}
+
+// ========== 响应式 ==========
+@media (max-width: 1400px) {
+  .top-card {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .second-row {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .quick-actions {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .quick-actions,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clock-display .time {
+    font-size: 24px;
+  }
+
+  .welcome-main {
+    font-size: 32px;
+  }
+
+  .welcome-sub {
+    font-size: 14px;
+  }
+}
+</style>

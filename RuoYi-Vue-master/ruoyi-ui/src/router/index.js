@@ -62,6 +62,19 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/system/question',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: 'courses',
+        component: () => import('@/views/system/question/courses'),
+        name: 'QuestionCourses',
+        meta: { title: '题目练习', icon: 'edit' }
+      }
+    ]
+  },
+  {
     path: '/learning',
     component: Layout,
     hidden: true,
