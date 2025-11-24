@@ -58,6 +58,18 @@ export const constantRoutes = [
         component: () => import('@/views/system/section/index'),
         name: 'CourseSectionPlayer', // 新的路由名称
         meta: { title: '小节学习', noCache: true } // noCache确保每次都重新加载数据
+      },
+      {
+        path: 'tasks', // 匹配 /course/tasks
+        component: () => import('@/views/system/assignment/course-tasks'),
+        name: 'CourseTasks',
+        meta: { title: '课程任务', noCache: true }
+      },
+      {
+        path: 'exam', // 匹配 /course/exam
+        component: () => import('@/views/system/assignment/exam'),
+        name: 'AssignmentExam',
+        meta: { title: '在线答题', noCache: true }
       }
     ]
   },

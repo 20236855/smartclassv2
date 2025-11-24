@@ -176,7 +176,25 @@ public class CourseEnrollmentRequestController extends BaseController
             }
         }
 
-        // ⭐ 4. 其他状态的课程，创建待审核的选课申请
+        // ⭐ 4. 检查是否已经提交过申请
+        CourseEnrollmentRequest queryRequest = new CourseEnrollmentRequest();
+        queryRequest.setStudentUserId(studentUserId);
+        queryRequest.setCourseId(courseId);
+        List<CourseEnrollmentRequest> existingRequests = courseEnrollmentRequestService.selectCourseEnrollmentRequestList(queryRequest);
+
+        if (existingRequests != null && !existingRequests.isEmpty()) {
+            CourseEnrollmentRequest existingRequest = existingRequests.get(0);
+            if (existingRequest.getStatus() == 0L) {
+                return error("您已提交过选课申请，请等待审核");
+            } else if (existingRequest.getStatus() == 1L) {
+                return error("您的选课申请已通过，无需重复申请");
+            } else if (existingRequest.getStatus() == 2L) {
+                // 如果之前被拒绝，允许重新申请，先删除旧记录
+                courseEnrollmentRequestService.deleteCourseEnrollmentRequestById(existingRequest.getId());
+            }
+        }
+
+        // ⭐ 5. 创建待审核的选课申请
         CourseEnrollmentRequest req = new CourseEnrollmentRequest();
         req.setStudentUserId(studentUserId);  // 使用 user.id 而不是 sys_user.user_id
         req.setCourseId(courseId);
@@ -187,10 +205,20 @@ public class CourseEnrollmentRequestController extends BaseController
             req.setReason(body.getReason());
         }
 
-        int result = courseEnrollmentRequestService.insertCourseEnrollmentRequest(req);
-        if (result > 0) {
-            return success("选课申请已提交，请等待教师审核");
-        } else {
+        try {
+            int result = courseEnrollmentRequestService.insertCourseEnrollmentRequest(req);
+            if (result > 0) {
+                return success("选课申请已提交，请等待教师审核");
+            } else {
+                return error("选课申请提交失败，请稍后重试");
+            }
+        } catch (Exception e) {
+            // 捕获数据库唯一约束异常
+            String errorMsg = e.getMessage();
+            if (errorMsg != null && (errorMsg.contains("Duplicate entry") || errorMsg.contains("uk_student_course"))) {
+                return error("您已提交过选课申请，请勿重复提交");
+            }
+            // 不要把详细的异常信息返回给前端
             return error("选课申请提交失败，请稍后重试");
         }
     }

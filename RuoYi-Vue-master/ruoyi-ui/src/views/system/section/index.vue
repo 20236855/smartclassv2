@@ -48,6 +48,7 @@
                   @timeupdate="onTimeUpdate"
                   @ended="onVideoEnded"
                   @click="togglePlay"
+                  @error="onVideoError"
                   class="video-element"
                 ></video>
 
@@ -606,6 +607,8 @@ export default {
       video.volume = this.volume;
       video.playbackRate = this.playbackRate;
 
+      console.log('✅ 视频加载成功，时长:', this.formatTime(video.duration));
+
       // 等待学习记录加载完成（最多等待2秒）
       let waitCount = 0;
       while (!this.learningBehaviorLoaded && waitCount < 20) {
@@ -615,6 +618,29 @@ export default {
 
       // 处理时间跳转（URL参数或上次观看位置）
       this.handleTimeJump();
+    },
+
+    // 视频加载错误处理
+    onVideoError(event) {
+      const video = this.$refs.videoPlayer;
+      console.error('❌ 视频加载失败:', event);
+      console.error('❌ 视频URL:', this.playerConfig.url);
+
+      if (video && video.error) {
+        const errorMessages = {
+          1: '视频加载被中止',
+          2: '网络错误导致视频下载失败',
+          3: '视频解码失败（可能是格式不支持）',
+          4: '视频URL无效或资源不可用'
+        };
+
+        const errorCode = video.error.code;
+        const errorMsg = errorMessages[errorCode] || '未知错误';
+
+        console.error(`❌ 错误代码: ${errorCode}, 错误信息: ${errorMsg}`);
+
+        this.$modal.msgError(`视频加载失败: ${errorMsg}`);
+      }
     },
 
     // 处理时间跳转逻辑
@@ -780,16 +806,50 @@ export default {
     },
 
     processVideoUrl(videoUrl) {
-      if (!videoUrl) return '';
+      if (!videoUrl) {
+        console.warn('⚠️ 视频URL为空');
+        return '';
+      }
+
+      console.log('📹 原始视频URL:', videoUrl);
+
+      // 如果是完整的HTTP/HTTPS URL，直接返回
       if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+        console.log('✅ 使用完整URL:', videoUrl);
         return videoUrl;
       }
+
+      // 如果是 /videos/ 开头的路径，这是后端配置的静态资源路径
+      // 需要直接访问后端服务器（localhost:8080），不走前端代理
+      if (videoUrl.startsWith('/videos/')) {
+        // 后端服务器地址（开发环境是 localhost:8080）
+        const backendServer = process.env.NODE_ENV === 'production'
+          ? window.location.origin  // 生产环境使用当前域名
+          : 'http://localhost:8080'; // 开发环境使用后端地址
+        const fullUrl = backendServer + videoUrl;
+        console.log('✅ Videos静态资源路径，完整URL:', fullUrl);
+        return fullUrl;
+      }
+
+      // 如果已经是 /profile/ 开头的路径，通过前端代理访问
+      if (videoUrl.startsWith('/profile/')) {
+        const fullUrl = this.backendHost + videoUrl;
+        console.log('✅ Profile路径，拼接后的URL:', fullUrl);
+        return fullUrl;
+      }
+
+      // 其他情况，尝试解码后拼接
       try {
         videoUrl = decodeURIComponent(videoUrl);
       } catch (e) {
         console.warn('URL解码失败，使用原始URL:', e);
       }
-      return this.backendHost + videoUrl;
+
+      const fullUrl = this.backendHost + videoUrl;
+      console.log('✅ 默认拼接后的URL:', fullUrl);
+      console.log('📡 后端地址:', this.backendHost);
+
+      return fullUrl;
     },
 
     async getSectionDetails() {
@@ -797,6 +857,9 @@ export default {
       try {
         const response = await getSection(this.sectionId);
         this.sectionInfo = response.data;
+
+        console.log('📦 后端返回的小节信息:', this.sectionInfo);
+        console.log('📹 后端返回的videoUrl:', this.sectionInfo.videoUrl);
 
         // 如果没有courseId，从sectionInfo中获取
         if (!this.courseId && this.sectionInfo.chapterId) {
@@ -807,6 +870,7 @@ export default {
         const videoPath = this.sectionInfo.videoUrl || '';
         if (videoPath) {
           this.playerConfig.url = this.processVideoUrl(videoPath);
+          console.log('🎬 最终设置的播放器URL:', this.playerConfig.url);
           // 加载已存在的学习行为记录
           await this.loadExistingLearningBehavior();
         } else {

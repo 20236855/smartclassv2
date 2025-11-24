@@ -328,6 +328,8 @@ export default {
   },
   created() {
     this.getCourseList()
+    // 检查是否从课程详情页跳转过来
+    this.checkRouteParams()
   },
   methods: {
     // 获取课程列表
@@ -363,6 +365,35 @@ export default {
           console.error(`获取课程${course.id}的题目数量失败:`, error)
           this.$set(course, 'questionCount', 0)
         }
+      }
+    },
+    // 检查路由参数，如果从课程详情页跳转过来，自动选择课程
+    checkRouteParams() {
+      const courseId = this.$route.query.courseId
+      const courseTitle = this.$route.query.courseTitle
+
+      if (courseId) {
+        // 等待课程列表加载完成后，自动选择对应的课程
+        this.$nextTick(() => {
+          // 使用定时器等待课程列表加载
+          const checkInterval = setInterval(() => {
+            if (!this.loading && this.courseList.length > 0) {
+              clearInterval(checkInterval)
+              const course = this.courseList.find(c => String(c.id) === String(courseId))
+              if (course) {
+                console.log('自动选择课程:', course)
+                this.enterCourse(course)
+              } else {
+                console.warn('未找到指定的课程ID:', courseId)
+              }
+            }
+          }, 100)
+
+          // 5秒后超时
+          setTimeout(() => {
+            clearInterval(checkInterval)
+          }, 5000)
+        })
       }
     },
     // 筛选类型改变

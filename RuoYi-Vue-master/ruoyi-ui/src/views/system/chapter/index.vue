@@ -153,6 +153,136 @@
             </div>
           </el-tab-pane>
 
+          <!-- Tab 4: 题目练习 -->
+          <el-tab-pane name="practice">
+            <span slot="label">
+              <i class="el-icon-edit-outline"></i>
+              题目练习
+            </span>
+            <div class="tab-content-wrapper practice-tab-content">
+              <!-- 顶部统计栏 -->
+              <div class="task-stats-bar">
+                <div class="stat-item">
+                  <span class="stat-label">总任务</span>
+                  <span class="stat-value">{{ taskStats.total }}</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item stat-homework">
+                  <span class="stat-label">作业</span>
+                  <span class="stat-value">{{ taskStats.homework }}</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item stat-exam">
+                  <span class="stat-label">考试</span>
+                  <span class="stat-value">{{ taskStats.exam }}</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item stat-completed">
+                  <span class="stat-label">已完成</span>
+                  <span class="stat-value">{{ taskStats.completed }}</span>
+                </div>
+              </div>
+
+              <!-- 按章节分组的任务列表 -->
+              <div v-loading="taskLoading" class="tasks-container">
+                <div v-if="chapterTasks.length > 0" class="chapter-tasks-list">
+                  <div
+                    v-for="chapter in chapterTasks"
+                    :key="chapter.id"
+                    class="chapter-section"
+                  >
+                    <!-- 章节标题 -->
+                    <div class="chapter-title-bar">
+                      <div class="chapter-title-content">
+                        <i class="el-icon-folder-opened"></i>
+                        <span>{{ chapter.title }}</span>
+                      </div>
+                      <span class="task-count">{{ chapter.tasks.length }} 个任务</span>
+                    </div>
+
+                    <!-- 任务列表 -->
+                    <div class="tasks-grid">
+                      <div
+                        v-for="task in chapter.tasks"
+                        :key="task.id"
+                        class="task-item"
+                        :class="getTaskStatusClass(task)"
+                        @click="startTask(task)"
+                      >
+                        <!-- 状态指示条 -->
+                        <div class="task-status-bar" :class="getTaskStatusClass(task)"></div>
+
+                        <!-- 任务内容 -->
+                        <div class="task-content">
+                          <!-- 头部：类型和状态 -->
+                          <div class="task-header">
+                            <span class="task-type" :class="task.type === 'homework' ? 'type-homework' : 'type-exam'">
+                              <i :class="task.type === 'homework' ? 'el-icon-edit' : 'el-icon-medal'"></i>
+                              {{ task.type === 'homework' ? '作业' : '考试' }}
+                            </span>
+                            <span class="task-status" :class="'status-' + getTaskStatusClass(task)">
+                              {{ getTaskStatusText(task) }}
+                            </span>
+                          </div>
+
+                          <!-- 标题 -->
+                          <h4 class="task-name">{{ task.title }}</h4>
+
+                          <!-- 描述 -->
+                          <p class="task-desc" v-if="task.description">{{ task.description }}</p>
+
+                          <!-- 元信息 -->
+                          <div class="task-meta">
+                            <span class="meta-item" v-if="task.startTime">
+                              <i class="el-icon-time"></i>
+                              {{ formatTaskDate(task.startTime) }}
+                            </span>
+                            <span class="meta-item" v-if="task.endTime">
+                              <i class="el-icon-alarm-clock"></i>
+                              截止 {{ formatTaskDate(task.endTime) }}
+                            </span>
+                            <span class="meta-item" v-if="task.totalScore">
+                              <i class="el-icon-star-on"></i>
+                              {{ task.totalScore }}分
+                            </span>
+                            <span class="meta-item" v-if="task.duration">
+                              <i class="el-icon-timer"></i>
+                              {{ task.duration }}分钟
+                            </span>
+                          </div>
+
+                          <!-- 操作按钮 -->
+                          <div class="task-footer">
+                            <el-button
+                              :type="isTaskExpired(task) ? 'info' : 'primary'"
+                              size="small"
+                              :disabled="isTaskExpired(task)"
+                              plain
+                            >
+                              {{ task.mode === 'question' ? '开始答题' : '提交作业' }}
+                              <i class="el-icon-arrow-right"></i>
+                            </el-button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 无任务提示 -->
+                <el-empty
+                  v-if="!taskLoading && chapterTasks.length === 0"
+                  description="该课程暂无练习任务"
+                  :image-size="120"
+                >
+                  <template slot="image">
+                    <i class="el-icon-document-copy" style="font-size: 100px; color: #C0C4CC;"></i>
+                  </template>
+                </el-empty>
+              </div>
+            </div>
+          </el-tab-pane>
+
         </el-tabs>
       </el-card>
     </div>
@@ -165,6 +295,8 @@ import { getCourse } from "@/api/system/course";
 import { listChapter } from "@/api/system/chapter";
 import { listSection } from "@/api/system/section";
 import { listResource } from "@/api/system/resource";
+import { listAssignment, getAssignmentQuestions } from "@/api/system/assignment";
+import { getQuestion } from "@/api/system/question";
 import axios from 'axios';
 import { getToken } from '@/utils/auth';
 import KnowledgeGraphView from '@/views/system/course/components/KnowledgeGraphView.vue';
@@ -196,6 +328,17 @@ export default {
         pageSize: 9, // 每行3个，显示3行
         courseId: null,
       },
+
+      // 任务相关数据
+      taskLoading: false,
+      chapterTasks: [],
+      activeChapters: [],
+      taskStats: {
+        total: 0,
+        homework: 0,
+        exam: 0,
+        completed: 0
+      }
     };
   },
   created() {
@@ -217,6 +360,9 @@ export default {
     handleTabClick(tab) {
       if (tab.name === 'resources' && !this.isResourceLoaded) {
         this.loadResources();
+      }
+      if (tab.name === 'practice' && this.chapterTasks.length === 0) {
+        this.loadCourseTasks();
       }
     },
     // 处理封面图片URL
@@ -303,6 +449,183 @@ export default {
           courseId: this.courseId
         }
       });
+    },
+    // 加载课程任务（按章节分组）
+    async loadCourseTasks() {
+      this.taskLoading = true;
+      console.log('🔍 开始加载课程任务，课程ID:', this.courseId);
+
+      try {
+        // 1. 加载课程的所有任务
+        const assignmentResponse = await listAssignment({
+          courseId: this.courseId,
+          status: 1,
+          isDeleted: 0,
+          pageNum: 1,
+          pageSize: 999
+        });
+
+        const assignments = assignmentResponse.rows || [];
+        console.log('📚 获取到任务列表:', assignments.length, '个任务', assignments);
+
+        // 2. 为每个任务获取题目，从而获取章节信息
+        const tasksWithChapters = await Promise.all(
+          assignments.map(async (assignment) => {
+            try {
+              const questionsResponse = await getAssignmentQuestions(assignment.id);
+              const questions = questionsResponse.data || [];
+              console.log(`📝 任务 ${assignment.id} (${assignment.title}) 包含 ${questions.length} 个题目:`, questions);
+
+              // 获取任务中所有题目的章节ID（去重）
+              // 注意：后端返回的字段名是 chapter_id（下划线），需要兼容处理
+              const chapterIds = [...new Set(questions.map(q => q.chapterId || q.chapter_id).filter(id => id))];
+              console.log(`📂 任务 ${assignment.id} 关联的章节ID:`, chapterIds);
+
+              return {
+                ...assignment,
+                chapterIds: chapterIds
+              };
+            } catch (error) {
+              console.error(`❌ 获取任务 ${assignment.id} 的题目失败:`, error);
+              return {
+                ...assignment,
+                chapterIds: []
+              };
+            }
+          })
+        );
+
+        console.log('✅ 所有任务及其章节信息:', tasksWithChapters);
+
+        // 3. 按章节分组任务
+        const chapterMap = new Map();
+
+        // 初始化所有章节
+        console.log('📖 当前课程的章节列表:', this.chapterData);
+        this.chapterData.forEach(chapter => {
+          chapterMap.set(chapter.id, {
+            id: chapter.id,
+            title: chapter.title,
+            sortOrder: chapter.sortOrder,
+            tasks: []
+          });
+        });
+
+        // 将任务分配到对应章节
+        tasksWithChapters.forEach(task => {
+          if (task.chapterIds && task.chapterIds.length > 0) {
+            // 如果任务有多个章节，添加到所有相关章节
+            task.chapterIds.forEach(chapterId => {
+              if (chapterMap.has(chapterId)) {
+                chapterMap.get(chapterId).tasks.push(task);
+                console.log(`✓ 将任务 "${task.title}" 添加到章节 ${chapterId}`);
+              } else {
+                console.warn(`⚠️ 章节 ${chapterId} 不存在于章节列表中`);
+              }
+            });
+          } else {
+            console.warn(`⚠️ 任务 "${task.title}" 没有关联任何章节`);
+          }
+        });
+
+        // 4. 转换为数组并过滤掉没有任务的章节
+        this.chapterTasks = Array.from(chapterMap.values())
+          .filter(chapter => chapter.tasks.length > 0)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+
+        console.log('📊 最终按章节分组的任务:', this.chapterTasks);
+        console.log('📊 chapterTasks.length:', this.chapterTasks.length);
+        console.log('📊 第一个章节的任务:', this.chapterTasks.length > 0 ? this.chapterTasks[0] : '无');
+
+        // 5. 计算统计数据
+        this.taskStats.total = assignments.length;
+        this.taskStats.homework = assignments.filter(t => t.type === 'homework').length;
+        this.taskStats.exam = assignments.filter(t => t.type === 'exam').length;
+        this.taskStats.completed = 0; // TODO: 从提交记录获取
+
+        console.log('📈 任务统计:', this.taskStats);
+
+        // 6. 默认展开第一个章节
+        if (this.chapterTasks.length > 0) {
+          this.activeChapters = [this.chapterTasks[0].id];
+        }
+
+      } catch (error) {
+        console.error('❌ 加载课程任务失败:', error);
+        this.$modal.msgError('加载课程任务失败');
+      } finally {
+        this.taskLoading = false;
+      }
+    },
+
+    // 格式化任务日期
+    formatTaskDate(date) {
+      if (!date) return '未设置';
+      return this.parseTime(date, '{m}-{d} {h}:{i}');
+    },
+
+    // 获取任务状态文本
+    getTaskStatusText(task) {
+      const now = new Date();
+      const start = task.startTime ? new Date(task.startTime) : null;
+      const end = task.endTime ? new Date(task.endTime) : null;
+
+      if (end && now > end) return '已截止';
+      if (start && now < start) return '未开始';
+      return '进行中';
+    },
+
+    // 获取任务状态标签类型
+    getTaskStatusTagType(task) {
+      const status = this.getTaskStatusText(task);
+      if (status === '进行中') return 'success';
+      if (status === '未开始') return 'info';
+      return 'danger';
+    },
+
+    // 获取任务卡片样式类
+    getTaskStatusClass(task) {
+      const status = this.getTaskStatusText(task);
+      if (status === '已截止') return 'task-expired';
+      if (status === '未开始') return 'task-pending';
+      return 'task-active';
+    },
+
+    // 判断任务是否已过期
+    isTaskExpired(task) {
+      if (!task.endTime) return false;
+      return new Date() > new Date(task.endTime);
+    },
+
+    // 开始任务
+    startTask(task) {
+      if (this.isTaskExpired(task)) {
+        this.$modal.msgWarning('任务已截止');
+        return;
+      }
+
+      // 如果是答题型任务，跳转到答题页面
+      if (task.mode === 'question') {
+        this.$router.push({
+          path: '/course/exam',
+          query: {
+            assignmentId: task.id,
+            courseId: this.courseId,
+            title: task.title,
+            type: task.type,
+            duration: task.duration
+          }
+        });
+      } else {
+        // 文件上传型任务，跳转到作业列表页面
+        this.$router.push({
+          path: '/system/assignment',
+          query: {
+            assignmentId: task.id,
+            courseId: this.courseId
+          }
+        });
+      }
     },
     handleDownload(resource) {
       // 乐观更新UI
@@ -1000,6 +1323,12 @@ export default {
       padding: 20px;
     }
 
+    // 题目练习入口样式
+    .practice-entry {
+      padding: 40px 20px;
+      text-align: center;
+    }
+
     .section-item {
       padding: 12px 16px;
 
@@ -1019,6 +1348,271 @@ export default {
 
       .section-title {
         font-size: 14px;
+      }
+    }
+  }
+}
+
+/* ==================== 任务练习样式 ==================== */
+.practice-tab-content {
+  padding: 0 !important;
+}
+
+.task-stats-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+
+    .stat-label {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 500;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      line-height: 1;
+    }
+
+    &.stat-homework .stat-value {
+      color: #a8e6cf;
+    }
+
+    &.stat-exam .stat-value {
+      color: #ffd3b6;
+    }
+
+    &.stat-completed .stat-value {
+      color: #dfe6e9;
+    }
+  }
+
+  .stat-divider {
+    width: 1px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+.tasks-container {
+  min-height: 300px;
+}
+
+.chapter-tasks-list {
+  .chapter-section {
+    margin-bottom: 32px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .chapter-title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    border-left: 4px solid #667eea;
+
+    .chapter-title-content {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #303133;
+
+      i {
+        font-size: 18px;
+        color: #667eea;
+      }
+    }
+
+    .task-count {
+      font-size: 13px;
+      color: #909399;
+      background: white;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+  }
+
+  .tasks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+  }
+
+  .task-item {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    border: 1px solid #e8ecf1;
+    position: relative;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+      border-color: #667eea;
+    }
+
+    .task-status-bar {
+      height: 4px;
+      width: 100%;
+
+      &.task-active {
+        background: linear-gradient(90deg, #67C23A 0%, #85CE61 100%);
+      }
+
+      &.task-pending {
+        background: linear-gradient(90deg, #909399 0%, #b3b3b3 100%);
+      }
+
+      &.task-expired {
+        background: linear-gradient(90deg, #F56C6C 0%, #f78989 100%);
+      }
+    }
+
+    .task-content {
+      padding: 20px;
+    }
+
+    .task-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+
+      .task-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 5px 12px;
+        border-radius: 14px;
+
+        &.type-homework {
+          background: #f0f9ff;
+          color: #67C23A;
+        }
+
+        &.type-exam {
+          background: #fffbeb;
+          color: #E6A23C;
+        }
+
+        i {
+          font-size: 13px;
+        }
+      }
+
+      .task-status {
+        font-size: 12px;
+        font-weight: 500;
+        padding: 4px 10px;
+        border-radius: 10px;
+
+        &.status-task-active {
+          background: #f0f9ff;
+          color: #67C23A;
+        }
+
+        &.status-task-pending {
+          background: #f5f5f5;
+          color: #909399;
+        }
+
+        &.status-task-expired {
+          background: #fef0f0;
+          color: #F56C6C;
+        }
+      }
+    }
+
+    .task-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #303133;
+      margin: 0 0 10px 0;
+      line-height: 1.5;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .task-desc {
+      font-size: 13px;
+      color: #909399;
+      line-height: 1.6;
+      margin: 0 0 14px 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .task-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-top: 12px;
+      border-top: 1px dashed #e8ecf1;
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        color: #606266;
+
+        i {
+          font-size: 13px;
+          color: #909399;
+        }
+      }
+    }
+
+    .task-footer {
+      .el-button {
+        width: 100%;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s;
+
+        i {
+          margin-left: 4px;
+          transition: transform 0.3s;
+        }
+
+        &:hover i {
+          transform: translateX(3px);
+        }
       }
     }
   }

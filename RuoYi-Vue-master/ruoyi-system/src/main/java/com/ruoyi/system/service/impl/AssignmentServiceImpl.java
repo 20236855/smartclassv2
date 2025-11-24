@@ -120,12 +120,13 @@ public class AssignmentServiceImpl implements IAssignmentService
                 "q.correct_answer, " +
                 "q.explanation, " +
                 "q.knowledge_point, " +
+                "q.chapter_id, " +
                 "GROUP_CONCAT(CONCAT(qo.option_label, ':', qo.option_text) ORDER BY qo.option_label SEPARATOR '||') AS options " +
                 "FROM assignment_question aq " +
                 "JOIN question q ON aq.question_id = q.id " +
                 "LEFT JOIN question_option qo ON q.id = qo.question_id " +
                 "WHERE aq.assignment_id = ? AND aq.is_deleted = 0 AND q.is_deleted = 0 " +
-                "GROUP BY aq.id, aq.question_id, aq.score, aq.sequence, q.title, q.question_type, q.difficulty, q.correct_answer, q.explanation, q.knowledge_point " +
+                "GROUP BY aq.id, aq.question_id, aq.score, aq.sequence, q.title, q.question_type, q.difficulty, q.correct_answer, q.explanation, q.knowledge_point, q.chapter_id " +
                 "ORDER BY aq.sequence";
 
         return jdbcTemplate.queryForList(sql, assignmentId);

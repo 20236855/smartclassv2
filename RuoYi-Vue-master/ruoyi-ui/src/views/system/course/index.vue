@@ -1,131 +1,229 @@
 <template>
-  <div class="app-container">
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
-      <el-form-item label="课程名称" prop="title">
-        <el-input
-          v-model="queryParams.title"
-          placeholder="请输入课程名称"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="课程编码" prop="courseCode">
-        <el-input
-          v-model="queryParams.courseCode"
-          placeholder="请输入课程编码"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="课程类型" prop="courseType">
-        <el-select v-model="queryParams.courseType" placeholder="请选择课程类型" clearable>
-          <el-option
-            v-for="dict in dict.type.course_type"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
-      </el-form-item>
-    </el-form>
+  <div class="app-container course-center-page">
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h2 class="page-title">
+        <i class="el-icon-reading"></i>
+        课程中心
+      </h2>
+      <div class="page-subtitle">浏览所有课程并申请选课</div>
+    </div>
 
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
+    <!-- 搜索和筛选区域 -->
+    <div class="filter-section">
+      <el-form :model="queryParams" ref="queryForm" :inline="true" label-width="80px">
+        <el-form-item label="课程名称" prop="title">
+          <el-input
+            v-model="queryParams.title"
+            placeholder="请输入课程名称"
+            clearable
+            style="width: 200px"
+            @keyup.enter.native="handleQuery"
+          />
+        </el-form-item>
+        <el-form-item label="课程类型" prop="courseType">
+          <el-select v-model="queryParams.courseType" placeholder="请选择课程类型" clearable style="width: 150px">
+            <el-option
+              v-for="dict in dict.type.course_type"
+              :key="dict.value"
+              :label="dict.label"
+              :value="dict.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" icon="el-icon-search" @click="handleQuery">搜索</el-button>
+          <el-button icon="el-icon-refresh" @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <!-- 管理员操作按钮 -->
+      <div class="admin-actions" v-hasPermi="['system:course:add']">
         <el-button
           type="primary"
-          plain
           icon="el-icon-plus"
-          size="mini"
+          size="small"
           @click="handleAdd"
-          v-hasPermi="['system:course:add']"
-        >新增</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          icon="el-icon-edit"
-          size="mini"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['system:course:edit']"
-        >修改</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          icon="el-icon-delete"
-          size="mini"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['system:course:remove']"
-        >删除</el-button>
-      </el-col>
-      <el-col :span="1.5">
+        >新增课程</el-button>
         <el-button
           type="warning"
-          plain
           icon="el-icon-download"
-          size="mini"
+          size="small"
           @click="handleExport"
           v-hasPermi="['system:course:export']"
         >导出</el-button>
-      </el-col>
-      <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
-    </el-row>
+      </div>
+    </div>
 
-    <el-table v-loading="loading" :data="courseList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="课程ID" align="center" prop="id" />
-      <el-table-column label="课程名称" align="center" prop="title" />
-      <el-table-column label="课程编码" align="center" prop="courseCode" />
-      <el-table-column label="学分" align="center" prop="credits" />
-      <el-table-column label="学时" align="center" prop="hours" />
-      <el-table-column label="课程类型" align="center" prop="courseType">
-        <template slot-scope="scope">
-          <dict-tag :options="dict.type.course_type" :value="scope.row.courseType"/>
-        </template>
-      </el-table-column>
-      <el-table-column label="开课学期" align="center" prop="semester" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
-        <template slot-scope="scope">
+    <!-- 课程卡片列表 -->
+    <div v-loading="loading">
+      <el-row :gutter="20" v-if="courseList && courseList.length > 0">
+        <el-col
+          v-for="course in courseList"
+          :key="course.id"
+          :xs="24" :sm="12" :md="8" :lg="6"
+        >
+          <el-card shadow="hover" class="course-card">
+            <!-- 课程封面 -->
+            <div class="card-cover" @click="showCourseDetail(course)">
+              <el-image
+                :src="course.coverImage || defaultCoverImage"
+                fit="cover"
+                lazy
+              >
+                <div slot="placeholder" class="image-slot">
+                  <i class="el-icon-loading"></i>
+                  <span>加载中...</span>
+                </div>
+                <div slot="error" class="image-slot">
+                  <i class="el-icon-reading"></i>
+                  <span>{{ course.title }}</span>
+                </div>
+              </el-image>
+              <!-- 课程类型标签 -->
+              <div class="course-type-badge" :class="getCourseTypeBadgeClass(course.courseType)">
+                <dict-tag :options="dict.type.course_type" :value="course.courseType"/>
+              </div>
+              <!-- 已选标识 -->
+              <div class="enrolled-badge" v-if="isCourseEnrolled(course.id)">
+                <i class="el-icon-check"></i> 已选
+              </div>
+            </div>
+
+            <!-- 课程信息 -->
+            <div class="card-info">
+              <h3 class="info-title" :title="course.title">{{ course.title }}</h3>
+              <div class="info-desc" :title="course.description">
+                {{ course.description || '暂无课程简介' }}
+              </div>
+              <div class="info-teacher" v-if="course.teacherName">
+                <i class="el-icon-user"></i> 讲师: {{ course.teacherName }}
+              </div>
+              <div class="info-meta">
+                <span class="meta-item" v-if="course.term">
+                  <i class="el-icon-time"></i> {{ course.term }}
+                </span>
+                <span class="meta-item">
+                  <i class="el-icon-star-on"></i> {{ course.credit || 0 }} 学分
+                </span>
+                <span class="meta-item" v-if="course.studentCount">
+                  <i class="el-icon-user"></i> {{ course.studentCount }} 人
+                </span>
+              </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="card-actions">
+              <!-- 学生操作：申请选课或已选 -->
+              <template v-if="!hasPermi(['system:course:edit'])">
+                <!-- 已选课程显示"已选"按钮 -->
+                <el-button
+                  v-if="isCourseEnrolled(course.id)"
+                  type="success"
+                  size="small"
+                  icon="el-icon-check"
+                  disabled
+                >
+                  已选课程
+                </el-button>
+                <!-- 未选课程显示"申请选课"按钮 -->
+                <el-button
+                  v-else
+                  type="primary"
+                  size="small"
+                  :icon="getCourseButtonIcon(course)"
+                  :loading="applyLoadingId === course.id"
+                  @click="handleCourseAction(course)"
+                >
+                  {{ getCourseButtonText(course) }}
+                </el-button>
+              </template>
+
+              <!-- 管理员操作 -->
+              <template v-if="hasPermi(['system:course:edit'])">
+                <el-button
+                  type="primary"
+                  size="small"
+                  icon="el-icon-edit"
+                  @click="handleUpdate(course)"
+                >修改</el-button>
+                <el-button
+                  type="success"
+                  size="small"
+                  icon="el-icon-share"
+                  @click="handleKnowledgeGraph(course)"
+                >图谱</el-button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  icon="el-icon-delete"
+                  @click="handleDelete(course)"
+                  v-hasPermi="['system:course:remove']"
+                >删除</el-button>
+              </template>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+
+      <!-- 空状态 -->
+      <el-empty
+        v-if="!loading && (!courseList || courseList.length === 0)"
+        description="暂无课程"
+      >
+        <el-button type="primary" @click="handleAdd" v-hasPermi="['system:course:add']">新增课程</el-button>
+      </el-empty>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination-container" v-if="total > 0">
+      <el-pagination
+        background
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+        :current-page="queryParams.pageNum"
+        :page-sizes="[12, 24, 36, 48]"
+        :page-size="queryParams.pageSize"
+        layout="total, sizes, prev, pager, next, jumper"
+        :total="total"
+      />
+    </div>
+
+    <!-- 课程详情抽屉 -->
+    <el-drawer
+      :title="selectedCourse ? selectedCourse.title : '课程详情'"
+      :visible.sync="drawerVisible"
+      direction="rtl"
+      size="50%"
+    >
+      <div class="drawer-content" v-if="selectedCourse">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="课程名称" :span="2">{{ selectedCourse.title }}</el-descriptions-item>
+          <el-descriptions-item label="课程类型">
+            <dict-tag :options="dict.type.course_type" :value="selectedCourse.courseType"/>
+          </el-descriptions-item>
+          <el-descriptions-item label="学分">{{ selectedCourse.credit || 0 }}</el-descriptions-item>
+          <el-descriptions-item label="学期">{{ selectedCourse.term || '未知' }}</el-descriptions-item>
+          <el-descriptions-item label="讲师">{{ selectedCourse.teacherName || '未知' }}</el-descriptions-item>
+          <el-descriptions-item label="开始时间">{{ selectedCourse.startTime || '未设置' }}</el-descriptions-item>
+          <el-descriptions-item label="结束时间">{{ selectedCourse.endTime || '未设置' }}</el-descriptions-item>
+          <el-descriptions-item label="课程描述" :span="2">
+            {{ selectedCourse.description || '暂无描述' }}
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <div class="drawer-actions">
           <el-button
-            size="mini"
-            type="text"
-            icon="el-icon-edit"
-            @click="handleUpdate(scope.row)"
-            v-hasPermi="['system:course:edit']"
-          >修改</el-button>
-          <el-button
-            size="mini"
-            type="text"
-            icon="el-icon-share"
-            @click="handleKnowledgeGraph(scope.row)"
-            style="color: #67C23A"
-          >知识图谱</el-button>
-          <el-button
-            size="mini"
-            type="text"
-            icon="el-icon-delete"
-            @click="handleDelete(scope.row)"
-            v-hasPermi="['system:course:remove']"
-          >删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-    
-    <pagination
-      v-show="total>0"
-      :total="total"
-      :page.sync="queryParams.pageNum"
-      :limit.sync="queryParams.pageSize"
-      @pagination="getList"
-    />
+            type="primary"
+            :icon="getCourseButtonIcon(selectedCourse)"
+            :loading="applyLoadingId === selectedCourse.id"
+            @click="handleCourseAction(selectedCourse)"
+          >
+            {{ getCourseButtonText(selectedCourse) }}
+          </el-button>
+        </div>
+      </div>
+    </el-drawer>
 
     <!-- 添加或修改课程对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="1200px" append-to-body>
@@ -193,9 +291,11 @@
 </template>
 
 <script>
-import { listCourse, joinCourse } from "@/api/system/course";
+import { listCourse, getCourse, addCourse, updateCourse, delCourse, joinCourse } from "@/api/system/course";
 // 确认 applyRequest 是从 request.js 中导入的
 import { applyRequest } from "@/api/system/request";
+import { getMyCourses } from "@/api/system/student";
+import KnowledgeGraphView from './components/KnowledgeGraphView.vue';
 
 export default {
   name: "Course",
@@ -228,7 +328,7 @@ export default {
       // 查询参数
       queryParams: {
         pageNum: 1,
-        pageSize: 10,
+        pageSize: 12,  // 卡片布局使用12个一页
         title: null,
         courseCode: null,
         courseType: null,
@@ -255,21 +355,68 @@ export default {
         semester: [
           { required: true, message: "开课学期不能为空", trigger: "blur" }
         ]
-      }
+      },
+      // 默认封面图片
+      defaultCoverImage: require('@/assets/images/profile.jpg'),
+      // 选中的课程（用于详情抽屉）
+      selectedCourse: null,
+      // 抽屉是否可见
+      drawerVisible: false,
+      // 申请选课加载状态
+      applyLoadingId: null,
+      // 已选课程ID列表
+      enrolledCourseIds: []
     };
   },
   created() {
     this.getList();
+    this.loadEnrolledCourses();
   },
   methods: {
     /** 查询课程列表 */
     getList() {
       this.loading = true;
       listCourse(this.queryParams).then(response => {
-        this.courseList = response.rows;
+        // 处理课程封面图片URL
+        this.courseList = response.rows.map(course => {
+          return {
+            ...course,
+            coverImage: this.processImageUrl(course.coverImage)
+          };
+        });
         this.total = response.total;
         this.loading = false;
       });
+    },
+    /** 处理图片URL */
+    processImageUrl(coverImage) {
+      if (!coverImage) {
+        return '';
+      }
+      // 如果已经是完整的URL，直接返回
+      if (coverImage.startsWith('http://') || coverImage.startsWith('https://')) {
+        return coverImage;
+      }
+      // 使用 VUE_APP_BASE_API 前缀（/dev-api）
+      return process.env.VUE_APP_BASE_API + coverImage;
+    },
+    /** 加载已选课程列表 */
+    loadEnrolledCourses() {
+      // 只有学生才需要加载已选课程
+      if (this.hasPermi(['system:course:edit'])) {
+        return; // 管理员不需要加载
+      }
+      getMyCourses().then(response => {
+        // 提取已选课程的ID列表
+        this.enrolledCourseIds = response.data.map(course => course.id);
+        console.log('已选课程ID列表:', this.enrolledCourseIds);
+      }).catch(error => {
+        console.error('加载已选课程失败:', error);
+      });
+    },
+    /** 判断课程是否已选 */
+    isCourseEnrolled(courseId) {
+      return this.enrolledCourseIds.includes(courseId);
     },
     // 取消按钮
     cancel() {
@@ -346,6 +493,8 @@ export default {
         return joinCourse(course.id);
       }).then(() => {
         this.$modal.msgSuccess("课程已直接加入您的课程列表");
+        // 重新加载已选课程列表
+        this.loadEnrolledCourses();
         if(this.drawerVisible) {
           this.drawerVisible = false;
         }
@@ -365,6 +514,8 @@ export default {
         return applyRequest(course.id, {});
       }).then(() => {
         this.$modal.msgSuccess("选课申请已提交，请等待审核");
+        // 重新加载已选课程列表
+        this.loadEnrolledCourses();
         if(this.drawerVisible) {
           this.drawerVisible = false;
         }
@@ -378,7 +529,381 @@ export default {
     showCourseDetail(course) {
       this.selectedCourse = course;
       this.drawerVisible = true;
+    },
+    /** 获取课程类型徽章样式 */
+    getCourseTypeBadgeClass(courseType) {
+      // 根据课程类型返回不同的样式类
+      return courseType === '必修课' ? 'required' : 'elective';
+    },
+    /** 分页大小改变 */
+    handleSizeChange(val) {
+      this.queryParams.pageSize = val;
+      this.getList();
+    },
+    /** 当前页改变 */
+    handleCurrentChange(val) {
+      this.queryParams.pageNum = val;
+      this.getList();
+    },
+    /** 检查权限 */
+    hasPermi(permissions) {
+      return this.$store.getters.permissions.some(permission => {
+        return permissions.includes(permission);
+      });
+    },
+    // 多选框选中数据
+    handleSelectionChange(selection) {
+      this.ids = selection.map(item => item.id);
+      this.single = selection.length !== 1;
+      this.multiple = !selection.length;
+    },
+    /** 修改按钮操作 */
+    handleUpdate(row) {
+      this.reset();
+      const id = row.id || this.ids;
+      getCourse(id).then(response => {
+        this.form = response.data;
+        this.open = true;
+        this.title = "修改课程";
+      });
+    },
+    /** 提交按钮 */
+    submitForm() {
+      this.$refs["form"].validate(valid => {
+        if (valid) {
+          if (this.form.id != null) {
+            updateCourse(this.form).then(response => {
+              this.$modal.msgSuccess("修改成功");
+              this.open = false;
+              this.getList();
+            });
+          } else {
+            addCourse(this.form).then(response => {
+              this.$modal.msgSuccess("新增成功");
+              this.open = false;
+              this.getList();
+            });
+          }
+        }
+      });
+    },
+    /** 删除按钮操作 */
+    handleDelete(row) {
+      const ids = row.id || this.ids;
+      this.$modal.confirm('是否确认删除课程编号为"' + ids + '"的数据项？').then(function() {
+        return delCourse(ids);
+      }).then(() => {
+        this.getList();
+        this.$modal.msgSuccess("删除成功");
+      }).catch(() => {});
+    },
+    /** 导出按钮操作 */
+    handleExport() {
+      this.download('system/course/export', {
+        ...this.queryParams
+      }, `course_${new Date().getTime()}.xlsx`);
+    },
+    /** 知识图谱按钮操作 */
+    handleKnowledgeGraph(row) {
+      this.reset();
+      const id = row.id || this.ids;
+      getCourse(id).then(response => {
+        this.form = response.data;
+        this.open = true;
+        this.title = "课程知识图谱 - " + this.form.title;
+        this.activeTab = 'graph';
+      });
     }
   }
 };
 </script>
+
+<style lang="scss" scoped>
+/* 页面容器 */
+.course-center-page {
+  padding: 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  min-height: calc(100vh - 84px);
+}
+
+/* 页面标题 */
+.page-header {
+  text-align: center;
+  margin-bottom: 30px;
+  padding: 30px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.page-title {
+  font-size: 32px;
+  color: #2c3e50;
+  margin: 0 0 10px 0;
+  font-weight: 600;
+}
+
+.page-title i {
+  color: #409EFF;
+  margin-right: 10px;
+}
+
+.page-subtitle {
+  font-size: 16px;
+  color: #7c8a9d;
+  margin: 0;
+}
+
+/* 筛选区域 */
+.filter-section {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* 课程卡片 */
+.course-card {
+  margin-bottom: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+
+  &:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  }
+}
+
+::v-deep .el-card__body {
+  padding: 0;
+}
+
+/* 卡片封面 */
+.card-cover {
+  width: 100%;
+  padding-top: 56.25%;
+  position: relative;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.3) 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  &:hover::after {
+    opacity: 1;
+  }
+}
+
+.card-cover .el-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  ::v-deep img {
+    transition: transform 0.3s ease;
+  }
+
+  &:hover ::v-deep img {
+    transform: scale(1.05);
+  }
+}
+
+.card-cover .image-slot {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  color: #909399;
+  font-size: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+  i {
+    font-size: 48px;
+    margin-bottom: 10px;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  span {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+  }
+}
+
+/* 课程类型徽章 */
+.course-type-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 1;
+}
+
+.course-type-badge.required {
+  background: rgba(245, 108, 108, 0.9);
+  color: white;
+}
+
+.course-type-badge.elective {
+  background: rgba(103, 194, 58, 0.9);
+  color: white;
+}
+
+/* 已选标识 */
+.enrolled-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(64, 158, 255, 0.95);
+  color: white;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+
+  i {
+    font-size: 14px;
+  }
+}
+
+/* 卡片信息 */
+.card-info {
+  padding: 16px;
+  background: #fff;
+}
+
+.info-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 10px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info-desc {
+  font-size: 13px;
+  color: #7c8a9d;
+  margin-bottom: 12px;
+  height: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.info-teacher {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 8px;
+
+  i {
+    color: #409EFF;
+    margin-right: 4px;
+  }
+}
+
+.info-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #909399;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+
+  i {
+    margin-right: 4px;
+    color: #409EFF;
+  }
+}
+
+/* 卡片操作按钮 */
+.card-actions {
+  padding: 12px 16px;
+  background: #f8f9fa;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+
+  .el-button {
+    flex: 1;
+  }
+}
+
+/* 分页容器 */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 30px;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* 抽屉内容 */
+.drawer-content {
+  padding: 20px;
+}
+
+.drawer-actions {
+  margin-top: 20px;
+  text-align: center;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .page-title {
+    font-size: 24px;
+  }
+
+  .filter-section {
+    flex-direction: column;
+  }
+
+  .admin-actions {
+    margin-top: 10px;
+    width: 100%;
+  }
+}
+</style>
