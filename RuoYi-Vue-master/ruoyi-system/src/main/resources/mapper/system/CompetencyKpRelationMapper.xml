@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.CompetencyKpRelationMapper">
+    <resultMap type="com.ruoyi.system.domain.CompetencyKpRelation" id="CompetencyKpRelationResult">
+        <result property="id" column="id"/>
+        <result property="competencyId" column="competency_id"/>
+        <result property="kpId" column="kp_id"/>
+        <result property="contributionRate" column="contribution_rate"/>
+        <result property="createTime" column="create_time"/>
+        <result property="isDeleted" column="is_deleted"/>
+    </resultMap>
+
+    <sql id="selectCompetencyKpRelationVo"> select id, competency_id, kp_id, contribution_rate, create_time, is_deleted from competency_kp_relation </sql>
+
+    <!-- 修正：parameterType补全全类名 com.ruoyi.system.domain.CompetencyKpRelation -->
+    <select id="selectCompetencyKpRelationList" parameterType="com.ruoyi.system.domain.CompetencyKpRelation" resultMap="CompetencyKpRelationResult">
+        <include refid="selectCompetencyKpRelationVo"/>
+        <where>
+            <if test="competencyId != null "> and competency_id = #{competencyId}</if>
+            <if test="kpId != null "> and kp_id = #{kpId}</if>
+            <if test="contributionRate != null "> and contribution_rate = #{contributionRate}</if>
+            <if test="isDeleted != null "> and is_deleted = #{isDeleted}</if>
+        </where>
+    </select>
+
+    <select id="selectCompetencyKpRelationById" parameterType="Long" resultMap="CompetencyKpRelationResult">
+        <include refid="selectCompetencyKpRelationVo"/>
+        where id = #{id}
+    </select>
+
+    <!-- 修正：parameterType补全全类名 -->
+    <insert id="insertCompetencyKpRelation" parameterType="com.ruoyi.system.domain.CompetencyKpRelation" useGeneratedKeys="true" keyProperty="id">
+        insert into competency_kp_relation
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="competencyId != null">competency_id,</if>
+            <if test="kpId != null">kp_id,</if>
+            <if test="contributionRate != null">contribution_rate,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="competencyId != null">#{competencyId},</if>
+            <if test="kpId != null">#{kpId},</if>
+            <if test="contributionRate != null">#{contributionRate},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+        </trim>
+    </insert>
+
+    <!-- 修正：parameterType补全全类名 -->
+    <update id="updateCompetencyKpRelation" parameterType="com.ruoyi.system.domain.CompetencyKpRelation">
+        update competency_kp_relation
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="competencyId != null">competency_id = #{competencyId},</if>
+            <if test="kpId != null">kp_id = #{kpId},</if>
+            <if test="contributionRate != null">contribution_rate = #{contributionRate},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteCompetencyKpRelationById" parameterType="Long"> delete from competency_kp_relation where id = #{id} </delete>
+
+    <delete id="deleteCompetencyKpRelationByIds" parameterType="String">
+        delete from competency_kp_relation where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")"> #{id} </foreach>
+    </delete>
+
+    <!-- 保留你的原有SQL，VO路径不变（确认com.ruoyi.system.domain.vo.CompetencyRadarVO存在） -->
+    <select id="getCompetencyRadarData" resultType="com.ruoyi.system.domain.vo.CompetencyRadarVo">
+        SELECT
+            cc.competency_name AS competencyName,
+            -- 最终分数 = (知识点掌握分 × 能力权重 × 知识点贡献度) 求和后保留1位小数
+            ROUND(
+                        SUM(skm.mastery_score * cc.weight * ckr.contribution_rate)
+                        /
+                        -- 分母：避免除零，确保权重和贡献度有效
+                        IFNULL(SUM(cc.weight * ckr.contribution_rate), 1),
+                        1
+                ) AS competencyScore
+        FROM
+            course_competency cc  -- 课程能力表（含weight字段）
+            -- 关联能力-知识点表（cc.id=ckr.competency_id，外键关联正确）
+                LEFT JOIN competency_kp_relation ckr
+                          ON cc.id = ckr.competency_id
+                              AND ckr.is_deleted = 0  -- 过滤已删除数据
+                -- 关联学生知识点掌握表（ckr.kp_id=skm.kp_id，外键关联正确）
+                LEFT JOIN student_kp_mastery skm
+                          ON ckr.kp_id = skm.kp_id
+                              AND skm.student_user_id = #{studentId}  -- 指定学生
+                              AND skm.course_id = #{courseId}        -- 指定课程
+                              AND skm.is_deleted = 0                  -- 过滤已删除数据
+        WHERE
+            cc.course_id = #{courseId}  -- 筛选当前课程的能力
+          AND cc.is_deleted = 0       -- 过滤已删除的能力
+        GROUP BY
+            cc.id, cc.competency_name  -- 按能力ID和名称分组（避免ONLY_FULL_GROUP_BY报错）
+        HAVING
+            -- 过滤无有效分数的能力（避免前端雷达图空维度）
+            SUM(skm.mastery_score * cc.weight * ckr.contribution_rate) IS NOT NULL
+    </select>
+</mapper>

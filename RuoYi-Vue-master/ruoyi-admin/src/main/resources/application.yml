@@ -127,3 +127,9 @@ xss:
   excludes: /system/notice
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
+# 通义千问API配置（新增）
+tongyi:
+  qianwen:
+    api-key: sk-92d17cdcbcd74bb4938ce53ac333d25c
+    model: qwen-turbo  # 轻量版足够用
+    timeout: 30000  # 超时时间30秒（避免报告生成慢导致超时）

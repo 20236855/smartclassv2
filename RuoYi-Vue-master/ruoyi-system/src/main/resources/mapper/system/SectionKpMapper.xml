@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SectionKpMapper">
+
+    <!-- 基础结果集映射（SectionKp实体类） -->
+    <resultMap type="com.ruoyi.system.domain.SectionKp" id="SectionKpResult">
+        <result property="id" column="id"/>
+        <result property="sectionId" column="section_id"/>
+        <result property="kpId" column="kp_id"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="isDeleted" column="is_deleted"/>
+    </resultMap>
+
+    <!-- 核心：查询知识点-资源关联数据（适配KpResourceVo） -->
+    <resultMap type="com.ruoyi.system.domain.vo.KpResourceVo" id="KpResourceResult">
+        <result property="kpId" column="kpId"/>
+        <result property="kpTitle" column="kpTitle"/>
+        <result property="sectionId" column="sectionId"/>
+        <result property="sectionTitle" column="sectionTitle"/>
+        <result property="videoUrl" column="videoUrl"/>
+        <result property="coreKnowledge" column="coreKnowledge"/>
+        <result property="sortOrder" column="sortOrder"/>
+    </resultMap>
+
+    <!-- 基础查询字段（SectionKp） -->
+    <sql id="selectSectionKpVo">
+        select id, section_id, kp_id, create_time, update_time, is_deleted from section_kp
+    </sql>
+
+    <!-- 基础CRUD（适配接口方法） -->
+    <select id="selectSectionKpById" parameterType="Long" resultMap="SectionKpResult">
+        <include refid="selectSectionKpVo"/> where id = #{id} and is_deleted = 0
+    </select>
+
+    <select id="selectSectionKpList" parameterType="com.ruoyi.system.domain.SectionKp" resultMap="SectionKpResult">
+        <include refid="selectSectionKpVo"/>
+        <where>
+            <if test="sectionId != null">and section_id = #{sectionId}</if>
+            <if test="kpId != null">and kp_id = #{kpId}</if>
+            <if test="isDeleted != null">and is_deleted = #{isDeleted}</if>
+        </where>
+    </select>
+
+    <insert id="insertSectionKp" parameterType="com.ruoyi.system.domain.SectionKp" useGeneratedKeys="true" keyProperty="id">
+        insert into section_kp (section_id, kp_id, is_deleted, create_time, update_time)
+        values (#{sectionId}, #{kpId}, #{isDeleted, jdbcType=INTEGER}, now(), now())
+    </insert>
+
+    <update id="updateSectionKp" parameterType="com.ruoyi.system.domain.SectionKp">
+        update section_kp
+        set section_id = #{sectionId}, kp_id = #{kpId}, is_deleted = #{isDeleted}, update_time = now()
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSectionKpById" parameterType="Long">
+        update section_kp set is_deleted = 1, update_time = now() where id = #{id}
+    </delete>
+
+    <delete id="deleteSectionKpByIds" parameterType="Long[]">
+        update section_kp set is_deleted = 1, update_time = now()
+        where id in <foreach item="id" collection="array" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+
+    <!-- 核心方法：查询课程下知识点对应的资源（适配SQL2需求） -->
+    <select id="selectKpResourceByCourseId" parameterType="Long" resultMap="KpResourceResult">
+        SELECT
+            kp.id AS kpId,
+            kp.title AS kpTitle,
+            s.id AS sectionId,
+            s.title AS sectionTitle,
+            s.video_url AS videoUrl,
+            s.description AS coreKnowledge,
+            s.sort_order AS sortOrder
+        FROM
+            knowledge_point kp
+                LEFT JOIN section_kp sk
+                          ON kp.id = sk.kp_id
+                LEFT JOIN section s
+                          ON sk.section_id = s.id
+                              AND s.is_deleted = 0
+        WHERE
+            kp.course_id = #{courseId}
+          AND kp.is_deleted = 0
+        ORDER BY
+            s.sort_order ASC
+    </select>
+
+</mapper>

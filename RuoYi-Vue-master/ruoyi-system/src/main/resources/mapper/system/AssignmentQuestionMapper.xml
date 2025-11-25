@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.AssignmentQuestionMapper">
+
+    <resultMap type="com.ruoyi.system.domain.AssignmentQuestion" id="AssignmentQuestionResult">
+        <result property="id" column="id"/>
+        <result property="assignmentId" column="assignment_id"/>
+        <result property="questionId" column="question_id"/>
+        <result property="score" column="score"/>
+        <result property="sequence" column="sequence"/>
+        <result property="isDeleted" column="is_deleted"/>
+        <result property="deleteTime" column="delete_time"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectAssignmentQuestionVo">
+        select id, assignment_id, question_id, score, sequence, is_deleted, delete_time, create_time, update_time
+        from assignment_question
+    </sql>
+
+    <!-- 条件查询列表（模仿正常XML的parameterType全类名写法） -->
+    <select id="selectAssignmentQuestionList" parameterType="com.ruoyi.system.domain.AssignmentQuestion" resultMap="AssignmentQuestionResult">
+        <include refid="selectAssignmentQuestionVo"/>
+        <where>
+            <if test="id != null "> and id = #{id}</if>
+            <if test="assignmentId != null "> and assignment_id = #{assignmentId}</if>
+            <if test="questionId != null "> and question_id = #{questionId}</if>
+            <if test="score != null "> and score = #{score}</if>
+            <if test="sequence != null "> and sequence = #{sequence}</if>
+            <if test="isDeleted != null "> and is_deleted = #{isDeleted}</if>
+        </where>
+        order by sequence asc
+    </select>
+
+    <!-- 根据ID查询（模仿正常XML的parameterType=Long） -->
+    <select id="selectAssignmentQuestionById" parameterType="Long" resultMap="AssignmentQuestionResult">
+        <include refid="selectAssignmentQuestionVo"/>
+        where id = #{id} and is_deleted = 0
+    </select>
+
+    <!-- 新增（模仿正常XML的trim标签写法） -->
+    <insert id="insertAssignmentQuestion" parameterType="com.ruoyi.system.domain.AssignmentQuestion" useGeneratedKeys="true" keyProperty="id">
+        insert into assignment_question
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="assignmentId != null">assignment_id,</if>
+            <if test="questionId != null">question_id,</if>
+            <if test="score != null">score,</if>
+            <if test="sequence != null">sequence,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="assignmentId != null">#{assignmentId},</if>
+            <if test="questionId != null">#{questionId},</if>
+            <if test="score != null">#{score},</if>
+            <if test="sequence != null">#{sequence},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+        </trim>
+    </insert>
+
+    <!-- 修改（模仿正常XML的trim标签写法） -->
+    <update id="updateAssignmentQuestion" parameterType="com.ruoyi.system.domain.AssignmentQuestion">
+        update assignment_question
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="assignmentId != null">assignment_id = #{assignmentId},</if>
+            <if test="questionId != null">question_id = #{questionId},</if>
+            <if test="score != null">score = #{score},</if>
+            <if test="sequence != null">sequence = #{sequence},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="deleteTime != null">delete_time = #{deleteTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id} and is_deleted = 0
+    </update>
+
+    <!-- 单个删除（模仿正常XML写法） -->
+    <delete id="deleteAssignmentQuestionById" parameterType="Long">
+        update assignment_question set is_deleted = 1, delete_time = now(), update_time = now() where id = #{id}
+    </delete>
+
+    <!-- 批量删除（模仿正常XML的foreach写法） -->
+    <delete id="deleteAssignmentQuestionByIds" parameterType="Long[]">
+        update assignment_question set is_deleted = 1, delete_time = now(), update_time = now()
+        where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")"> #{id} </foreach>
+    </delete>
+
+    <!-- 自定义方法：题目-知识点关联（模仿正常XML的ResultMap和SQL格式） -->
+    <resultMap type="com.ruoyi.system.domain.vo.QuestionKpRelationVo" id="QuestionKpRelationResultMap">
+        <result property="assignmentId" column="assignment_id"/>
+        <result property="questionSequence" column="question_sequence"/>
+        <result property="kpIds" column="kp_ids"/> <!-- 逗号分隔字符串，后续Service转List -->
+        <result property="kpTitles" column="kp_titles"/> <!-- 逗号分隔字符串 -->
+    </resultMap>
+
+    <select id="selectQuestionKpRelation" parameterType="java.util.Map" resultMap="QuestionKpRelationResultMap">
+        SELECT
+            aq.assignment_id AS assignment_id,
+            aq.sequence AS question_sequence,
+            GROUP_CONCAT(DISTINCT kp.id SEPARATOR ',') AS kp_ids,
+            GROUP_CONCAT(DISTINCT kp.title SEPARATOR ',') AS kp_titles
+        FROM
+            assignment_question aq
+                LEFT JOIN question q
+                          ON aq.question_id = q.id
+                              AND q.is_deleted = 0
+                LEFT JOIN knowledge_point kp
+                          ON TRIM(LOWER(kp.title)) = TRIM(LOWER(q.knowledge_point))
+                              AND kp.is_deleted = 0
+        WHERE
+            aq.assignment_id = #{assignmentId}
+          AND q.course_id = #{courseId}
+          AND aq.is_deleted = 0
+          AND q.knowledge_point IS NOT NULL
+        GROUP BY
+            aq.assignment_id, aq.sequence
+        ORDER BY
+            aq.sequence ASC
+    </select>
+
+</mapper>

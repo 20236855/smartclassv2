@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.CourseCompetencyMapper">
+    <resultMap type="com.ruoyi.system.domain.CourseCompetency" id="CourseCompetencyResult">
+        <result property="id" column="id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="competencyName" column="competency_name"/>
+        <result property="competencyDesc" column="competency_desc"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="weight" column="weight"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="isDeleted" column="is_deleted"/>
+    </resultMap>
+    <sql id="selectCourseCompetencyVo"> select id, course_id, competency_name, competency_desc, sort_order, weight, create_time, update_time, is_deleted from course_competency </sql>
+
+    <!-- 修正：parameterType补全全类名 -->
+    <select id="selectCourseCompetencyList" parameterType="com.ruoyi.system.domain.CourseCompetency" resultMap="CourseCompetencyResult">
+        <include refid="selectCourseCompetencyVo"/>
+        <where>
+            <if test="courseId != null "> and course_id = #{courseId}</if>
+            <if test="competencyName != null and competencyName != ''"> and competency_name like concat('%', #{competencyName}, '%')</if>
+            <if test="competencyDesc != null and competencyDesc != ''"> and competency_desc = #{competencyDesc}</if>
+            <if test="sortOrder != null "> and sort_order = #{sortOrder}</if>
+            <if test="weight != null "> and weight = #{weight}</if>
+            <if test="isDeleted != null "> and is_deleted = #{isDeleted}</if>
+        </where>
+    </select>
+
+    <select id="selectCourseCompetencyById" parameterType="Long" resultMap="CourseCompetencyResult">
+        <include refid="selectCourseCompetencyVo"/>
+        where id = #{id}
+    </select>
+
+    <!-- 修正：parameterType补全全类名 -->
+    <insert id="insertCourseCompetency" parameterType="com.ruoyi.system.domain.CourseCompetency" useGeneratedKeys="true" keyProperty="id">
+        insert into course_competency
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="courseId != null">course_id,</if>
+            <if test="competencyName != null and competencyName != ''">competency_name,</if>
+            <if test="competencyDesc != null">competency_desc,</if>
+            <if test="sortOrder != null">sort_order,</if>
+            <if test="weight != null">weight,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="courseId != null">#{courseId},</if>
+            <if test="competencyName != null and competencyName != ''">#{competencyName},</if>
+            <if test="competencyDesc != null">#{competencyDesc},</if>
+            <if test="sortOrder != null">#{sortOrder},</if>
+            <if test="weight != null">#{weight},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+        </trim>
+    </insert>
+
+    <!-- 修正：parameterType补全全类名 -->
+    <update id="updateCourseCompetency" parameterType="com.ruoyi.system.domain.CourseCompetency">
+        update course_competency
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="competencyName != null and competencyName != ''">competency_name = #{competencyName},</if>
+            <if test="competencyDesc != null">competency_desc = #{competencyDesc},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            <if test="weight != null">weight = #{weight},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteCourseCompetencyById" parameterType="Long"> delete from course_competency where id = #{id} </delete>
+    <delete id="deleteCourseCompetencyByIds" parameterType="String">
+        delete from course_competency where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")"> #{id} </foreach>
+    </delete>
+</mapper>

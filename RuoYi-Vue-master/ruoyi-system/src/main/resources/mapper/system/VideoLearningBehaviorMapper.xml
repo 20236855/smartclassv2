@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.VideoLearningBehaviorMapper">
+    <resultMap type="com.ruoyi.system.domain.VideoLearningBehavior" id="VideoLearningBehaviorResult">
+        <result property="id" column="id"/>
+        <result property="studentUserId" column="student_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="videoId" column="video_id"/>
+        <result property="watchDuration" column="watch_duration"/> <!-- 观看时长（秒） -->
+        <result property="videoDuration" column="video_duration"/> <!-- 视频总时长（秒） -->
+        <result property="fastForwardCount" column="fast_forward_count"/> <!-- 快进次数 -->
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="isDeleted" column="is_deleted"/>
+    </resultMap>
+
+    <sql id="selectVideoLearningBehaviorVo">
+        select id, student_id, course_id, video_id, watch_duration, video_duration, fast_forward_count, create_time, update_time, is_deleted
+        from video_learning_behavior
+        where user_id = ? and course_id = ? and is_deleted = 0
+    </sql>
+
+    <!-- 根据学生ID和课程ID查询视频学习记录 -->
+    <select id="selectByUserIdAndCourseId" resultMap="VideoLearningBehaviorResult">
+        <include refid="selectVideoLearningBehaviorVo"/>
+        where student_id = #{studentUserId}
+        and course_id = #{courseId}
+        and is_deleted = 0
+    </select>
+</mapper>
