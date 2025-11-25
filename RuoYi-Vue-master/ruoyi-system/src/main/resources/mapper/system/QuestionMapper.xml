@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.QuestionMapper">
+
+    <resultMap type="Question" id="QuestionResult">
+        <result property="id"    column="id"    />
+        <result property="title"    column="title"    />
+        <result property="questionType"    column="question_type"    />
+        <result property="difficulty"    column="difficulty"    />
+        <result property="correctAnswer"    column="correct_answer"    />
+        <result property="explanation"    column="explanation"    />
+        <result property="knowledgePoint"    column="knowledge_point"    />
+        <result property="courseId"    column="course_id"    />
+        <result property="chapterId"    column="chapter_id"    />
+        <result property="createdBy"    column="created_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="deleteTime"    column="delete_time"    />
+        <result property="options"    column="options"    />
+    </resultMap>
+
+    <sql id="selectQuestionVo">
+        select id, title, question_type, difficulty, correct_answer, explanation, knowledge_point, course_id, chapter_id, created_by, create_time, update_time, is_deleted, delete_time from question
+    </sql>
+
+    <select id="selectQuestionList" parameterType="Question" resultMap="QuestionResult">
+        SELECT
+            q.id, q.title, q.question_type, q.difficulty, q.correct_answer, q.explanation,
+            q.knowledge_point, q.course_id, q.chapter_id, q.created_by, q.create_time,
+            q.update_time, q.is_deleted, q.delete_time,
+            GROUP_CONCAT(CONCAT(qo.option_label, ':', qo.option_text) ORDER BY qo.option_label SEPARATOR '||') as options
+        FROM question q
+        LEFT JOIN question_option qo ON q.id = qo.question_id
+        <where>
+            <if test="title != null  and title != ''"> and q.title = #{title}</if>
+            <if test="questionType != null  and questionType != ''"> and q.question_type = #{questionType}</if>
+            <if test="difficulty != null "> and q.difficulty = #{difficulty}</if>
+            <if test="correctAnswer != null  and correctAnswer != ''"> and q.correct_answer = #{correctAnswer}</if>
+            <if test="explanation != null  and explanation != ''"> and q.explanation = #{explanation}</if>
+            <if test="knowledgePoint != null  and knowledgePoint != ''"> and q.knowledge_point = #{knowledgePoint}</if>
+            <if test="courseId != null "> and q.course_id = #{courseId}</if>
+            <if test="chapterId != null "> and q.chapter_id = #{chapterId}</if>
+            <if test="createdBy != null "> and q.created_by = #{createdBy}</if>
+            <if test="isDeleted != null "> and q.is_deleted = #{isDeleted}</if>
+            <if test="deleteTime != null "> and q.delete_time = #{deleteTime}</if>
+        </where>
+        GROUP BY q.id
+    </select>
+
+    <select id="selectQuestionById" parameterType="Long" resultMap="QuestionResult">
+        SELECT
+            q.id, q.title, q.question_type, q.difficulty, q.correct_answer, q.explanation,
+            q.knowledge_point, q.course_id, q.chapter_id, q.created_by, q.create_time,
+            q.update_time, q.is_deleted, q.delete_time,
+            GROUP_CONCAT(CONCAT(qo.option_label, ':', qo.option_text) ORDER BY qo.option_label SEPARATOR '||') as options
+        FROM question q
+        LEFT JOIN question_option qo ON q.id = qo.question_id
+        WHERE q.id = #{id}
+        GROUP BY q.id
+    </select>
+
+    <insert id="insertQuestion" parameterType="Question" useGeneratedKeys="true" keyProperty="id">
+        insert into question
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="title != null and title != ''">title,</if>
+            <if test="questionType != null and questionType != ''">question_type,</if>
+            <if test="difficulty != null">difficulty,</if>
+            <if test="correctAnswer != null">correct_answer,</if>
+            <if test="explanation != null">explanation,</if>
+            <if test="knowledgePoint != null">knowledge_point,</if>
+            <if test="courseId != null">course_id,</if>
+            <if test="chapterId != null">chapter_id,</if>
+            <if test="createdBy != null">created_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="deleteTime != null">delete_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="title != null and title != ''">#{title},</if>
+            <if test="questionType != null and questionType != ''">#{questionType},</if>
+            <if test="difficulty != null">#{difficulty},</if>
+            <if test="correctAnswer != null">#{correctAnswer},</if>
+            <if test="explanation != null">#{explanation},</if>
+            <if test="knowledgePoint != null">#{knowledgePoint},</if>
+            <if test="courseId != null">#{courseId},</if>
+            <if test="chapterId != null">#{chapterId},</if>
+            <if test="createdBy != null">#{createdBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="deleteTime != null">#{deleteTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateQuestion" parameterType="Question">
+        update question
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="title != null and title != ''">title = #{title},</if>
+            <if test="questionType != null and questionType != ''">question_type = #{questionType},</if>
+            <if test="difficulty != null">difficulty = #{difficulty},</if>
+            <if test="correctAnswer != null">correct_answer = #{correctAnswer},</if>
+            <if test="explanation != null">explanation = #{explanation},</if>
+            <if test="knowledgePoint != null">knowledge_point = #{knowledgePoint},</if>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="chapterId != null">chapter_id = #{chapterId},</if>
+            <if test="createdBy != null">created_by = #{createdBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="deleteTime != null">delete_time = #{deleteTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteQuestionById" parameterType="Long">
+        delete from question where id = #{id}
+    </delete>
+
+    <delete id="deleteQuestionByIds" parameterType="String">
+        delete from question where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

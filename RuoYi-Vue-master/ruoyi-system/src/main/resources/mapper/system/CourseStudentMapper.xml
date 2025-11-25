@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.CourseStudentMapper">
+
+    <resultMap type="CourseStudent" id="CourseStudentResult">
+        <result property="id"    column="id"    />
+        <result property="courseId"    column="course_id"    />
+        <result property="studentUserId"    column="student_user_id"    />
+        <result property="enrollTime"    column="enroll_time"    />
+        <result property="collected"    column="collected"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="deleteTime"    column="delete_time"    />
+    </resultMap>
+
+    <sql id="selectCourseStudentVo">
+        select id, course_id, student_user_id, enroll_time, collected, is_deleted, delete_time from course_student
+    </sql>
+
+    <select id="selectCourseStudentList" parameterType="CourseStudent" resultMap="CourseStudentResult">
+        <include refid="selectCourseStudentVo"/>
+        <where>
+            <if test="courseId != null "> and course_id = #{courseId}</if>
+            <if test="studentUserId != null "> and student_user_id = #{studentUserId}</if>
+            <if test="collected != null "> and collected = #{collected}</if>
+        </where>
+    </select>
+
+    <select id="selectCourseStudentById" parameterType="Long" resultMap="CourseStudentResult">
+        <include refid="selectCourseStudentVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertCourseStudent" parameterType="CourseStudent" useGeneratedKeys="true" keyProperty="id">
+        insert into course_student
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="courseId != null">course_id,</if>
+            <if test="studentUserId != null">student_user_id,</if>
+            <if test="enrollTime != null">enroll_time,</if>
+            <if test="collected != null">collected,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="deleteTime != null">delete_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="courseId != null">#{courseId},</if>
+            <if test="studentUserId != null">#{studentUserId},</if>
+            <if test="enrollTime != null">#{enrollTime},</if>
+            <if test="collected != null">#{collected},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="deleteTime != null">#{deleteTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateCourseStudent" parameterType="CourseStudent">
+        update course_student
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="studentUserId != null">student_user_id = #{studentUserId},</if>
+            <if test="enrollTime != null">enroll_time = #{enrollTime},</if>
+            <if test="collected != null">collected = #{collected},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="deleteTime != null">delete_time = #{deleteTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteCourseStudentById" parameterType="Long">
+        delete from course_student where id = #{id}
+    </delete>
+
+    <delete id="deleteCourseStudentByIds" parameterType="String">
+        delete from course_student where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <!-- ⭐【关键新增】根据学生ID查询其所有课程详情 -->
+    <select id="selectMyCoursesByStudentId" parameterType="Long" resultType="com.ruoyi.system.domain.Course">
+        select
+            c.id,
+            c.title,
+            c.description,
+            c.cover_image as coverImage,
+            c.credit,
+            c.course_type as courseType,
+            c.term,
+            c.start_time as startTime,
+            c.end_time as endTime,
+            c.status,
+            c.teacher_user_id as teacherUserId,
+            su.nick_name as teacherName
+        from
+            course_student cs
+                inner join
+            course c on cs.course_id = c.id
+                left join
+            user u on c.teacher_user_id = u.id
+                left join
+            sys_user su on u.sys_user_id = su.user_id
+        where
+            cs.student_user_id = #{studentUserId}
+        order by
+            cs.enroll_time desc
+    </select>
+</mapper>

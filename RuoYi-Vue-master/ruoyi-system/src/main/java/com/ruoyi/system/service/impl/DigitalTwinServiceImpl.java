@@ -226,7 +226,7 @@ public class DigitalTwinServiceImpl implements IDigitalTwinService {
 
             // 计算总快进次数（处理null值）
             int totalFastForward = behaviorList.stream()
-                    .mapToInt(behavior -> behavior.getFastForwardCount() != null ? behavior.getFastForwardCount() : 0)
+                    .mapToInt(behavior -> behavior.getFastForwardCount() != null ? behavior.getFastForwardCount().intValue() : 0)
                     .sum();
 
             VideoLearningStatVO stat = new VideoLearningStatVO();

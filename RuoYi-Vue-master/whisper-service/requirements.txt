@@ -1,0 +1,15 @@
+# Whisper 视频转录服务依赖包
+
+# OpenAI Whisper - 语音识别核心
+openai-whisper>=20231117
+
+# Flask - Web服务框架
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# 其他依赖（Whisper会自动安装）
+# torch>=2.0.0
+# torchaudio>=2.0.0
+# numpy>=1.20.0
+# ffmpeg-python>=0.2.0
+

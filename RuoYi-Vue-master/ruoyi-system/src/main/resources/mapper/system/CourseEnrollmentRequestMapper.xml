@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.CourseEnrollmentRequestMapper">
+
+    <resultMap type="CourseEnrollmentRequest" id="CourseEnrollmentRequestResult">
+        <result property="id"    column="id"    />
+        <result property="studentUserId"    column="student_user_id"    />
+        <result property="courseId"    column="course_id"    />
+        <result property="status"    column="status"    />
+        <result property="reason"    column="reason"    />
+        <result property="reviewComment"    column="review_comment"    />
+        <result property="submitTime"    column="submit_time"    />
+        <result property="reviewTime"    column="review_time"    />
+        <result property="courseName"   column="course_name" />
+    </resultMap>
+
+    <sql id="selectCourseEnrollmentRequestVo">
+        select
+            r.id, r.student_user_id, r.course_id, r.status, r.reason, r.review_comment, r.submit_time, r.review_time,
+            c.title as course_name
+        from course_enrollment_request r
+                 left join course c on r.course_id = c.id
+    </sql>
+
+    <select id="selectCourseEnrollmentRequestList" parameterType="CourseEnrollmentRequest" resultMap="CourseEnrollmentRequestResult">
+        <include refid="selectCourseEnrollmentRequestVo"/>
+        <!-- ⭐【关键修复】添加 <where> 标签 -->
+        <where>
+            <if test="studentUserId != null "> and r.student_user_id = #{studentUserId}</if>
+            <if test="courseId != null "> and r.course_id = #{courseId}</if>
+            <if test="status != null "> and r.status = #{status}</if>
+        </where>
+    </select>
+
+    <select id="selectCourseEnrollmentRequestById" parameterType="Long" resultMap="CourseEnrollmentRequestResult">
+        <include refid="selectCourseEnrollmentRequestVo"/>
+        where r.id = #{id}
+    </select>
+
+    <!-- insert, update, delete 部分无需修改，保持原样 -->
+    <insert id="insertCourseEnrollmentRequest" parameterType="CourseEnrollmentRequest" useGeneratedKeys="true" keyProperty="id">
+        insert into course_enrollment_request
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="studentUserId != null">student_user_id,</if>
+            <if test="courseId != null">course_id,</if>
+            <if test="status != null">status,</if>
+            <if test="reason != null">reason,</if>
+            <if test="reviewComment != null">review_comment,</if>
+            <if test="submitTime != null">submit_time,</if>
+            <if test="reviewTime != null">review_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="studentUserId != null">#{studentUserId},</if>
+            <if test="courseId != null">#{courseId},</if>
+            <if test="status != null">#{status},</if>
+            <if test="reason != null">#{reason},</if>
+            <if test="reviewComment != null">#{reviewComment},</if>
+            <if test="submitTime != null">#{submitTime},</if>
+            <if test="reviewTime != null">#{reviewTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateCourseEnrollmentRequest" parameterType="CourseEnrollmentRequest">
+        update course_enrollment_request
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="studentUserId != null">student_user_id = #{studentUserId},</if>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="reason != null">reason = #{reason},</if>
+            <if test="reviewComment != null">review_comment = #{reviewComment},</if>
+            <if test="submitTime != null">submit_time = #{submitTime},</if>
+            <if test="reviewTime != null">review_time = #{reviewTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteCourseEnrollmentRequestById" parameterType="Long">
+        delete from course_enrollment_request where id = #{id}
+    </delete>
+
+    <delete id="deleteCourseEnrollmentRequestByIds" parameterType="String">
+        delete from course_enrollment_request where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

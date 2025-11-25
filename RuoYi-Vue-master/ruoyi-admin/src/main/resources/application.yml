@@ -1,13 +1,13 @@
 # 项目相关配置
 ruoyi:
   # 名称
-  name: RuoYi
+  name: 智慧课程系统
   # 版本
-  version: 3.9.0
+  version: 1.0.0
   # 版权年份
   copyrightYear: 2025
   # 文件路径 示例（ Windows配置D:/ruoyi/uploadPath，Linux配置 /home/ruoyi/uploadPath）
-  profile: D:/ruoyi/uploadPath
+  profile: C:/ruoyi/uploadPath
   # 获取ip地址开关
   addressEnabled: false
   # 验证码类型 math 数字计算 char 字符验证
@@ -56,10 +56,10 @@ spring:
   # 文件上传
   servlet:
     multipart:
-      # 单个文件大小
-      max-file-size: 10MB
+      # 单个文件大小（支持大视频文件上传）
+      max-file-size: 1024MB
       # 设置总上传的文件大小
-      max-request-size: 20MB
+      max-request-size: 1024MB
   # 服务模块
   devtools:
     restart:
@@ -127,9 +127,39 @@ xss:
   excludes: /system/notice
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
-# 通义千问API配置（新增）
+
+# 通义千问API配置（原配置保留）
 tongyi:
   qianwen:
     api-key: sk-92d17cdcbcd74bb4938ce53ac333d25c
     model: qwen-turbo  # 轻量版足够用
     timeout: 30000  # 超时时间30秒（避免报告生成慢导致超时）
+
+# AI 服务配置（新增配置）
+qianwen:
+  api:
+    # 已硬编码（注意安全）：将下面两个字段替换为你的真实 endpoint 与 key
+    url: "https://api.siliconflow.cn/v1/chat/completions"
+    key: "sk-kliintzjxqkxwjxdjvbuacpnshemgdnjtmqjcbxumkxrjvnz"
+    # 指定模型（默认 Qwen/QwQ-32B）
+    model: "Qwen/Qwen3-8B"
+
+# 视频转录配置（新增配置）
+video:
+  transcription:
+    # 转录服务提供商：whisper（免费推荐）, aliyun（阿里云）, tencent（腾讯云）, baidu（百度）, none（不转录）
+    provider: "whisper"
+    # 是否启用转录
+    enabled: true
+
+# Whisper服务配置（完全免费）（新增配置）
+whisper:
+  service:
+    # Whisper服务地址
+    url: "http://localhost:5000"
+  # 模型大小：tiny（最快，85%准确率）, base（推荐，95%准确率）, small, medium, large（最准确）
+  # 使用tiny模型：速度最快，准确率稍低但可接受
+  model: "tiny"
+  # 超时时间（毫秒），默认30分钟（处理长视频）
+  timeout: 1800000
+

@@ -9,12 +9,12 @@ export default {
   name: 'RuoYiGit',
   data() {
     return {
-      url: 'https://gitee.com/y_project/RuoYi-Vue'
+      url: '#'
     }
   },
   methods: {
     goto() {
-      window.open(this.url)
+      this.$message.info('源码仓库正在建设中...')
     }
   }
 }

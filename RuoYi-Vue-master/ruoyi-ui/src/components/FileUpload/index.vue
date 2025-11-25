@@ -189,7 +189,12 @@ export default {
     // 上传成功回调
     handleUploadSuccess(res, file) {
       if (res.code === 200) {
-        this.uploadList.push({ name: res.fileName, url: res.fileName })
+        this.uploadList.push({
+          name: res.fileName,
+          url: res.fileName,
+          size: file.size,
+          raw: file.raw
+        })
         this.uploadedSuccessfully()
       } else {
         this.number--
@@ -211,6 +216,8 @@ export default {
         this.uploadList = []
         this.number = 0
         this.$emit("input", this.listToString(this.fileList))
+        // 发送文件上传完成事件，传递文件列表
+        this.$emit("upload-success", this.fileList)
         this.$modal.closeLoading()
       }
     },

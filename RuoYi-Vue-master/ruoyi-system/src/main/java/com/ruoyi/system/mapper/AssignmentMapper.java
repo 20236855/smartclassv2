@@ -2,18 +2,61 @@ package com.ruoyi.system.mapper;
 
 import com.ruoyi.system.domain.Assignment;
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
+import java.util.List;
 
 /**
- * 作业表Mapper（用于查询作业名称）
+ * 作业或考试Mapper接口
+ *
+ * @author ruoyi
+ * @date 2025-11-18
  */
 @Mapper
 public interface AssignmentMapper {
+    /**
+     * 查询作业或考试
+     *
+     * @param id 作业或考试主键
+     * @return 作业或考试
+     */
+    public Assignment selectAssignmentById(Long id);
 
     /**
-     * 根据作业ID查询未删除的作业（仅查核心字段：id、title、course_id）
-     * @param id 作业ID
-     * @return 作业实体（含名称）
+     * 查询作业或考试列表
+     *
+     * @param assignment 作业或考试
+     * @return 作业或考试集合
      */
-    Assignment selectAssignmentById(@Param("id") Long id);
+    public List<Assignment> selectAssignmentList(Assignment assignment);
+
+    /**
+     * 新增作业或考试
+     *
+     * @param assignment 作业或考试
+     * @return 结果
+     */
+    public int insertAssignment(Assignment assignment);
+
+    /**
+     * 修改作业或考试
+     *
+     * @param assignment 作业或考试
+     * @return 结果
+     */
+    public int updateAssignment(Assignment assignment);
+
+    /**
+     * 删除作业或考试
+     *
+     * @param id 作业或考试主键
+     * @return 结果
+     */
+    public int deleteAssignmentById(Long id);
+
+    /**
+     * 批量删除作业或考试
+     *
+     * @param ids 需要删除的数据主键集合
+     * @return 结果
+     */
+    public int deleteAssignmentByIds(Long[] ids);
 }

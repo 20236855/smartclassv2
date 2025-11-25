@@ -4,7 +4,6 @@ import com.ruoyi.system.domain.StudentKpMastery;
 import com.ruoyi.system.domain.vo.StudentLearnStatusVo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.springframework.context.annotation.Bean;
 
 import java.util.List;
 @Mapper
@@ -63,12 +62,13 @@ public interface StudentKpMasteryMapper
      * @return 结果
      */
     public int deleteStudentKpMasteryByIds(Long[] ids);
+
     List<StudentLearnStatusVo> selectStudentLearnStatus(
             @Param("studentUserId") Long studentUserId,
             @Param("courseId") Long courseId
     );
+
     List<Long> selectOtherUserIdsByCourseId(
             @Param("courseId") Long courseId,
             @Param("excludeUserId") Long excludeUserId);
 }
-

@@ -1,6 +1,5 @@
 package com.ruoyi.system.service.impl;
 
-
 import java.util.List;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.system.domain.StudentKpMastery;
@@ -95,4 +94,3 @@ public class StudentKpMasteryServiceImpl implements IStudentKpMasteryService
         return studentKpMasteryMapper.deleteStudentKpMasteryById(id);
     }
 }
-

@@ -27,6 +27,11 @@ public class LoginBody
      */
     private String uuid;
 
+    /**
+     * 用户类型 (TEACHER/STUDENT)
+     */
+    private String userType;
+
     public String getUsername()
     {
         return username;
@@ -65,5 +70,15 @@ public class LoginBody
     public void setUuid(String uuid)
     {
         this.uuid = uuid;
+    }
+
+    public String getUserType()
+    {
+        return userType;
+    }
+
+    public void setUserType(String userType)
+    {
+        this.userType = userType;
     }
 }

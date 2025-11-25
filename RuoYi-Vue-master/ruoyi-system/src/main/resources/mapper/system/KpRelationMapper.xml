@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.KpRelationMapper">
+
+    <resultMap type="KpRelation" id="KpRelationResult">
+        <result property="id" column="id" />
+        <result property="fromKpId" column="from_kp_id" />
+        <result property="toKpId" column="to_kp_id" />
+        <result property="relationType" column="relation_type" />
+        <result property="aiGenerated" column="ai_generated" />
+        <result property="createTime" column="create_time" />
+    </resultMap>
+
+    <sql id="selectKpRelationVo">
+        select id, from_kp_id, to_kp_id, relation_type, ai_generated, create_time from kp_relation
+    </sql>
+
+    <select id="selectKpRelationList" parameterType="KpRelation" resultMap="KpRelationResult">
+        <include refid="selectKpRelationVo"/>
+        <where>
+            <if test="fromKpId != null"> and from_kp_id = #{fromKpId}</if>
+            <if test="toKpId != null"> and to_kp_id = #{toKpId}</if>
+            <if test="relationType != null and relationType != ''"> and relation_type = #{relationType}</if>
+            <if test="aiGenerated != null"> and ai_generated = #{aiGenerated}</if>
+        </where>
+    </select>
+
+    <select id="selectKpRelationById" parameterType="Long" resultMap="KpRelationResult">
+        <include refid="selectKpRelationVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertKpRelation" parameterType="KpRelation" useGeneratedKeys="true" keyProperty="id">
+        insert into kp_relation
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="fromKpId != null">from_kp_id,</if>
+            <if test="toKpId != null">to_kp_id,</if>
+            <if test="relationType != null and relationType != ''">relation_type,</if>
+            <if test="aiGenerated != null">ai_generated,</if>
+            <if test="createTime != null">create_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="fromKpId != null">#{fromKpId},</if>
+            <if test="toKpId != null">#{toKpId},</if>
+            <if test="relationType != null and relationType != ''">#{relationType},</if>
+            <if test="aiGenerated != null">#{aiGenerated},</if>
+            <if test="createTime != null">#{createTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateKpRelation" parameterType="KpRelation">
+        update kp_relation
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="fromKpId != null">from_kp_id = #{fromKpId},</if>
+            <if test="toKpId != null">to_kp_id = #{toKpId},</if>
+            <if test="relationType != null and relationType != ''">relation_type = #{relationType},</if>
+            <if test="aiGenerated != null">ai_generated = #{aiGenerated},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteKpRelationById" parameterType="Long">
+        delete from kp_relation where id = #{id}
+    </delete>
+
+    <delete id="deleteKpRelationByIds" parameterType="String">
+        delete from kp_relation where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

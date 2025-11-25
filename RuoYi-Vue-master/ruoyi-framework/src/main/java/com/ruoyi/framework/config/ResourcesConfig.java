@@ -1,6 +1,8 @@
 package com.ruoyi.framework.config;
 
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,15 +25,31 @@ import com.ruoyi.framework.interceptor.RepeatSubmitInterceptor;
 @Configuration
 public class ResourcesConfig implements WebMvcConfigurer
 {
+    private static final Logger log = LoggerFactory.getLogger(ResourcesConfig.class);
+
     @Autowired
     private RepeatSubmitInterceptor repeatSubmitInterceptor;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry)
     {
+        String profilePath = RuoYiConfig.getProfile();
+        String videosPath = "file:" + profilePath + "/videos/";
+
+        log.info("===========================================");
+        log.info("配置静态资源映射:");
+        log.info("Profile路径: {}", profilePath);
+        log.info("视频资源路径: {}", videosPath);
+        log.info("===========================================");
+
         /** 本地文件上传路径 */
         registry.addResourceHandler(Constants.RESOURCE_PREFIX + "/**")
-                .addResourceLocations("file:" + RuoYiConfig.getProfile() + "/");
+                .addResourceLocations("file:" + profilePath + "/");
+
+        /** 视频文件路径 - 添加尾部斜杠很重要 */
+        registry.addResourceHandler("/videos/**")
+                .addResourceLocations(videosPath)
+                .setCacheControl(CacheControl.maxAge(3600, TimeUnit.SECONDS).cachePublic());
 
         /** swagger配置 */
         registry.addResourceHandler("/swagger-ui/**")
@@ -45,7 +63,9 @@ public class ResourcesConfig implements WebMvcConfigurer
     @Override
     public void addInterceptors(InterceptorRegistry registry)
     {
-        registry.addInterceptor(repeatSubmitInterceptor).addPathPatterns("/**");
+        registry.addInterceptor(repeatSubmitInterceptor)
+                .addPathPatterns("/**")
+                .excludePathPatterns("/videos/**", "/profile/**");
     }
 
     /**
