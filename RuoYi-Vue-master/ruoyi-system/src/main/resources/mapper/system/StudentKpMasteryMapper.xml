@@ -1,36 +1,40 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper
-PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.ruoyi.system.mapper.StudentKpMasteryMapper">
-    
-    <resultMap type="StudentKpMastery" id="StudentKpMasteryResult">
-        <result property="id"    column="id"    />
-        <result property="studentUserId"    column="student_user_id"    />
-        <result property="courseId"    column="course_id"    />
-        <result property="kpId"    column="kp_id"    />
-        <result property="correctCount"    column="correct_count"    />
-        <result property="totalCount"    column="total_count"    />
-        <result property="accuracy"    column="accuracy"    />
-        <result property="lastTestScore"    column="last_test_score"    />
-        <result property="lastTestTime"    column="last_test_time"    />
-        <result property="trend"    column="trend"    />
-        <result property="masteryScore"    column="mastery_score"    />
-        <result property="masteryStatus"    column="mastery_status"    />
-        <result property="weightFactors"    column="weight_factors"    />
-        <result property="lastUpdatedBy"    column="last_updated_by"    />
-        <result property="createTime"    column="create_time"    />
-        <result property="updateTime"    column="update_time"    />
-        <result property="isDeleted"    column="is_deleted"    />
+    <!-- 恢复完整的resultMap（和实体类字段完全对应） -->
+    <resultMap type="com.ruoyi.system.domain.StudentKpMastery" id="StudentKpMasteryResult">
+        <result property="id" column="id"/>
+        <result property="studentUserId" column="student_user_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="kpId" column="kp_id"/>
+        <result property="correctCount" column="correct_count"/>
+        <result property="totalCount" column="total_count"/>
+        <result property="accuracy" column="accuracy"/>
+        <result property="lastTestScore" column="last_test_score"/>
+        <result property="lastTestTime" column="last_test_time"/>
+        <result property="trend" column="trend"/>
+        <result property="masteryScore" column="mastery_score"/>
+        <result property="masteryStatus" column="mastery_status"/>
+        <result property="weightFactors" column="weight_factors"/>
+        <result property="lastUpdatedBy" column="last_updated_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="isDeleted" column="is_deleted"/>
     </resultMap>
 
+    <!-- 恢复完整的查询字段 -->
     <sql id="selectStudentKpMasteryVo">
-        select id, student_user_id, course_id, kp_id, correct_count, total_count, accuracy, last_test_score, last_test_time, trend, mastery_score, mastery_status, weight_factors, last_updated_by, create_time, update_time, is_deleted from student_kp_mastery
+        select id, student_user_id, course_id, kp_id, correct_count, total_count, accuracy,
+               last_test_score, last_test_time, trend, mastery_score, mastery_status,
+               weight_factors, last_updated_by, create_time, update_time, is_deleted
+        from student_kp_mastery
     </sql>
 
-    <select id="selectStudentKpMasteryList" parameterType="StudentKpMastery" resultMap="StudentKpMasteryResult">
+    <!-- 修正：<if>判断按字段类型区分（字符串加!= ''，数值只判null） -->
+    <select id="selectStudentKpMasteryList" parameterType="com.ruoyi.system.domain.StudentKpMastery" resultMap="StudentKpMasteryResult">
         <include refid="selectStudentKpMasteryVo"/>
-        <where>  
+        <where>
+            <!-- 数值类型：只判断 != null -->
             <if test="studentUserId != null "> and student_user_id = #{studentUserId}</if>
             <if test="courseId != null "> and course_id = #{courseId}</if>
             <if test="kpId != null "> and kp_id = #{kpId}</if>
@@ -39,23 +43,26 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="accuracy != null "> and accuracy = #{accuracy}</if>
             <if test="lastTestScore != null "> and last_test_score = #{lastTestScore}</if>
             <if test="lastTestTime != null "> and last_test_time = #{lastTestTime}</if>
-            <if test="trend != null  and trend != ''"> and trend = #{trend}</if>
             <if test="masteryScore != null "> and mastery_score = #{masteryScore}</if>
-            <if test="masteryStatus != null  and masteryStatus != ''"> and mastery_status = #{masteryStatus}</if>
-            <if test="weightFactors != null  and weightFactors != ''"> and weight_factors = #{weightFactors}</if>
-            <if test="lastUpdatedBy != null  and lastUpdatedBy != ''"> and last_updated_by = #{lastUpdatedBy}</if>
+            <!-- 字符串类型：判断 != null and != '' -->
+            <if test="trend != null and trend != ''"> and trend = #{trend}</if>
+            <if test="masteryStatus != null and masteryStatus != ''"> and mastery_status = #{masteryStatus}</if>
+            <if test="weightFactors != null and weightFactors != ''"> and weight_factors = #{weightFactors}</if>
+            <if test="lastUpdatedBy != null and lastUpdatedBy != ''"> and last_updated_by = #{lastUpdatedBy}</if>
             <if test="isDeleted != null "> and is_deleted = #{isDeleted}</if>
         </where>
     </select>
-    
+
     <select id="selectStudentKpMasteryById" parameterType="Long" resultMap="StudentKpMasteryResult">
         <include refid="selectStudentKpMasteryVo"/>
         where id = #{id}
     </select>
 
-    <insert id="insertStudentKpMastery" parameterType="StudentKpMastery" useGeneratedKeys="true" keyProperty="id">
+    <!-- 修正：insert的<trim>按字段类型写<if>判断 -->
+    <insert id="insertStudentKpMastery" parameterType="com.ruoyi.system.domain.StudentKpMastery" useGeneratedKeys="true" keyProperty="id">
         insert into student_kp_mastery
         <trim prefix="(" suffix=")" suffixOverrides=",">
+            <!-- 数值类型：只判null -->
             <if test="studentUserId != null">student_user_id,</if>
             <if test="courseId != null">course_id,</if>
             <if test="kpId != null">kp_id,</if>
@@ -64,15 +71,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="accuracy != null">accuracy,</if>
             <if test="lastTestScore != null">last_test_score,</if>
             <if test="lastTestTime != null">last_test_time,</if>
-            <if test="trend != null">trend,</if>
             <if test="masteryScore != null">mastery_score,</if>
+            <!-- 字符串类型：判null+空串 -->
+            <if test="trend != null and trend != ''">trend,</if>
             <if test="masteryStatus != null and masteryStatus != ''">mastery_status,</if>
-            <if test="weightFactors != null">weight_factors,</if>
+            <if test="weightFactors != null and weightFactors != ''">weight_factors,</if>
             <if test="lastUpdatedBy != null and lastUpdatedBy != ''">last_updated_by,</if>
             <if test="createTime != null">create_time,</if>
             <if test="updateTime != null">update_time,</if>
             <if test="isDeleted != null">is_deleted,</if>
-         </trim>
+        </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="studentUserId != null">#{studentUserId},</if>
             <if test="courseId != null">#{courseId},</if>
@@ -82,18 +90,19 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="accuracy != null">#{accuracy},</if>
             <if test="lastTestScore != null">#{lastTestScore},</if>
             <if test="lastTestTime != null">#{lastTestTime},</if>
-            <if test="trend != null">#{trend},</if>
             <if test="masteryScore != null">#{masteryScore},</if>
+            <if test="trend != null and trend != ''">#{trend},</if>
             <if test="masteryStatus != null and masteryStatus != ''">#{masteryStatus},</if>
-            <if test="weightFactors != null">#{weightFactors},</if>
+            <if test="weightFactors != null and weightFactors != ''">#{weightFactors},</if>
             <if test="lastUpdatedBy != null and lastUpdatedBy != ''">#{lastUpdatedBy},</if>
             <if test="createTime != null">#{createTime},</if>
             <if test="updateTime != null">#{updateTime},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
-         </trim>
+        </trim>
     </insert>
 
-    <update id="updateStudentKpMastery" parameterType="StudentKpMastery">
+    <!-- 修正：update的<trim>按字段类型写<if>判断 -->
+    <update id="updateStudentKpMastery" parameterType="com.ruoyi.system.domain.StudentKpMastery">
         update student_kp_mastery
         <trim prefix="SET" suffixOverrides=",">
             <if test="studentUserId != null">student_user_id = #{studentUserId},</if>
@@ -104,10 +113,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="accuracy != null">accuracy = #{accuracy},</if>
             <if test="lastTestScore != null">last_test_score = #{lastTestScore},</if>
             <if test="lastTestTime != null">last_test_time = #{lastTestTime},</if>
-            <if test="trend != null">trend = #{trend},</if>
             <if test="masteryScore != null">mastery_score = #{masteryScore},</if>
+            <if test="trend != null and trend != ''">trend = #{trend},</if>
             <if test="masteryStatus != null and masteryStatus != ''">mastery_status = #{masteryStatus},</if>
-            <if test="weightFactors != null">weight_factors = #{weightFactors},</if>
+            <if test="weightFactors != null and weightFactors != ''">weight_factors = #{weightFactors},</if>
             <if test="lastUpdatedBy != null and lastUpdatedBy != ''">last_updated_by = #{lastUpdatedBy},</if>
             <if test="createTime != null">create_time = #{createTime},</if>
             <if test="updateTime != null">update_time = #{updateTime},</if>
@@ -116,14 +125,77 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </update>
 
-    <delete id="deleteStudentKpMasteryById" parameterType="Long">
-        delete from student_kp_mastery where id = #{id}
-    </delete>
-
+    <delete id="deleteStudentKpMasteryById" parameterType="Long"> delete from student_kp_mastery where id = #{id} </delete>
     <delete id="deleteStudentKpMasteryByIds" parameterType="String">
-        delete from student_kp_mastery where id in 
-        <foreach item="id" collection="array" open="(" separator="," close=")">
-            #{id}
-        </foreach>
+        delete from student_kp_mastery where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")"> #{id} </foreach>
     </delete>
+    <select id="selectStudentLearnStatus" resultType="com.ruoyi.system.domain.vo.StudentLearnStatusVo">
+        SELECT
+            skm.student_user_id AS studentUserId,
+            skm.course_id AS courseId,
+            skm.kp_id AS kpId,
+            kp.title AS kpTitle,
+            skm.mastery_status AS masteryStatus,
+            -- 保留百分比修复
+            CONCAT(ROUND(skm.accuracy, 2), '%') AS accuracy,
+            a.id AS assignmentId,
+            -- 保留错题序号拼接修复
+            IF(
+                    GROUP_CONCAT(DISTINCT aq.sequence ORDER BY aq.sequence SEPARATOR '、') IS NULL,
+                    '无',
+                    CONCAT(
+                            '第',
+                            TRIM(TRAILING '、第' FROM GROUP_CONCAT(DISTINCT aq.sequence ORDER BY aq.sequence SEPARATOR '题、第')),
+                            '题'
+                        )
+                ) AS wrongQuestionNo
+        FROM
+            student_kp_mastery skm
+                LEFT JOIN knowledge_point kp
+                          ON skm.kp_id = kp.id
+                              AND kp.is_deleted = 0
+                -- 关键修改：删除 ak.is_deleted = 0（assignment_kp 表无该字段）
+                LEFT JOIN assignment_kp ak
+                          ON skm.kp_id = ak.kp_id
+                LEFT JOIN assignment a
+                          ON ak.assignment_id = a.id
+                              AND a.course_id = skm.course_id
+                              AND a.status = 1
+                              AND a.is_deleted = 0
+                LEFT JOIN student_answer sa
+                          ON skm.student_user_id = sa.student_user_id
+                              AND sa.assignment_id = a.id
+                              AND sa.is_correct = 0
+                              AND sa.is_deleted = 0
+                LEFT JOIN assignment_question aq
+                          ON sa.assignment_id = aq.assignment_id
+                              AND sa.question_id = aq.question_id
+                              AND aq.is_deleted = 0
+        WHERE
+            skm.student_user_id = #{studentUserId}
+          AND skm.course_id = #{courseId}
+          AND skm.mastery_status IN ('weak', 'learning')
+          AND skm.is_deleted = 0
+        GROUP BY
+            skm.student_user_id,
+            skm.course_id,
+            skm.kp_id,
+            kp.id,
+            kp.title,
+            skm.mastery_status,
+            skm.accuracy,
+            a.id
+        ORDER BY
+            CASE skm.mastery_status WHEN 'weak' THEN 1 WHEN 'learning' THEN 2 END,
+            skm.accuracy ASC
+    </select>
+    <!-- 查询同课程其他学生的ID（排除当前学生） -->
+    <select id="selectOtherUserIdsByCourseId" parameterType="java.util.Map" resultType="java.lang.Long">
+        select distinct student_user_id
+        from student_kp_mastery
+        where course_id = #{courseId}
+          and student_user_id != #{excludeUserId}
+          and is_deleted = 0
+    </select>
 </mapper>

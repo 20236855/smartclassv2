@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper
-PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.ruoyi.system.mapper.VideoLearningBehaviorMapper">
-    
+
     <resultMap type="VideoLearningBehavior" id="VideoLearningBehaviorResult">
         <result property="id"    column="id"    />
-        <result property="studentId"    column="student_id"    />
+        <result property="studentId"    column="student_id"    /> <!-- 统一使用远程属性名studentId -->
         <result property="videoId"    column="video_id"    />
         <result property="watchDuration"    column="watch_duration"    />
         <result property="videoDuration"    column="video_duration"    />
@@ -53,24 +53,33 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             ch.title as chapter_name,
             c.id as course_id
         from video_learning_behavior vlb
-        left join section s on vlb.video_id = s.id
-        left join chapter ch on s.chapter_id = ch.id
-        left join course c on ch.course_id = c.id
+                 left join section s on vlb.video_id = s.id
+                 left join chapter ch on s.chapter_id = ch.id
+                 left join course c on ch.course_id = c.id
     </sql>
 
+    <!-- 补充本地代码中按courseId查询的条件 -->
     <select id="selectVideoLearningBehaviorList" parameterType="VideoLearningBehavior" resultMap="VideoLearningBehaviorResult">
         <include refid="selectVideoLearningBehaviorVo"/>
         <where>
             <if test="isCompleted != null "> and vlb.is_completed = #{isCompleted}</if>
             <if test="studentId != null "> and vlb.student_id = #{studentId}</if>
             <if test="videoId != null "> and vlb.video_id = #{videoId}</if>
+            <if test="courseId != null "> and c.id = #{courseId}</if> <!-- 新增课程ID查询条件 -->
         </where>
         order by vlb.last_watch_at desc, vlb.created_at desc
     </select>
-    
+
     <select id="selectVideoLearningBehaviorById" parameterType="Long" resultMap="VideoLearningBehaviorResult">
         <include refid="selectVideoLearningBehaviorVo"/>
         where vlb.id = #{id}
+    </select>
+
+    <!-- 保留本地按学生ID和课程ID查询的需求，适配远程结构 -->
+    <select id="selectByUserIdAndCourseId" resultMap="VideoLearningBehaviorResult">
+        <include refid="selectVideoLearningBehaviorVo"/>
+        where vlb.student_id = #{studentId}
+        and c.id = #{courseId}
     </select>
 
     <insert id="insertVideoLearningBehavior" parameterType="VideoLearningBehavior" useGeneratedKeys="true" keyProperty="id">
@@ -92,7 +101,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="lastPosition != null">last_position,</if>
             <if test="createdAt != null">created_at,</if>
             <if test="updatedAt != null">updated_at,</if>
-         </trim>
+        </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="studentId != null">#{studentId},</if>
             <if test="videoId != null">#{videoId},</if>
@@ -110,7 +119,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="lastPosition != null">#{lastPosition},</if>
             <if test="createdAt != null">#{createdAt},</if>
             <if test="updatedAt != null">#{updatedAt},</if>
-         </trim>
+        </trim>
     </insert>
 
     <!-- UPSERT操作：插入或更新学习行为记录 -->
@@ -120,23 +129,23 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             watch_count, is_completed, fast_forward_count, pause_count, playback_speed,
             first_watch_at, last_watch_at, last_position, created_at, updated_at
         ) VALUES (
-            #{studentId}, #{videoId}, #{watchDuration}, #{videoDuration}, #{completionRate},
-            #{watchCount}, #{isCompleted}, #{fastForwardCount}, #{pauseCount}, #{playbackSpeed},
-            #{firstWatchAt}, #{lastWatchAt}, #{lastPosition}, NOW(), NOW()
-        )
-        ON DUPLICATE KEY UPDATE
-            watch_duration = GREATEST(watch_duration, VALUES(watch_duration)),
-            video_duration = VALUES(video_duration),
-            completion_rate = VALUES(completion_rate),
-            watch_count = VALUES(watch_count),
-            is_completed = VALUES(is_completed),
-            fast_forward_count = VALUES(fast_forward_count),
-            pause_count = VALUES(pause_count),
-            playback_speed = VALUES(playback_speed),
-            first_watch_at = COALESCE(first_watch_at, VALUES(first_watch_at)),
-            last_watch_at = VALUES(last_watch_at),
-            last_position = VALUES(last_position),
-            updated_at = NOW()
+                     #{studentId}, #{videoId}, #{watchDuration}, #{videoDuration}, #{completionRate},
+                     #{watchCount}, #{isCompleted}, #{fastForwardCount}, #{pauseCount}, #{playbackSpeed},
+                     #{firstWatchAt}, #{lastWatchAt}, #{lastPosition}, NOW(), NOW()
+                 )
+            ON DUPLICATE KEY UPDATE
+                                 watch_duration = GREATEST(watch_duration, VALUES(watch_duration)),
+                                 video_duration = VALUES(video_duration),
+                                 completion_rate = VALUES(completion_rate),
+                                 watch_count = VALUES(watch_count),
+                                 is_completed = VALUES(is_completed),
+                                 fast_forward_count = VALUES(fast_forward_count),
+                                 pause_count = VALUES(pause_count),
+                                 playback_speed = VALUES(playback_speed),
+                                 first_watch_at = COALESCE(first_watch_at, VALUES(first_watch_at)),
+                                 last_watch_at = VALUES(last_watch_at),
+                                 last_position = VALUES(last_position),
+                                 updated_at = NOW()
     </insert>
 
     <update id="updateVideoLearningBehavior" parameterType="VideoLearningBehavior">
@@ -167,7 +176,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </delete>
 
     <delete id="deleteVideoLearningBehaviorByIds" parameterType="String">
-        delete from video_learning_behavior where id in 
+        delete from video_learning_behavior where id in
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>

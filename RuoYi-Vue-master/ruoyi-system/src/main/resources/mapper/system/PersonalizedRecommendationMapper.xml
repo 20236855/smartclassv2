@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.PersonalizedRecommendationMapper">
+
+    <resultMap type="com.ruoyi.system.domain.PersonalizedRecommendation" id="PersonalizedRecommendationResult">
+        <result property="id" column="id"/>
+        <result property="studentUserId" column="student_user_id"/>
+        <result property="courseId" column="course_id"/>
+        <result property="recommendType" column="recommend_type"/>
+        <result property="targetId" column="target_id"/>
+        <result property="recommendReason" column="recommend_reason"/>
+        <result property="relatedKpIds" column="related_kp_ids"/>
+        <result property="status" column="status"/>
+        <result property="priority" column="priority"/>
+        <result property="aiModelVersion" column="ai_model_version"/>
+        <result property="batchId" column="batch_id"/> <!-- 已新增：batchId映射 -->
+        <result property="expireTime" column="expire_time"/>
+        <result property="isDeleted" column="is_deleted"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 新增：查询字段包含batch_id（否则查询时batchId为null） -->
+    <sql id="selectPersonalizedRecommendationVo">
+        select id, student_user_id, course_id, recommend_type, target_id, recommend_reason,
+               related_kp_ids, status, priority, ai_model_version, batch_id, -- 补充batch_id
+               expire_time, is_deleted, create_time, update_time
+        from personalized_recommendation
+    </sql>
+
+    <!-- 基础CRUD -->
+    <select id="selectPersonalizedRecommendationById" parameterType="Long" resultMap="PersonalizedRecommendationResult">
+        <include refid="selectPersonalizedRecommendationVo"/> where id = #{id} and is_deleted = 0
+    </select>
+
+    <select id="selectPersonalizedRecommendationList" parameterType="com.ruoyi.system.domain.PersonalizedRecommendation" resultMap="PersonalizedRecommendationResult">
+        <include refid="selectPersonalizedRecommendationVo"/>
+        <where>
+            <if test="studentUserId != null">and student_user_id = #{studentUserId}</if>
+            <if test="courseId != null">and course_id = #{courseId}</if>
+            <if test="recommendType != null and recommendType != ''">and recommend_type = #{recommendType}</if>
+            <if test="status != null and status != ''">and status = #{status}</if>
+            <if test="batchId != null and batchId != ''">and batch_id = #{batchId}</if> <!-- 支持按batchId查询（可选） -->
+            <if test="isDeleted != null">and is_deleted = #{isDeleted}</if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <!-- 单个插入：已补充batch_id字段（无重复） -->
+    <insert id="insertPersonalizedRecommendation" parameterType="com.ruoyi.system.domain.PersonalizedRecommendation" useGeneratedKeys="true" keyProperty="id">
+        insert into personalized_recommendation (
+            student_user_id, course_id, recommend_type, target_id, recommend_reason,
+            related_kp_ids, status, priority, ai_model_version, batch_id, -- 补充batch_id
+            expire_time, is_deleted
+        ) values (
+                     #{studentUserId}, #{courseId}, #{recommendType}, #{targetId}, #{recommendReason},
+                     #{relatedKpIds}, #{status}, #{priority}, #{aiModelVersion}, #{batchId}, -- 补充batchId参数
+                     #{expireTime}, #{isDeleted, jdbcType=INTEGER}
+                 )
+    </insert>
+
+    <!-- 批量插入：已补充batch_id字段（无重复） -->
+    <insert id="insertPersonalizedRecommendationBatch" parameterType="java.util.List">
+        insert into personalized_recommendation (
+        student_user_id, course_id, recommend_type, target_id, recommend_reason,
+        related_kp_ids, status, priority, ai_model_version, batch_id, -- 补充batch_id
+        expire_time, is_deleted
+        ) values
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.studentUserId}, #{item.courseId}, #{item.recommendType}, #{item.targetId}, #{item.recommendReason},
+            #{item.relatedKpIds}, #{item.status}, #{item.priority}, #{item.aiModelVersion}, #{item.batchId}, -- 补充item.batchId参数
+            #{item.expireTime}, #{item.isDeleted, jdbcType=INTEGER}
+            )
+        </foreach>
+    </insert>
+
+    <update id="updatePersonalizedRecommendation" parameterType="com.ruoyi.system.domain.PersonalizedRecommendation">
+        update personalized_recommendation
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="studentUserId != null">student_user_id = #{studentUserId},</if>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="recommendType != null and recommendType != ''">recommend_type = #{recommendType},</if>
+            <if test="targetId != null">target_id = #{targetId},</if>
+            <if test="recommendReason != null and recommendReason != ''">recommend_reason = #{recommendReason},</if>
+            <if test="relatedKpIds != null and relatedKpIds != ''">related_kp_ids = #{relatedKpIds},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="priority != null">priority = #{priority},</if>
+            <if test="aiModelVersion != null and aiModelVersion != ''">ai_model_version = #{aiModelVersion},</if>
+            <if test="batchId != null and batchId != ''">batch_id = #{batchId},</if> <!-- 支持更新batchId（可选） -->
+            <if test="expireTime != null">expire_time = #{expireTime},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted, jdbcType=INTEGER},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deletePersonalizedRecommendationById" parameterType="Long">
+        update personalized_recommendation set is_deleted = 1, update_time = now() where id = #{id}
+    </delete>
+
+    <delete id="deletePersonalizedRecommendationByIds" parameterType="Long[]">
+        update personalized_recommendation set is_deleted = 1, update_time = now()
+        where id in <foreach item="id" collection="array" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+
+    <!-- 重复校验SQL -->
+    <select id="existsDuplicate" resultType="java.lang.Boolean">
+        SELECT COUNT(1) > 0
+        FROM personalized_recommendation
+        WHERE student_user_id = #{studentUserId}
+          AND course_id = #{courseId}
+          AND recommend_type = #{recommendType}
+          AND related_kp_ids = #{relatedKpIds}
+          AND is_deleted = 0
+          AND create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    </select>
+
+    <!-- 新增：查询有效推荐SQL -->
+    <select id="selectValidRecommendations" resultMap="PersonalizedRecommendationResult">
+        <include refid="selectPersonalizedRecommendationVo"/>
+        WHERE student_user_id = #{studentUserId}
+        AND course_id = #{courseId}
+        AND is_deleted = 0
+        AND expire_time > NOW() -- 未过期
+        AND status IN ('pending', 'viewed') -- 状态有效
+        ORDER BY create_time DESC -- 按创建时间倒序，取最新的推荐
+        LIMIT 10; -- 最多返回10条，避免过多
+    </select>
+
+</mapper>

@@ -52,9 +52,11 @@
         </where>
     </select>
 
+    <!-- 保留本地代码中"未删除"的查询条件，其余以远程代码为主 -->
     <select id="selectAssignmentById" parameterType="Long" resultMap="AssignmentResult">
         <include refid="selectAssignmentVo"/>
         where id = #{id}
+        and is_deleted = 0
     </select>
 
     <insert id="insertAssignment" parameterType="Assignment" useGeneratedKeys="true" keyProperty="id">

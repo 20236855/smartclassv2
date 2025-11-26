@@ -10,9 +10,9 @@ import com.ruoyi.common.core.domain.BaseEntity;
 
 /**
  * 学生知识点掌握情况（支撑知识图谱状态标识）对象 student_kp_mastery
- * 
+ *
  * @author ruoyi
- * @date 2025-11-21
+ * @date 2025-11-20
  */
 public class StudentKpMastery extends BaseEntity
 {
@@ -66,8 +66,8 @@ public class StudentKpMastery extends BaseEntity
     @Excel(name = "掌握状态：未学习/学习中/已掌握/薄弱点")
     private String masteryStatus;
 
-    /** 权重因子明细（JSON）：{"exam_score":0.4,"video_behavior":0.3,"resource_behavior":0.2,"homework_score":0.1}（可配置） */
-    @Excel(name = "权重因子明细（JSON）：{\"exam_score\":0.4,\"video_behavior\":0.3,\"resource_behavior\":0.2,\"homework_score\":0.1}", readConverterExp = "可=配置")
+    /** 权重因子明细：{"exam_score":0.4,"video_behavior":0.3,"resource_behavior":0.2,"homework_score":0.1}（可配置） */
+    @Excel(name = "权重因子明细：{\"exam_score\":0.4,\"video_behavior\":0.3,\"resource_behavior\":0.2,\"homework_score\":0.1}", readConverterExp = "可=配置")
     private String weightFactors;
 
     /** 最后更新来源：system/ai/job */
@@ -78,152 +78,152 @@ public class StudentKpMastery extends BaseEntity
     @Excel(name = "软删除标记")
     private Integer isDeleted;
 
-    public void setId(Long id) 
+    public void setId(Long id)
     {
         this.id = id;
     }
 
-    public Long getId() 
+    public Long getId()
     {
         return id;
     }
 
-    public void setStudentUserId(Long studentUserId) 
+    public void setStudentUserId(Long studentUserId)
     {
         this.studentUserId = studentUserId;
     }
 
-    public Long getStudentUserId() 
+    public Long getStudentUserId()
     {
         return studentUserId;
     }
 
-    public void setCourseId(Long courseId) 
+    public void setCourseId(Long courseId)
     {
         this.courseId = courseId;
     }
 
-    public Long getCourseId() 
+    public Long getCourseId()
     {
         return courseId;
     }
 
-    public void setKpId(Long kpId) 
+    public void setKpId(Long kpId)
     {
         this.kpId = kpId;
     }
 
-    public Long getKpId() 
+    public Long getKpId()
     {
         return kpId;
     }
 
-    public void setCorrectCount(Long correctCount) 
+    public void setCorrectCount(Long correctCount)
     {
         this.correctCount = correctCount;
     }
 
-    public Long getCorrectCount() 
+    public Long getCorrectCount()
     {
         return correctCount;
     }
 
-    public void setTotalCount(Long totalCount) 
+    public void setTotalCount(Long totalCount)
     {
         this.totalCount = totalCount;
     }
 
-    public Long getTotalCount() 
+    public Long getTotalCount()
     {
         return totalCount;
     }
 
-    public void setAccuracy(BigDecimal accuracy) 
+    public void setAccuracy(BigDecimal accuracy)
     {
         this.accuracy = accuracy;
     }
 
-    public BigDecimal getAccuracy() 
+    public BigDecimal getAccuracy()
     {
         return accuracy;
     }
 
-    public void setLastTestScore(BigDecimal lastTestScore) 
+    public void setLastTestScore(BigDecimal lastTestScore)
     {
         this.lastTestScore = lastTestScore;
     }
 
-    public BigDecimal getLastTestScore() 
+    public BigDecimal getLastTestScore()
     {
         return lastTestScore;
     }
 
-    public void setLastTestTime(Date lastTestTime) 
+    public void setLastTestTime(Date lastTestTime)
     {
         this.lastTestTime = lastTestTime;
     }
 
-    public Date getLastTestTime() 
+    public Date getLastTestTime()
     {
         return lastTestTime;
     }
 
-    public void setTrend(String trend) 
+    public void setTrend(String trend)
     {
         this.trend = trend;
     }
 
-    public String getTrend() 
+    public String getTrend()
     {
         return trend;
     }
 
-    public void setMasteryScore(BigDecimal masteryScore) 
+    public void setMasteryScore(BigDecimal masteryScore)
     {
         this.masteryScore = masteryScore;
     }
 
-    public BigDecimal getMasteryScore() 
+    public BigDecimal getMasteryScore()
     {
         return masteryScore;
     }
 
-    public void setMasteryStatus(String masteryStatus) 
+    public void setMasteryStatus(String masteryStatus)
     {
         this.masteryStatus = masteryStatus;
     }
 
-    public String getMasteryStatus() 
+    public String getMasteryStatus()
     {
         return masteryStatus;
     }
 
-    public void setWeightFactors(String weightFactors) 
+    public void setWeightFactors(String weightFactors)
     {
         this.weightFactors = weightFactors;
     }
 
-    public String getWeightFactors() 
+    public String getWeightFactors()
     {
         return weightFactors;
     }
 
-    public void setLastUpdatedBy(String lastUpdatedBy) 
+    public void setLastUpdatedBy(String lastUpdatedBy)
     {
         this.lastUpdatedBy = lastUpdatedBy;
     }
 
-    public String getLastUpdatedBy() 
+    public String getLastUpdatedBy()
     {
         return lastUpdatedBy;
     }
 
-    public void setIsDeleted(Integer isDeleted) 
+    public void setIsDeleted(Integer isDeleted)
     {
         this.isDeleted = isDeleted;
     }
 
-    public Integer getIsDeleted() 
+    public Integer getIsDeleted()
     {
         return isDeleted;
     }
@@ -231,23 +231,23 @@ public class StudentKpMastery extends BaseEntity
     @Override
     public String toString() {
         return new ToStringBuilder(this,ToStringStyle.MULTI_LINE_STYLE)
-            .append("id", getId())
-            .append("studentUserId", getStudentUserId())
-            .append("courseId", getCourseId())
-            .append("kpId", getKpId())
-            .append("correctCount", getCorrectCount())
-            .append("totalCount", getTotalCount())
-            .append("accuracy", getAccuracy())
-            .append("lastTestScore", getLastTestScore())
-            .append("lastTestTime", getLastTestTime())
-            .append("trend", getTrend())
-            .append("masteryScore", getMasteryScore())
-            .append("masteryStatus", getMasteryStatus())
-            .append("weightFactors", getWeightFactors())
-            .append("lastUpdatedBy", getLastUpdatedBy())
-            .append("createTime", getCreateTime())
-            .append("updateTime", getUpdateTime())
-            .append("isDeleted", getIsDeleted())
-            .toString();
+                .append("id", getId())
+                .append("studentUserId", getStudentUserId())
+                .append("courseId", getCourseId())
+                .append("kpId", getKpId())
+                .append("correctCount", getCorrectCount())
+                .append("totalCount", getTotalCount())
+                .append("accuracy", getAccuracy())
+                .append("lastTestScore", getLastTestScore())
+                .append("lastTestTime", getLastTestTime())
+                .append("trend", getTrend())
+                .append("masteryScore", getMasteryScore())
+                .append("masteryStatus", getMasteryStatus())
+                .append("weightFactors", getWeightFactors())
+                .append("lastUpdatedBy", getLastUpdatedBy())
+                .append("createTime", getCreateTime())
+                .append("updateTime", getUpdateTime())
+                .append("isDeleted", getIsDeleted())
+                .toString();
     }
 }

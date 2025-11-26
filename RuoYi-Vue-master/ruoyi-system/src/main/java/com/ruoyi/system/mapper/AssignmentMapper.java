@@ -1,7 +1,7 @@
 package com.ruoyi.system.mapper;
 
 import com.ruoyi.system.domain.Assignment;
-
+import org.apache.ibatis.annotations.Mapper;
 import java.util.List;
 
 /**
@@ -10,8 +10,8 @@ import java.util.List;
  * @author ruoyi
  * @date 2025-11-18
  */
-public interface AssignmentMapper
-{
+@Mapper
+public interface AssignmentMapper {
     /**
      * 查询作业或考试
      *

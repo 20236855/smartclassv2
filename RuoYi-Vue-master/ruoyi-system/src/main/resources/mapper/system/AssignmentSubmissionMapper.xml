@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.AssignmentSubmissionMapper">
+    <resultMap type="com.ruoyi.system.domain.AssignmentSubmission" id="AssignmentSubmissionResult">
+        <result property="id" column="id"/>
+        <result property="assignmentId" column="assignment_id"/>
+        <result property="studentUserId" column="student_user_id"/>
+        <result property="status" column="status"/>
+        <result property="score" column="score"/>
+        <result property="feedback" column="feedback"/>
+        <result property="submitTime" column="submit_time"/>
+        <result property="gradeTime" column="grade_time"/>
+        <result property="gradedBy" column="graded_by"/>
+        <result property="content" column="content"/>
+        <result property="fileName" column="file_name"/>
+        <result property="filePath" column="file_path"/>
+        <result property="isDeleted" column="is_deleted"/>
+        <result property="deleteTime" column="delete_time"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="selectAssignmentSubmissionVo">
+        select id, assignment_id, student_user_id, status, score, feedback,
+               submit_time, grade_time, graded_by, content, file_name, file_path,
+               is_deleted, delete_time, create_time, update_time
+        from assignment_submission
+    </sql>
+
+    <!-- 根据学生ID和作业ID查询提交记录 -->
+    <select id="selectByUserIdAndAssignmentId" resultMap="AssignmentSubmissionResult">
+        <include refid="selectAssignmentSubmissionVo"/>
+        where student_user_id = #{studentUserId}
+        and assignment_id = #{assignmentId}
+        and is_deleted = 0
+    </select>
+</mapper>

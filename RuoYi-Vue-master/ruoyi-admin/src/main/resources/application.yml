@@ -128,7 +128,14 @@ xss:
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
 
-# AI 服务配置（请在部署时用环境变量或配置中心注入真实值）
+# 通义千问API配置（原配置保留）
+tongyi:
+  qianwen:
+    api-key: sk-92d17cdcbcd74bb4938ce53ac333d25c
+    model: qwen-turbo  # 轻量版足够用
+    timeout: 30000  # 超时时间30秒（避免报告生成慢导致超时）
+
+# AI 服务配置（新增配置）
 qianwen:
   api:
     # 已硬编码（注意安全）：将下面两个字段替换为你的真实 endpoint 与 key
@@ -137,7 +144,7 @@ qianwen:
     # 指定模型（默认 Qwen/QwQ-32B）
     model: "Qwen/Qwen3-8B"
 
-# 视频转录配置
+# 视频转录配置（新增配置）
 video:
   transcription:
     # 转录服务提供商：whisper（免费推荐）, aliyun（阿里云）, tencent（腾讯云）, baidu（百度）, none（不转录）
@@ -145,7 +152,7 @@ video:
     # 是否启用转录
     enabled: true
 
-# Whisper服务配置（完全免费）
+# Whisper服务配置（完全免费）（新增配置）
 whisper:
   service:
     # Whisper服务地址
@@ -155,3 +162,4 @@ whisper:
   model: "tiny"
   # 超时时间（毫秒），默认30分钟（处理长视频）
   timeout: 1800000
+
