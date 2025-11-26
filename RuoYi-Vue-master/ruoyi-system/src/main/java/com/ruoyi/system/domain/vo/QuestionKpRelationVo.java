@@ -5,6 +5,7 @@ import java.util.List;
 
 @Data
 public class QuestionKpRelationVo {
+    private Long questionId;
     private Long assignmentId; // 作业ID（必须，来自assignment_question.assignment_id）
     private String assignmentName;
     private Integer questionSequence; // 题目序号（必须，来自assignment_question.sequence）

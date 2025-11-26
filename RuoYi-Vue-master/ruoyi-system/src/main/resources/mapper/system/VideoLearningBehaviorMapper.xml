@@ -78,7 +78,7 @@
     <!-- 保留本地按学生ID和课程ID查询的需求，适配远程结构 -->
     <select id="selectByUserIdAndCourseId" resultMap="VideoLearningBehaviorResult">
         <include refid="selectVideoLearningBehaviorVo"/>
-        where vlb.student_id = #{studentId}
+        where vlb.student_id = #{studentUserId}
         and c.id = #{courseId}
     </select>
 

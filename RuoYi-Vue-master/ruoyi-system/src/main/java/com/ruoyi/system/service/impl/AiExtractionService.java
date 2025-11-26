@@ -237,12 +237,12 @@ public class AiExtractionService {
                                     if (candidateObj instanceof Map) {
                                         Map<String,Object> candidateMap = (Map<String,Object>) candidateObj;
                                         logger.info("AI返回的知识点数据：{}", candidateMap);
-                                        
+
                                         // 遍历所有字段，看看实际有什么
                                         candidateMap.forEach((key, value) -> {
                                             logger.info("候选字段：{} = {}", key, value);
                                         });
-                                        
+
                                         candidates.add(candidateMap);
                                     }
                                 }
@@ -463,7 +463,7 @@ public class AiExtractionService {
         String[] generalKeywords = {
             // 数学
             "极限", "导数", "积分", "函数", "方程", "不等式", "几何", "代数",
-            // 物理  
+            // 物理
             "力学", "电磁学", "热力学", "光学", "量子", "相对论", "能量", "动量",
             // 化学
             "化学反应", "化学键", "分子", "原子", "离子", "酸碱", "氧化还原", "有机化学",
@@ -576,3 +576,4 @@ public class AiExtractionService {
         }
     }
 }
+

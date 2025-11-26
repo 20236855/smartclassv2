@@ -11,4 +11,5 @@ public class KpResourceVo {
     private String videoUrl; // 视频URL
     private String coreKnowledge; // 核心考点（section.description）
     private Integer sortOrder; // 小节排序
+    private String chapterTitle;
 }

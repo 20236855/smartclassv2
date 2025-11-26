@@ -12,15 +12,16 @@
         <result property="isDeleted" column="is_deleted"/>
     </resultMap>
 
-    <!-- 核心：查询知识点-资源关联数据（适配KpResourceVo） -->
+    <!-- 核心：查询知识点-资源关联数据（适配KpResourceVo，新增chapterTitle字段） -->
     <resultMap type="com.ruoyi.system.domain.vo.KpResourceVo" id="KpResourceResult">
         <result property="kpId" column="kpId"/>
         <result property="kpTitle" column="kpTitle"/>
         <result property="sectionId" column="sectionId"/>
         <result property="sectionTitle" column="sectionTitle"/>
-        <result property="videoUrl" column="videoUrl"/>
+        <result property="videoUrl" column="videoUrl"/> <!-- 保留字段，不展示 -->
         <result property="coreKnowledge" column="coreKnowledge"/>
         <result property="sortOrder" column="sortOrder"/>
+        <result property="chapterTitle" column="chapterTitle"/> <!-- 新增：章节名称 -->
     </resultMap>
 
     <!-- 基础查询字段（SectionKp） -->
@@ -28,7 +29,7 @@
         select id, section_id, kp_id, create_time, update_time, is_deleted from section_kp
     </sql>
 
-    <!-- 基础CRUD（适配接口方法） -->
+    <!-- 基础CRUD（保持原有不变） -->
     <select id="selectSectionKpById" parameterType="Long" resultMap="SectionKpResult">
         <include refid="selectSectionKpVo"/> where id = #{id} and is_deleted = 0
     </select>
@@ -62,13 +63,14 @@
         where id in <foreach item="id" collection="array" open="(" separator="," close=")">#{id}</foreach>
     </delete>
 
-    <!-- 核心方法：查询课程下知识点对应的资源（适配SQL2需求） -->
+    <!-- 核心方法：查询课程下知识点对应的资源（新增章节表关联，获取章节名称） -->
     <select id="selectKpResourceByCourseId" parameterType="Long" resultMap="KpResourceResult">
         SELECT
             kp.id AS kpId,
             kp.title AS kpTitle,
             s.id AS sectionId,
             s.title AS sectionTitle,
+            c.title AS chapterTitle, -- 新增：章节名称（从chapter表查询）
             s.video_url AS videoUrl,
             s.description AS coreKnowledge,
             s.sort_order AS sortOrder
@@ -79,11 +81,30 @@
                 LEFT JOIN section s
                           ON sk.section_id = s.id
                               AND s.is_deleted = 0
+                LEFT JOIN chapter c -- 新增：关联章节表（chapter）
+                          ON s.chapter_id = c.id -- 假设section表有chapter_id字段关联章节
+                              AND c.is_deleted = 0 -- 若章节表有软删除，需加此条件（无则删除）
         WHERE
             kp.course_id = #{courseId}
           AND kp.is_deleted = 0
         ORDER BY
+            c.sort_order ASC, -- 新增：按章节排序
             s.sort_order ASC
+    </select>
+
+    <!-- 新增辅助方法：根据小节ID查询章节-小节名称（用于兼容旧推荐数据） -->
+    <select id="selectChapterSectionBySectionId" parameterType="Long" resultType="java.util.Map">
+        SELECT
+            c.title AS chapterTitle,
+            s.title AS sectionTitle
+        FROM
+            section s
+                LEFT JOIN chapter c
+                          ON s.chapter_id = c.id
+                              AND c.is_deleted = 0
+        WHERE
+            s.id = #{sectionId}
+          AND s.is_deleted = 0
     </select>
 
 </mapper>

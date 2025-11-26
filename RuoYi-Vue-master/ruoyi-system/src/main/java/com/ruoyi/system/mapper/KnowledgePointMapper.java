@@ -2,18 +2,20 @@ package com.ruoyi.system.mapper;
 
 import java.util.List;
 import com.ruoyi.system.domain.KnowledgePoint;
+import org.apache.ibatis.annotations.Mapper;
 
 /**
  * 知识点Mapper接口
- * 
+ *
  * @author ruoyi
  * @date 2025-11-21
  */
-public interface KnowledgePointMapper 
+@Mapper
+public interface KnowledgePointMapper
 {
     /**
      * 查询知识点
-     * 
+     *
      * @param id 知识点主键
      * @return 知识点
      */
@@ -21,7 +23,7 @@ public interface KnowledgePointMapper
 
     /**
      * 查询知识点列表
-     * 
+     *
      * @param knowledgePoint 知识点
      * @return 知识点集合
      */
@@ -29,7 +31,7 @@ public interface KnowledgePointMapper
 
     /**
      * 新增知识点
-     * 
+     *
      * @param knowledgePoint 知识点
      * @return 结果
      */
@@ -37,7 +39,7 @@ public interface KnowledgePointMapper
 
     /**
      * 修改知识点
-     * 
+     *
      * @param knowledgePoint 知识点
      * @return 结果
      */
@@ -45,7 +47,7 @@ public interface KnowledgePointMapper
 
     /**
      * 删除知识点
-     * 
+     *
      * @param id 知识点主键
      * @return 结果
      */
@@ -53,7 +55,7 @@ public interface KnowledgePointMapper
 
     /**
      * 批量删除知识点
-     * 
+     *
      * @param ids 需要删除的数据主键集合
      * @return 结果
      */

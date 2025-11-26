@@ -39,9 +39,16 @@
       <el-tab-pane label="能力雷达图" name="radar">
         <el-card shadow="hover" class="radar-card">
           <h3 class="chart-title">能力掌握情况雷达图</h3>
+          
+          <!-- 动态提示文本 (仅当有数据被过滤时显示) -->
+          <div class="dynamic-tip" v-if="radarData.length > 0 && radarData.length > filteredRadarData.length">
+            <i class="el-icon-info"></i> 未学习的能力已自动隐藏，雷达图随学习进度动态更新
+          </div>
+
           <div class="chart-wrapper">
             <div id="radarChart" class="radar-chart-container"></div>
           </div>
+          <!-- 无数据提示 -->
           <div class="no-data" v-if="!loading && radarData.length === 0">
             暂无雷达图数据，请输入正确的学生ID和课程ID查询
           </div>
@@ -57,7 +64,7 @@
 
           <div v-if="!loading && digitalTwinResult" class="result-content">
             
-            <!-- ================= 1. 新增：全家福展示栏 (Top Bar) ================= -->
+            <!-- 全家福展示栏 -->
             <div class="twins-preview-bar">
               <div class="bar-title">探索学习分身类型</div>
               <div class="twins-row">
@@ -67,15 +74,10 @@
                   class="mini-twin-item"
                   :class="{ 'is-active': digitalTwinResult.twinType === type }"
                 >
-                  <!-- 选中标记 -->
                   <div v-if="digitalTwinResult.twinType === type" class="current-badge">我的</div>
-                  
-                  <!-- 迷你头像 SVG -->
                   <div class="mini-avatar-circle" :style="{ borderColor: getDebugColor(type) }">
                     <svg class="avatar-mini" viewBox="0 0 200 200">
                       <defs><clipPath :id="'clip-mini-' + type"><circle cx="100" cy="100" r="90" /></clipPath></defs>
-                      
-                      <!-- 1. 稳步 (蓝) -->
                       <g v-if="type === '稳步积累型'">
                         <circle cx="100" cy="100" r="90" fill="#ecf5ff" />
                         <rect x="85" y="110" width="30" height="40" fill="#ffdec7" />
@@ -83,13 +85,11 @@
                         <path d="M50 190 L50 160 Q50 140 100 140 Q150 140 150 160 L150 190 Z" fill="#409EFF" :clip-path="'url(#clip-mini-' + type + ')'"/>
                         <path d="M90 140 L100 190 L110 140 Z" fill="#fff" />
                         <path d="M95 140 L100 170 L105 140 Z" fill="#303133" />
-                        <!-- 头发加厚 v7 -->
                         <path d="M68 91 Q68 61 100 61 Q132 61 132 91 L132 85 Q132 61 100 61 Q68 61 68 85 Z" fill="#303133" />
                         <circle cx="85" cy="95" r="3" fill="#303133" />
                         <circle cx="115" cy="95" r="3" fill="#303133" />
                         <path d="M95 110 Q100 113 105 110" stroke="#c08e70" stroke-width="2" fill="none" />
                       </g>
-                      <!-- 2. 逻辑 (绿) -->
                       <g v-else-if="type === '逻辑攻坚型'">
                         <circle cx="100" cy="100" r="90" fill="#f0f9eb" />
                         <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" fill="#67C23A" :clip-path="'url(#clip-mini-' + type + ')'" />
@@ -101,7 +101,6 @@
                         <circle cx="125" cy="130" r="12" fill="#ffdec7" stroke="#f0f9eb" stroke-width="2" />
                         <g><path d="M145 60 Q155 40 165 60 Q165 70 155 70 L150 70 Z" fill="#E6A23C" /></g>
                       </g>
-                      <!-- 3. 高效 (橙) -->
                       <g v-else-if="type === '高效突击型'">
                         <circle cx="100" cy="100" r="90" fill="#fdf6ec" />
                         <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" fill="#E6A23C" :clip-path="'url(#clip-mini-' + type + ')'" />
@@ -112,7 +111,6 @@
                         <circle cx="115" cy="98" r="3" fill="#303133" />
                         <path d="M95 115 Q100 110 105 115" stroke="#c08e70" stroke-width="2" fill="none" />
                       </g>
-                      <!-- 4. 查漏 (灰) -->
                       <g v-else>
                         <circle cx="100" cy="100" r="90" fill="#f4f4f5" />
                         <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" fill="#909399" :clip-path="'url(#clip-mini-' + type + ')'" />
@@ -130,15 +128,12 @@
                 </div>
               </div>
             </div>
-            <!-- ================= 全家福 END ================= -->
 
-            <!-- 2. 正式展示区域 (Main Avatar) -->
+            <!-- 正式展示区域 -->
             <div class="twin-character-container">
               <div class="avatar-circle" :style="{ borderColor: twinColor + '40' }">
                 <svg class="avatar-base" viewBox="0 0 200 200" :key="'real-svg-v7-' + digitalTwinResult.twinType">
                   <defs><clipPath id="avatar-clip-real"><circle cx="100" cy="100" r="90" /></clipPath></defs>
-                  
-                  <!-- 1. 稳步积累型 (头发加厚 v7) -->
                   <g v-if="digitalTwinResult.twinType === '稳步积累型'" class="avatar-group steady-type">
                     <circle cx="100" cy="100" r="90" fill="#ecf5ff" />
                     <rect x="85" y="110" width="30" height="40" fill="#ffdec7" />
@@ -146,7 +141,6 @@
                     <path d="M50 190 L50 160 Q50 140 100 140 Q150 140 150 160 L150 190 Z" :fill="twinColor" clip-path="url(#avatar-clip-real)"/>
                     <path d="M90 140 L100 190 L110 140 Z" fill="#fff" />
                     <path d="M95 140 L100 170 L105 140 Z" fill="#303133" />
-                    <!-- 关键修正：头发加厚 -->
                     <path d="M68 91 Q68 61 100 61 Q132 61 132 91 L132 85 Q132 61 100 61 Q68 61 68 85 Z" fill="#303133" />
                     <circle cx="85" cy="95" r="3" fill="#303133" class="blink-eye" />
                     <circle cx="115" cy="95" r="3" fill="#303133" class="blink-eye" />
@@ -157,8 +151,6 @@
                     </g>
                     <path d="M95 110 Q100 113 105 110" stroke="#c08e70" stroke-width="2" fill="none" stroke-linecap="round" />
                   </g>
-
-                  <!-- 2. 逻辑攻坚型 -->
                   <g v-else-if="digitalTwinResult.twinType === '逻辑攻坚型'" class="avatar-group logic-type">
                     <circle cx="100" cy="100" r="90" fill="#f0f9eb" />
                     <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" :fill="twinColor" clip-path="url(#avatar-clip-real)" />
@@ -175,8 +167,6 @@
                       <line x1="155" y1="35" x2="155" y2="30" stroke="#E6A23C" stroke-width="2" />
                     </g>
                   </g>
-
-                  <!-- 3. 高效突击型 -->
                   <g v-else-if="digitalTwinResult.twinType === '高效突击型'" class="avatar-group efficient-type">
                     <circle cx="100" cy="100" r="90" fill="#fdf6ec" />
                     <path d="M20 100 L180 100 M40 50 L160 50" stroke="#faecd8" stroke-width="2" class="bg-speed-lines" />
@@ -192,8 +182,6 @@
                       <path d="M95 115 Q100 110 105 115" stroke="#c08e70" stroke-width="2" fill="none" />
                     </g>
                   </g>
-
-                  <!-- 4. 查漏补缺型 -->
                   <g v-else class="avatar-group gap-type">
                     <circle cx="100" cy="100" r="90" fill="#f4f4f5" />
                     <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" :fill="twinColor" clip-path="url(#avatar-clip-real)" />
@@ -215,6 +203,13 @@
                    <h2 :style="{ color: twinColor }">{{ digitalTwinResult.twinType }}</h2>
                    <el-tag size="small" effect="plain" :type="twinTypeTagType" class="ai-badge">AI 智能画像</el-tag>
                 </div>
+                
+                <!-- 新增：智能并列提示 (当多个类型分数相同时显示) -->
+                <div v-if="isScoreTie" class="smart-insight-box" :style="{ background: twinColor + '15', color: twinColor }">
+                  <i class="el-icon-cpu"></i>
+                  <span>您的数据呈现<strong>多重高分特征</strong>，AI 综合分析判定当前类型为您的<strong>核心主导风格</strong>。</span>
+                </div>
+
                 <p class="info-text">
                   <i class="el-icon-chat-dot-round" style="color: #909399; margin-right: 4px;"></i>
                   学习风格如同<strong>{{ getCharacterDesc(digitalTwinResult.twinType) }}</strong>
@@ -225,7 +220,7 @@
               </div>
             </div>
 
-            <!-- 3. 数字分身概览卡片 -->
+            <!-- 数字分身概览卡片 -->
             <el-card shadow="hover" class="overview-card">
               <div class="overview-header">
                 <h3 class="card-title">数字分身概览</h3>
@@ -254,7 +249,7 @@
               </div>
             </el-card>
 
-            <!-- 4. 得分明细表格 -->
+            <!-- 得分明细表格 -->
             <el-card shadow="hover" class="detail-card">
               <h3 class="card-title">各分身得分明细</h3>
               <el-table 
@@ -276,19 +271,17 @@
                     <span class="table-score">{{ scope.row.score }}分</span>
                   </template>
                 </el-table-column>
- <el-table-column label="规则匹配情况" prop="ruleMatches">
-  <template #default="scope">
-    <div class="rule-matches">
-      <div v-for="(rule, index) in scope.row.ruleMatches" :key="index" class="rule-item">
-        <!-- 修复逻辑：只有包含'符合' 且 不包含'不符合' 时才打勾 -->
-        <i class="el-icon-circle-check" v-if="rule.includes('符合') && !rule.includes('不符合')"></i>
-        <!-- 其他情况（包含'不符合'）打叉 -->
-        <i class="el-icon-circle-close" v-else></i>
-        <span class="rule-text">{{ rule }}</span>
-      </div>
-    </div>
-  </template>
-</el-table-column>
+                <el-table-column label="规则匹配情况" prop="ruleMatches">
+                  <template #default="scope">
+                    <div class="rule-matches">
+                      <div v-for="(rule, index) in scope.row.ruleMatches" :key="index" class="rule-item">
+                        <i class="el-icon-circle-check" v-if="rule.includes('符合') && !rule.includes('不符合')"></i>
+                        <i class="el-icon-circle-close" v-else></i>
+                        <span class="rule-text">{{ rule }}</span>
+                      </div>
+                    </div>
+                  </template>
+                </el-table-column>
               </el-table>
             </el-card>
           </div>
@@ -299,7 +292,6 @@
 </template>
 
 <script>
-// 引入接口（请确保路径与您项目一致）
 import { getRadarData } from '@/api/learning/radar'
 import { calculateDigitalTwin } from '@/api/learning/digitalTwin'
 import * as echarts from 'echarts'
@@ -315,6 +307,7 @@ export default {
       },
       activeTab: 'radar',
       radarData: [],
+      filteredRadarData: [],
       digitalTwinResult: null,
       loading: false,
       radarChart: null
@@ -329,7 +322,6 @@ export default {
     window.removeEventListener('resize', this.resizeChart)
   },
   computed: {
-    // 标签颜色类型
     twinTypeTagType() {
       if (!this.digitalTwinResult) return 'primary'
       const type = this.digitalTwinResult.twinType
@@ -341,17 +333,26 @@ export default {
         default: return 'primary'
       }
     },
-    // 分身主色调（小人衣服 + 文字颜色）
     twinColor() {
       if (!this.digitalTwinResult) return '#409EFF'
       const type = this.digitalTwinResult.twinType
       switch (type) {
-        case '稳步积累型': return '#409EFF' // 蓝
-        case '逻辑攻坚型': return '#67C23A' // 绿
-        case '高效突击型': return '#E6A23C' // 橙
-        case '查漏补缺型': return '#909399' // 灰
+        case '稳步积累型': return '#409EFF'
+        case '逻辑攻坚型': return '#67C23A'
+        case '高效突击型': return '#E6A23C'
+        case '查漏补缺型': return '#909399'
         default: return '#409EFF'
       }
+    },
+    // 新增：检测是否存在最高分并列的情况
+    isScoreTie() {
+      if (!this.digitalTwinResult || !this.digitalTwinResult.scoreDetails) return false
+      const currentScore = this.digitalTwinResult.score
+      // 统计有多少个类型的分数等于当前最高分
+      const tiedCount = this.digitalTwinResult.scoreDetails.filter(
+        item => item.score === currentScore
+      ).length
+      return tiedCount > 1
     }
   },
   methods: {
@@ -364,8 +365,6 @@ export default {
       }
       return map[type] || '#409EFF'
     },
-
-    // ----------------- 辅助文字生成方法 -----------------
     getCharacterDesc(type) {
       const map = {
         '稳步积累型': '一位登山者，一步一个脚印踏实前行',
@@ -385,7 +384,6 @@ export default {
       return map[type] || '制定合理的学习计划。'
     },
 
-    // ----------------- 雷达图逻辑 -----------------
     initRadarChart() {
       const chartDom = document.getElementById('radarChart')
       if (!chartDom) return
@@ -396,15 +394,19 @@ export default {
     updateRadarChart() {
       if (!this.radarChart) return
       if (this.radarData.length === 0) {
+        this.filteredRadarData = []
         this.radarChart.clear()
         return
       }
 
+      // 过滤掉分数<=0的能力
+      this.filteredRadarData = this.radarData.filter(item => item.competencyScore > 0)
+
       const option = {
-        grid: { top: 0, left: 0, right: 0, bottom: 0, containLabel: true },
+        grid: { top: 20, left: 0, right: 0, bottom: 20, containLabel: true },
         radar: {
-          indicator: this.radarData.map(item => ({ name: item.competencyName, max: 100 })),
-          radius: '65%',
+          indicator: this.filteredRadarData.map(item => ({ name: item.competencyName, max: 100 })),
+          radius: this.filteredRadarData.length > 3 ? '65%' : '75%',
           center: ['50%', '50%'],
           name: {
             textStyle: { fontSize: 13, fontWeight: 600, color: '#2c3e50', padding: [4, 8] },
@@ -419,7 +421,7 @@ export default {
         series: [{
           type: 'radar',
           data: [{
-            value: this.radarData.map(item => item.competencyScore),
+            value: this.filteredRadarData.map(item => item.competencyScore),
             name: `学生${this.searchForm.studentId}能力评分`
           }],
           symbol: 'circle',
@@ -441,7 +443,6 @@ export default {
       this.radarChart && this.radarChart.resize()
     },
 
-    // ----------------- 基础逻辑 -----------------
     getTagType(twinType) {
       switch (twinType) {
         case '稳步积累型': return 'primary'
@@ -455,6 +456,7 @@ export default {
     resetForm() {
       this.searchForm = { studentId: '', courseId: '', assignmentId: '' }
       this.radarData = []
+      this.filteredRadarData = []
       this.digitalTwinResult = null
       if (this.radarChart) this.radarChart.clear()
     },
@@ -550,6 +552,26 @@ export default {
   padding-bottom: 12px;
   border-bottom: 2px solid #e4e7ed;
 }
+
+/* 动态提示文本样式 */
+.dynamic-tip {
+  text-align: center;
+  font-size: 13px;
+  color: #606266;
+  margin: 0 0 12px 0;
+  padding: 8px;
+  background: #f0f9eb;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.dynamic-tip .el-icon-info {
+  color: #67C23A;
+  font-size: 14px;
+}
+
 .chart-wrapper {
   display: flex;
   justify-content: center;
@@ -562,7 +584,7 @@ export default {
   max-width: 700px;
 }
 
-/* ================= 数字分身样式 (新版) ================= */
+/* 数字分身样式 */
 .result-container {
   min-height: 600px;
 }
@@ -580,7 +602,6 @@ export default {
   gap: 20px;
 }
 
-/* --- 1. 新增：全家福展示栏样式 --- */
 .twins-preview-bar {
   background: #f9fafc;
   border-radius: 8px;
@@ -615,7 +636,6 @@ export default {
   transition: all 0.3s ease;
 }
 
-/* 激活状态：完全不透明，稍微放大 */
 .mini-twin-item.is-active {
   opacity: 1;
   transform: scale(1.1);
@@ -642,7 +662,7 @@ export default {
 }
 
 .mini-avatar-circle {
-  width: 60px; /* 迷你尺寸 */
+  width: 60px;
   height: 60px;
   border-radius: 50%;
   border: 2px solid #ddd;
@@ -667,7 +687,6 @@ export default {
   color: #909399;
 }
 
-/* --- 2. 主体数字分身展示卡片 (Container) --- */
 .twin-character-container {
   display: flex;
   align-items: center;
@@ -685,12 +704,11 @@ export default {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.06);
 }
 
-/* 左侧：头像圆圈 */
 .avatar-circle {
   width: 140px;
   height: 140px;
   border-radius: 50%;
-  border: 4px solid; /* 颜色在HTML中动态绑定 */
+  border: 4px solid;
   padding: 5px;
   margin-right: 35px;
   flex-shrink: 0;
@@ -701,10 +719,9 @@ export default {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  overflow: hidden; /* 圆形裁剪 */
+  overflow: hidden;
 }
 
-/* 右侧：文字信息 */
 .character-info {
   flex: 1;
   text-align: left;
@@ -727,6 +744,37 @@ export default {
 .ai-badge {
   font-weight: normal;
   border-radius: 4px;
+}
+
+/* 新增：智能洞察提示框样式 */
+.smart-insight-box {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  display: inline-block;
+  max-width: 100%;
+  animation: fadeIn 1s ease;
+}
+
+.smart-insight-box i {
+  margin-right: 6px;
+  font-size: 14px;
+  position: relative;
+  top: 1px;
+}
+
+.smart-insight-box strong {
+  font-weight: 600;
+  margin: 0 2px;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .info-text {
@@ -753,8 +801,7 @@ export default {
   line-height: 1.6;
 }
 
-/* ============ 动画微交互 (Avatar Animations) ============ */
-/* 1. 眨眼 */
+/* 动画效果 */
 .blink-eye {
   animation: blink 4s infinite;
   transform-origin: center;
@@ -764,7 +811,6 @@ export default {
   50% { transform: scaleY(0.1); }
 }
 
-/* 2. 闪烁 (灯泡) */
 .idea-bulb {
   animation: flash 2s infinite alternate;
   transform-origin: center;
@@ -774,7 +820,6 @@ export default {
   to { opacity: 1; transform: scale(1.1); }
 }
 
-/* 3. 晃动头部 & 速度线 */
 .face-tilt {
   animation: tiltHead 2s infinite ease-in-out;
   transform-origin: 100px 200px;
@@ -792,7 +837,6 @@ export default {
   to { stroke-dashoffset: 0; }
 }
 
-/* 4. 悬浮 (放大镜) */
 .magnifier-float {
   animation: floatMag 3s ease-in-out infinite;
 }
@@ -801,13 +845,11 @@ export default {
   50% { transform: translateY(-5px) rotate(-5deg); }
 }
 
-/* 弹跳徽章动画 */
 @keyframes bounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
 
-/* 2. 概览卡片 */
 .overview-card {
   background: #fff;
 }
@@ -841,7 +883,6 @@ export default {
   gap: 10px;
 }
 
-/* 3. 表格卡片 */
 .detail-card {
   background: #fff;
 }
@@ -868,5 +909,8 @@ export default {
   .info-header { justify-content: center; }
   .overview-header { flex-direction: column; align-items: flex-start; gap: 12px; }
   .twins-row { overflow-x: auto; justify-content: flex-start; gap: 15px; padding-bottom: 10px; }
+  /* 雷达图移动端适配 */
+  .radar-chart-container { height: 400px; }
+  .dynamic-tip { font-size: 12px; padding: 6px; }
 }
 </style>

@@ -44,17 +44,17 @@ public class DigitalTwinController extends BaseController {
             @ApiImplicitParam(name = "courseId", value = "课程ID", required = true, dataType = "Long", example = "123")
             // 去掉作业ID参数
     })
-    public AjaxResult calculateDigitalTwin(Long userId, Long courseId) { // 去掉 assignmentId 参数
+    public AjaxResult calculateDigitalTwin(Long studentId, Long courseId) { // 去掉 assignmentId 参数
         try {
-            log.info("接收数字分身计算请求：userId={}, courseId={}", userId, courseId);
-            DigitalTwinResultVO resultVO = digitalTwinService.calculateDigitalTwin(userId, courseId); // 调整参数
-            log.info("数字分身计算接口响应：userId={}, result={}", userId, resultVO);
+            log.info("接收数字分身计算请求：userId={}, courseId={}", studentId, courseId);
+            DigitalTwinResultVO resultVO = digitalTwinService.calculateDigitalTwin(studentId, courseId); // 调整参数
+            log.info("数字分身计算接口响应：userId={}, result={}", studentId, resultVO);
             return AjaxResult.success("计算成功", resultVO);
         } catch (RuntimeException e) {
-            log.error("数字分身计算接口异常：userId={}, 错误信息={}", userId, e.getMessage(), e);
+            log.error("数字分身计算接口异常：userId={}, 错误信息={}", studentId, e.getMessage(), e);
             return AjaxResult.error(e.getMessage());
         } catch (Exception e) {
-            log.error("数字分身计算接口系统异常：userId={}", userId, e);
+            log.error("数字分身计算接口系统异常：userId={}", studentId, e);
             return AjaxResult.error("系统异常，请联系管理员");
         }
     }

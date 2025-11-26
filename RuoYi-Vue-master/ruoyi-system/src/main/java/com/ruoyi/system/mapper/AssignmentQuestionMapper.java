@@ -64,4 +64,7 @@ public interface AssignmentQuestionMapper {
     public int deleteAssignmentQuestionByIds(Long[] ids);
 
     List<QuestionKpRelationVo> selectQuestionKpRelation(Map<String, Object> params);
+    List<QuestionKpRelationVo> selectStudentWrongQuestionRelations(@Param("studentId") Long studentId);
+    // 按作业ID集合+课程查询「题目-知识点关联数据」
+    List<QuestionKpRelationVo> selectQuestionKpRelationByAssignmentIdsAndCourse(Map<String, Object> params);
 }

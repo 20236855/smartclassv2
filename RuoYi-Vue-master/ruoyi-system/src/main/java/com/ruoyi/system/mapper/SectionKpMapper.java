@@ -5,6 +5,7 @@ import com.ruoyi.system.domain.vo.KpResourceVo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import java.util.List;
+import java.util.Map; // 新增：导入Map类型
 
 /**
  * 小节-知识点关联Mapper接口
@@ -69,4 +70,12 @@ public interface SectionKpMapper {
      * @return 知识点资源VO列表
      */
     List<KpResourceVo> selectKpResourceByCourseId(@Param("courseId") Long courseId);
+
+    /**
+     * 新增方法：根据小节ID查询章节-小节名称（适配视频位置展示）
+     *
+     * @param sectionId 小节ID
+     * @return key=chapterTitle（章节名称）, value=sectionTitle（小节名称）
+     */
+    Map<String, String> selectChapterSectionBySectionId(@Param("sectionId") Long sectionId);
 }

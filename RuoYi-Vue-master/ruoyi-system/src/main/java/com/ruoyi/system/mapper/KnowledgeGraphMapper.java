@@ -2,18 +2,20 @@ package com.ruoyi.system.mapper;
 
 import java.util.List;
 import com.ruoyi.system.domain.KnowledgeGraph;
+import org.apache.ibatis.annotations.Mapper;
 
 /**
  * 知识图谱Mapper接口
- * 
+ *
  * @author ruoyi
  * @date 2025-11-21
  */
-public interface KnowledgeGraphMapper 
+@Mapper
+public interface KnowledgeGraphMapper
 {
     /**
      * 查询知识图谱
-     * 
+     *
      * @param id 知识图谱主键
      * @return 知识图谱
      */
@@ -21,7 +23,7 @@ public interface KnowledgeGraphMapper
 
     /**
      * 查询知识图谱列表
-     * 
+     *
      * @param knowledgeGraph 知识图谱
      * @return 知识图谱集合
      */
@@ -29,7 +31,7 @@ public interface KnowledgeGraphMapper
 
     /**
      * 新增知识图谱
-     * 
+     *
      * @param knowledgeGraph 知识图谱
      * @return 结果
      */
@@ -37,7 +39,7 @@ public interface KnowledgeGraphMapper
 
     /**
      * 修改知识图谱
-     * 
+     *
      * @param knowledgeGraph 知识图谱
      * @return 结果
      */
@@ -45,7 +47,7 @@ public interface KnowledgeGraphMapper
 
     /**
      * 删除知识图谱
-     * 
+     *
      * @param id 知识图谱主键
      * @return 结果
      */
@@ -53,7 +55,7 @@ public interface KnowledgeGraphMapper
 
     /**
      * 批量删除知识图谱
-     * 
+     *
      * @param ids 需要删除的数据主键集合
      * @return 结果
      */

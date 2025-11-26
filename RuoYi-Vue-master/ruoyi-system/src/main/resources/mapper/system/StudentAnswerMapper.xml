@@ -28,4 +28,32 @@
         and is_deleted = 0
         order by answer_time asc
     </select>
+    <select id="selectDistinctAssignmentIdsByStudentAndCourse" resultType="java.lang.Long">
+        SELECT DISTINCT assignment_id
+        FROM student_answer
+        WHERE student_user_id = #{studentUserId}
+          AND is_deleted = 0
+          -- 关联作业表，确保作业属于目标课程（双重保险）
+          AND EXISTS (
+                SELECT 1 FROM assignment a
+                WHERE a.id = student_answer.assignment_id
+                  AND a.course_id = #{courseId}
+            );
+    </select>
+    <select id="selectStudentWrongQuestions" parameterType="java.lang.Long" resultType="java.util.Map">
+        SELECT
+            sa.assignment_id AS assignmentId,
+            aq.sequence AS sequence,
+            a.title AS assignmentName
+        FROM student_answer sa
+                 JOIN assignment_question aq ON sa.question_id = aq.question_id
+                 JOIN assignment a ON sa.assignment_id = a.id
+        WHERE sa.student_user_id = #{studentUserId}
+          AND sa.is_correct = 0
+          AND sa.is_deleted = 0
+          AND aq.is_deleted = 0
+          AND a.is_deleted = 0
+        GROUP BY sa.assignment_id, aq.sequence, a.title
+        ORDER BY sa.assignment_id, aq.sequence;
+    </select>
 </mapper>

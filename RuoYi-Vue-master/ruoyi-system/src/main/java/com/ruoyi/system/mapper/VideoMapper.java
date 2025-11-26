@@ -2,6 +2,7 @@ package com.ruoyi.system.mapper;
 
 import java.util.List;
 import com.ruoyi.system.domain.Video;
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 /**
@@ -10,6 +11,7 @@ import org.apache.ibatis.annotations.Param;
  * @author ruoyi
  * @date 2025-11-20
  */
+@Mapper
 public interface VideoMapper
 {
     /**
@@ -21,7 +23,7 @@ public interface VideoMapper
     public List<Video> selectVideosByChapterId(@Param("chapterId") Long chapterId);
     /**
      * 查询视频
-     * 
+     *
      * @param id 视频主键
      * @return 视频
      */
@@ -29,7 +31,7 @@ public interface VideoMapper
 
     /**
      * 查询视频列表
-     * 
+     *
      * @param video 视频
      * @return 视频集合
      */
@@ -37,7 +39,7 @@ public interface VideoMapper
 
     /**
      * 新增视频
-     * 
+     *
      * @param video 视频
      * @return 结果
      */
@@ -45,7 +47,7 @@ public interface VideoMapper
 
     /**
      * 修改视频
-     * 
+     *
      * @param video 视频
      * @return 结果
      */
@@ -53,7 +55,7 @@ public interface VideoMapper
 
     /**
      * 删除视频
-     * 
+     *
      * @param id 视频主键
      * @return 结果
      */
@@ -61,7 +63,7 @@ public interface VideoMapper
 
     /**
      * 批量删除视频
-     * 
+     *
      * @param ids 需要删除的数据主键集合
      * @return 结果
      */
