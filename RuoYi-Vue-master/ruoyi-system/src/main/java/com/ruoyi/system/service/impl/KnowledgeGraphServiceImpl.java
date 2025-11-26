@@ -559,6 +559,8 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
                 Long targetId = nameToIdMap.get(targetName);
 
                 if (sourceId != null && targetId != null) {
+                    logger.info("准备保存关系：{} -> {}，原始类型={}，映射后类型={}", sourceName, targetName, relType, mappedRelType);
+
                     // 检查关系是否已存在
                     if (!relationExists(sourceId, targetId, mappedRelType)) {
                         com.ruoyi.system.domain.KpRelation kpRel = new com.ruoyi.system.domain.KpRelation();
@@ -567,9 +569,15 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
                         kpRel.setRelationType(mappedRelType);
                         kpRel.setAiGenerated(1);
 
-                        kpRelationService.insertKpRelation(kpRel);
-                        savedRelations++;
-                        logger.info("保存知识点关系：{} -> {} (类型: {})", sourceName, targetName, mappedRelType);
+                        try {
+                            kpRelationService.insertKpRelation(kpRel);
+                            savedRelations++;
+                            logger.info("保存知识点关系成功：{} -> {} (类型: {})", sourceName, targetName, mappedRelType);
+                        } catch (Exception e) {
+                            logger.error("保存关系失败：{} -> {} ({}), 错误：{}", sourceName, targetName, mappedRelType, e.getMessage());
+                            // 打印详细的异常堆栈，帮助调试
+                            e.printStackTrace();
+                        }
                     } else {
                         logger.debug("关系已存在，跳过：{} -> {} (类型: {})", sourceName, targetName, mappedRelType);
                     }
@@ -619,6 +627,10 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
 
             graph.put("nodes", nodes);
             graph.put("edges", edges);
+            // 【新增】在 graph_data 中存储 chapterId，用于前端过滤
+            graph.put("chapterId", chapterId);
+            graph.put("chapterSortOrder", chapterSortOrder);
+            graph.put("chapterTitle", chapterTitle);
 
             String graphJson = mapper.writeValueAsString(graph);
 
@@ -729,30 +741,35 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
      * 映射 AI 返回的关系类型到数据库枚举值
      */
     private String mapRelationType(String type) {
-        if (type == null) return "similar_to";
+        if (type == null) return "SIMILAR";
         type = type.toLowerCase();
-        
-        // 前置关系映射
+
+        // 前置关系映射 -> PREREQUISITE
         if (type.contains("prerequisite") || type.contains("前置") || type.contains("基础")) {
-            return "prerequisite_of";
+            return "PREREQUISITE";
         }
-        // 相似关系映射  
+        // 从属关系映射 -> BELONGS_TO
+        if (type.contains("belongs") || type.contains("从属") || type.contains("属于") ||
+            type.contains("derived") || type.contains("推导") || type.contains("衍生")) {
+            return "BELONGS_TO";
+        }
+        // 示例关系映射 -> EXAMPLE
+        if (type.contains("example") || type.contains("示例") || type.contains("实例")) {
+            return "EXAMPLE";
+        }
+        // 扩展关系映射 -> EXTENSION
+        if (type.contains("extension") || type.contains("扩展") || type.contains("进阶")) {
+            return "EXTENSION";
+        }
+        // 相似关系映射 -> SIMILAR
         if (type.contains("similar") || type.contains("相似") || type.contains("类似") ||
             type.contains("related") || type.contains("相关") || type.contains("uses") ||
             type.contains("应用") || type.contains("使用")) {
-            return "similar_to";
+            return "SIMILAR";
         }
-        // 扩展关系映射
-        if (type.contains("extension") || type.contains("扩展") || type.contains("进阶")) {
-            return "extension_of";
-        }
-        // 推导关系映射
-        if (type.contains("derived") || type.contains("推导") || type.contains("衍生")) {
-            return "derived_from";
-        }
-        
-        logger.warn("未识别的关系类型：{}，使用默认值 similar_to", type);
-        return "similar_to"; // 默认为相似关系
+
+        logger.warn("未识别的关系类型：{}，使用默认值 SIMILAR", type);
+        return "SIMILAR"; // 默认为相似关系
     }
 
     /**

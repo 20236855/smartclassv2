@@ -263,13 +263,41 @@ export default {
           return
         }
 
-        const graph = graphs[graphs.length - 1]
+        // 【修改】如果是章节图谱，根据 chapterId 过滤
+        let filteredGraphs = graphs
+        if (this.selectedGraphType === 'CHAPTER' && this.selectedChapterId) {
+          filteredGraphs = graphs.filter(g => {
+            try {
+              const graphData = JSON.parse(g.graphData)
+              return graphData.chapterId === this.selectedChapterId
+            } catch (e) {
+              return false
+            }
+          })
+
+          if (filteredGraphs.length === 0) {
+            this.graphInfo = null
+            this.nodeCount = 0
+            this.edgeCount = 0
+            this.chart.clear()
+            this.loading = false
+            this.$message.warning('该章节暂无知识图谱数据')
+            return
+          }
+        }
+
+        const graph = filteredGraphs[filteredGraphs.length - 1]
         this.graphInfo = graph
 
         try {
           const graphData = JSON.parse(graph.graphData)
+          console.log('📊 图谱数据:', graphData)
+          console.log('📊 节点数量:', graphData.nodes?.length || 0)
+          console.log('📊 边数量:', graphData.edges?.length || 0)
+          console.log('📊 章节ID:', graphData.chapterId)
           this.renderGraph(graphData)
         } catch (e) {
+          console.error('❌ 图谱数据解析失败:', e)
           this.$message.error('图谱数据解析失败：' + e.message)
         }
         this.loading = false
@@ -281,27 +309,71 @@ export default {
       const nodes = graphData.nodes || []
       const edges = graphData.edges || []
 
+      console.log('🎨 开始渲染图谱，节点数:', nodes.length, '边数:', edges.length)
+
       this.nodeCount = nodes.length
       this.edgeCount = edges.length
 
-      const chartNodes = nodes.map(node => ({
-        id: node.id,
-        name: node.label,
-        symbolSize: Math.max(30, 50 + (node.confidence || 0) * 50),
-        value: node.confidence || 0,
-        category: this.getCategoryByConfidence(node.confidence),
-        itemStyle: {
-          color: this.getColorByConfidence(node.confidence),
-          borderColor: '#fff',
-          borderWidth: 2
-        },
-        label: {
-          show: true,
-          fontSize: 12,
-          fontWeight: 'bold'
-        },
-        rawData: node
-      }))
+      if (nodes.length === 0) {
+        console.warn('⚠️ 没有节点数据，无法渲染图谱')
+        this.$message.warning('该图谱没有知识点数据')
+        return
+      }
+
+      const chartNodes = nodes.map(node => {
+        const confidence = node.confidence || 0
+        const size = Math.max(40, 60 + confidence * 60)
+        return {
+          id: node.id,
+          name: node.label,
+          symbolSize: size,
+          value: confidence,
+          category: this.getCategoryByConfidence(confidence),
+          itemStyle: {
+            color: {
+              type: 'radial',
+              x: 0.5,
+              y: 0.5,
+              r: 0.5,
+              colorStops: [{
+                offset: 0,
+                color: this.getColorByConfidence(confidence, 0.9)
+              }, {
+                offset: 1,
+                color: this.getColorByConfidence(confidence, 1)
+              }]
+            },
+            borderColor: '#ffffff',
+            borderWidth: 3,
+            shadowBlur: 15,
+            shadowColor: this.getColorByConfidence(confidence, 0.4),
+            shadowOffsetX: 0,
+            shadowOffsetY: 4
+          },
+          label: {
+            show: true,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#ffffff',
+            textShadowColor: 'rgba(0, 0, 0, 0.5)',
+            textShadowBlur: 4,
+            textShadowOffsetX: 0,
+            textShadowOffsetY: 1
+          },
+          emphasis: {
+            itemStyle: {
+              borderWidth: 4,
+              shadowBlur: 25,
+              shadowColor: this.getColorByConfidence(confidence, 0.6)
+            },
+            label: {
+              fontSize: 15,
+              fontWeight: 700
+            }
+          },
+          rawData: node
+        }
+      })
 
       const chartLinks = edges.map(edge => ({
         source: edge.source,
@@ -309,12 +381,34 @@ export default {
         label: {
           show: true,
           formatter: this.getRelationLabel(edge.type),
-          fontSize: 10
+          fontSize: 11,
+          fontWeight: 500,
+          color: '#606266',
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          padding: [4, 8],
+          borderRadius: 6,
+          borderColor: this.getEdgeColor(edge.type),
+          borderWidth: 1.5
         },
         lineStyle: {
-          curveness: 0.2,
+          curveness: 0.25,
           color: this.getEdgeColor(edge.type),
-          width: 2
+          width: 2.5,
+          shadowBlur: 8,
+          shadowColor: this.getEdgeColor(edge.type, 0.3),
+          shadowOffsetY: 2
+        },
+        emphasis: {
+          lineStyle: {
+            width: 4,
+            shadowBlur: 15,
+            shadowColor: this.getEdgeColor(edge.type, 0.5)
+          },
+          label: {
+            fontSize: 12,
+            fontWeight: 600,
+            borderWidth: 2
+          }
         }
       }))
 
@@ -325,34 +419,60 @@ export default {
       ]
 
       const option = {
-        backgroundColor: '#fafafa',
+        backgroundColor: 'transparent',
         title: {
-          text: this.selectedGraphType === 'COURSE' ? '课程知识图谱' : '章节知识图谱',
+          text: this.selectedGraphType === 'COURSE' ? '📚 课程知识图谱' : '📖 章节知识图谱',
           left: 'center',
           top: 20,
           textStyle: {
-            fontSize: 18,
-            fontWeight: 'bold',
-            color: '#333'
+            fontSize: 24,
+            fontWeight: 700,
+            color: '#667eea',
+            textShadowColor: 'rgba(102, 126, 234, 0.2)',
+            textShadowBlur: 10,
+            textShadowOffsetX: 0,
+            textShadowOffsetY: 2
           }
         },
         tooltip: {
           trigger: 'item',
-          backgroundColor: 'rgba(0,0,0,0.8)',
-          borderColor: '#777',
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          borderColor: '#667eea',
+          borderWidth: 2,
+          borderRadius: 12,
+          padding: [16, 20],
           textStyle: {
-            color: '#fff'
+            color: '#333',
+            fontSize: 13
           },
+          extraCssText: 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); backdrop-filter: blur(10px);',
           formatter: (params) => {
             if (params.dataType === 'node') {
               const data = params.data.rawData
-              return `<div style="padding: 10px;">
-                        <div style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">${data.label}</div>
-                        <div style="margin-bottom: 5px;">定义: ${data.definition || '暂无定义'}</div>
-                        <div>置信度: ${Math.round((data.confidence || 0) * 100)}%</div>
+              const confidencePercent = Math.round((data.confidence || 0) * 100)
+              const confidenceColor = data.confidence >= 0.7 ? '#67C23A' : data.confidence >= 0.4 ? '#E6A23C' : '#F56C6C'
+              return `<div style="max-width: 300px;">
+                        <div style="font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 8px;">
+                          ${data.label}
+                        </div>
+                        <div style="margin-bottom: 10px; line-height: 1.6; color: #606266;">
+                          <strong style="color: #303133;">定义：</strong>${data.definition || '暂无定义'}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <strong style="color: #303133;">置信度：</strong>
+                          <span style="color: ${confidenceColor}; font-weight: 700; font-size: 15px;">${confidencePercent}%</span>
+                          <div style="flex: 1; height: 6px; background: #e4e7ed; border-radius: 3px; overflow: hidden;">
+                            <div style="width: ${confidencePercent}%; height: 100%; background: ${confidenceColor}; border-radius: 3px; transition: width 0.3s ease;"></div>
+                          </div>
+                        </div>
                       </div>`
             } else if (params.dataType === 'edge') {
-              return `关系类型: ${this.getRelationLabel(params.data.label.formatter)}`
+              const relationLabel = this.getRelationLabel(params.data.label.formatter)
+              const edgeColor = this.getEdgeColor(params.data.label.formatter)
+              return `<div style="padding: 4px 8px;">
+                        <span style="display: inline-block; width: 30px; height: 3px; background: ${edgeColor}; border-radius: 2px; margin-right: 8px; vertical-align: middle;"></span>
+                        <strong style="color: #303133;">${relationLabel}</strong>
+                      </div>`
             }
           }
         },
@@ -369,24 +489,30 @@ export default {
           label: {
             position: 'inside',
             formatter: '{b}',
-            fontSize: 11
+            fontSize: 12
           },
           force: {
-            repulsion: 1000,
-            edgeLength: [100, 300],
-            gravity: 0.1,
-            friction: 0.6
+            repulsion: 1500,
+            edgeLength: [120, 350],
+            gravity: 0.08,
+            friction: 0.5,
+            layoutAnimation: true
           },
           emphasis: {
             focus: 'adjacency',
+            scale: 1.15,
             lineStyle: {
-              width: 4
+              width: 5
             },
             itemStyle: {
-              shadowBlur: 10,
-              shadowColor: 'rgba(0,0,0,0.3)'
+              shadowBlur: 20,
+              shadowColor: 'rgba(102, 126, 234, 0.5)'
             }
-          }
+          },
+          animation: true,
+          animationDuration: 1500,
+          animationEasing: 'cubicOut',
+          animationDelay: (idx) => idx * 10
         }]
       }
 
@@ -463,28 +589,44 @@ export default {
       if (confidence >= 0.4) return 1
       return 2
     },
-    getColorByConfidence(confidence) {
-      if (confidence >= 0.7) return '#67C23A'
-      if (confidence >= 0.4) return '#E6A23C'
-      return '#F56C6C'
+    getColorByConfidence(confidence, alpha = 1) {
+      let baseColor
+      if (confidence >= 0.7) baseColor = '103, 194, 58'  // #67C23A
+      else if (confidence >= 0.4) baseColor = '230, 162, 60'  // #E6A23C
+      else baseColor = '245, 108, 108'  // #F56C6C
+
+      return `rgba(${baseColor}, ${alpha})`
     },
     getConfidenceColor(confidence) {
       if (confidence >= 0.7) return '#67C23A'
       if (confidence >= 0.4) return '#E6A23C'
       return '#F56C6C'
     },
-    getEdgeColor(type) {
+    getEdgeColor(type, alpha = 1) {
       const colorMap = {
-        'prerequisite_of': '#409EFF',
-        'similar_to': '#67C23A',
-        'extension_of': '#E6A23C',
-        'derived_from': '#909399',
-        'related': '#909399'
+        'PREREQUISITE': '64, 158, 255',       // #409EFF 蓝色 - 前置关系
+        'BELONGS_TO': '144, 147, 153',        // #909399 灰色 - 从属关系
+        'EXAMPLE': '245, 108, 108',           // #F56C6C 红色 - 示例关系
+        'EXTENSION': '230, 162, 60',          // #E6A23C 橙色 - 扩展关系
+        'SIMILAR': '103, 194, 58',            // #67C23A 绿色 - 相似关系
+        // 兼容旧格式
+        'prerequisite_of': '64, 158, 255',
+        'similar_to': '103, 194, 58',
+        'extension_of': '230, 162, 60',
+        'derived_from': '144, 147, 153',
+        'related': '144, 147, 153'
       }
-      return colorMap[type] || '#909399'
+      const rgb = colorMap[type] || '144, 147, 153'
+      return `rgba(${rgb}, ${alpha})`
     },
     getRelationLabel(type) {
       const labelMap = {
+        'PREREQUISITE': '前置关系',
+        'BELONGS_TO': '从属关系',
+        'EXAMPLE': '示例关系',
+        'EXTENSION': '扩展关系',
+        'SIMILAR': '相似关系',
+        // 兼容旧格式
         'prerequisite_of': '前置关系',
         'similar_to': '相似关系',
         'extension_of': '扩展关系',
@@ -504,16 +646,47 @@ export default {
 <style scoped>
 .knowledge-graph-container {
   padding: 0;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  min-height: 100vh;
 }
 
 .control-panel {
-  margin-bottom: 20px;
-  border: 1px solid #e4e7ed;
+  margin-bottom: 24px;
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  transition: all 0.3s ease;
+}
+
+.control-panel:hover {
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
 .graph-info-card {
-  margin-bottom: 20px;
-  border: 1px solid #e4e7ed;
+  margin-bottom: 24px;
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  transition: all 0.3s ease;
+}
+
+.graph-info-card:hover {
+  box-shadow: 0 8px 24px 0 rgba(102, 126, 234, 0.4);
+  transform: translateY(-4px);
+}
+
+.graph-info-card >>> .el-card__header {
+  background: rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.graph-info-card >>> .el-card__body {
+  background: transparent;
 }
 
 .card-header {
@@ -523,99 +696,241 @@ export default {
 }
 
 .graph-title {
-  font-size: 16px;
-  font-weight: bold;
-  color: #303133;
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .info-item {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .info-item i {
-  margin-right: 8px;
-  color: #909399;
+  margin-right: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 18px;
 }
 
 .update-time {
   text-align: center;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .graph-card {
-  margin-bottom: 20px;
-  border: 1px solid #e4e7ed;
+  margin-bottom: 24px;
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.graph-card:hover {
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
 }
 
 .knowledge-graph-chart {
   width: 100%;
-  height: 600px;
-  background: #fafafa;
-  border-radius: 4px;
+  height: 700px;
+  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+  border-radius: 12px;
+  position: relative;
+}
+
+.knowledge-graph-chart::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 20% 50%, rgba(102, 126, 234, 0.05) 0%, transparent 50%),
+              radial-gradient(circle at 80% 80%, rgba(118, 75, 162, 0.05) 0%, transparent 50%);
+  pointer-events: none;
 }
 
 .empty-state {
-  height: 400px;
+  height: 500px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+  border-radius: 12px;
 }
 
 .legend-card {
-  border: 1px solid #e4e7ed;
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  transition: all 0.3s ease;
+}
+
+.legend-card:hover {
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.12);
+}
+
+.legend-card >>> .el-card__header {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 12px 12px 0 0;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.legend-item:hover {
+  background: rgba(102, 126, 234, 0.05);
+  transform: translateX(4px);
 }
 
 .legend-node {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  margin-right: 8px;
-  border: 2px solid #fff;
+  margin-right: 12px;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+}
+
+.legend-item:hover .legend-node {
+  transform: scale(1.2);
 }
 
 .legend-node.high-confidence {
-  background-color: #67C23A;
+  background: linear-gradient(135deg, #67C23A 0%, #85ce61 100%);
 }
 
 .legend-node.medium-confidence {
-  background-color: #E6A23C;
+  background: linear-gradient(135deg, #E6A23C 0%, #ebb563 100%);
 }
 
 .legend-node.low-confidence {
-  background-color: #F56C6C;
+  background: linear-gradient(135deg, #F56C6C 0%, #f78989 100%);
 }
 
 .legend-edge {
-  width: 30px;
-  height: 3px;
-  margin-right: 8px;
+  width: 40px;
+  height: 4px;
+  margin-right: 12px;
   border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.legend-item:hover .legend-edge {
+  width: 50px;
 }
 
 .legend-edge.prerequisite {
-  background-color: #409EFF;
+  background: linear-gradient(90deg, #409EFF 0%, #66b1ff 100%);
 }
 
 .legend-edge.similar {
-  background-color: #67C23A;
+  background: linear-gradient(90deg, #67C23A 0%, #85ce61 100%);
 }
 
 .legend-edge.extension {
-  background-color: #E6A23C;
+  background: linear-gradient(90deg, #E6A23C 0%, #ebb563 100%);
 }
 
 .legend-edge.related {
-  background-color: #909399;
+  background: linear-gradient(90deg, #909399 0%, #a6a9ad 100%);
 }
 
-.node-dialog .el-dialog__body {
-  padding: 20px;
+.node-dialog >>> .el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+}
+
+.node-dialog >>> .el-dialog__header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  padding: 20px 24px;
+}
+
+.node-dialog >>> .el-dialog__title {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.node-dialog >>> .el-dialog__headerbtn .el-dialog__close {
+  color: #ffffff;
+  font-size: 20px;
+}
+
+.node-dialog >>> .el-dialog__body {
+  padding: 24px;
+  background: #fafafa;
+}
+
+/* 按钮美化 */
+.control-panel >>> .el-button--primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.control-panel >>> .el-button--primary:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.control-panel >>> .el-button--success {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.control-panel >>> .el-button--success:hover {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
+}
+
+/* 选择器美化 */
+.control-panel >>> .el-select .el-input__inner {
+  border-radius: 8px;
+  border: 2px solid #e4e7ed;
+  transition: all 0.3s ease;
+}
+
+.control-panel >>> .el-select .el-input__inner:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+/* 统计数字美化 */
+.graph-info-card >>> .el-statistic__head {
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+.graph-info-card >>> .el-statistic__content {
+  color: #ffffff;
+  font-weight: 700;
 }
 </style>

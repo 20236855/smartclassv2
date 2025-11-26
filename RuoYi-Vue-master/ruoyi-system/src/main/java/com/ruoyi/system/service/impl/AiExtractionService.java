@@ -62,6 +62,13 @@ public class AiExtractionService {
             return result;
         }
 
+        // ⭐ 如果文本过长（超过5000字符），进行切片处理
+        final int MAX_CHUNK_SIZE = 5000;
+        if (text.length() > MAX_CHUNK_SIZE) {
+            logger.info("文本长度 {} 超过限制，进行切片处理", text.length());
+            return extractWithChunking(text, MAX_CHUNK_SIZE);
+        }
+
         // 如果配置了 qianwenApiUrl，则尝试调用远端服务（使用优化后的中文提示词）
         if (qianwenApiUrl != null && !qianwenApiUrl.trim().isEmpty()) {
             try {
@@ -75,6 +82,147 @@ public class AiExtractionService {
         result.put("candidates", localRegexExtract(text));
         result.put("relations", new ArrayList<>()); // 本地实现暂不支持关系抽取
         return result;
+    }
+
+    /**
+     * 文本切片处理：将长文本分割成多个小块，分别调用AI，然后合并结果
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String,Object> extractWithChunking(String text, int chunkSize) {
+        Map<String,Object> mergedResult = new HashMap<>();
+        List<Map<String,Object>> allCandidates = new ArrayList<>();
+        List<Map<String,Object>> allRelations = new ArrayList<>();
+
+        // 按句子分割文本（避免切断句子）
+        String[] sentences = text.split("[。！？\\n]+");
+        StringBuilder currentChunk = new StringBuilder();
+        int chunkCount = 0;
+
+        for (String sentence : sentences) {
+            // 如果当前块加上这句话会超过限制，先处理当前块
+            if (currentChunk.length() + sentence.length() > chunkSize && currentChunk.length() > 0) {
+                chunkCount++;
+                logger.info("处理第 {} 个文本块，长度: {}", chunkCount, currentChunk.length());
+
+                try {
+                    Map<String,Object> chunkResult = callQianwenWithRelations(currentChunk.toString());
+                    if (chunkResult.containsKey("candidates")) {
+                        List<Map<String,Object>> candidates = (List<Map<String,Object>>) chunkResult.get("candidates");
+                        logger.info("第 {} 个文本块提取到 {} 个知识点", chunkCount, candidates.size());
+                        allCandidates.addAll(candidates);
+                    }
+                    if (chunkResult.containsKey("relations")) {
+                        List<Map<String,Object>> relations = (List<Map<String,Object>>) chunkResult.get("relations");
+                        logger.info("第 {} 个文本块提取到 {} 个关系", chunkCount, relations.size());
+                        allRelations.addAll(relations);
+                    }
+
+                    // 添加延迟，避免API限流
+                    Thread.sleep(1000);
+                } catch (Exception e) {
+                    logger.error("处理第 {} 个文本块失败: {}", chunkCount, e.getMessage(), e);
+                }
+
+                currentChunk = new StringBuilder();
+            }
+
+            currentChunk.append(sentence).append("。");
+        }
+
+        // 处理最后一个块
+        if (currentChunk.length() > 0) {
+            chunkCount++;
+            logger.info("处理第 {} 个文本块（最后一块），长度: {}", chunkCount, currentChunk.length());
+
+            try {
+                Map<String,Object> chunkResult = callQianwenWithRelations(currentChunk.toString());
+                if (chunkResult.containsKey("candidates")) {
+                    List<Map<String,Object>> candidates = (List<Map<String,Object>>) chunkResult.get("candidates");
+                    logger.info("最后一个文本块提取到 {} 个知识点", candidates.size());
+                    allCandidates.addAll(candidates);
+                }
+                if (chunkResult.containsKey("relations")) {
+                    List<Map<String,Object>> relations = (List<Map<String,Object>>) chunkResult.get("relations");
+                    logger.info("最后一个文本块提取到 {} 个关系", relations.size());
+                    allRelations.addAll(relations);
+                }
+            } catch (Exception e) {
+                logger.error("处理最后一个文本块失败: {}", e.getMessage(), e);
+            }
+        }
+
+        // 去重合并结果
+        mergedResult.put("candidates", deduplicateCandidates(allCandidates));
+        mergedResult.put("relations", deduplicateRelations(allRelations));
+
+        logger.info("切片处理完成，共 {} 个块，合并后得到 {} 个知识点，{} 个关系",
+            chunkCount,
+            ((List<?>) mergedResult.get("candidates")).size(),
+            ((List<?>) mergedResult.get("relations")).size());
+
+        return mergedResult;
+    }
+
+    /**
+     * 去重知识点候选
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String,Object>> deduplicateCandidates(List<Map<String,Object>> candidates) {
+        Map<String, Map<String,Object>> uniqueMap = new LinkedHashMap<>();
+
+        for (Map<String,Object> candidate : candidates) {
+            // AI可能返回 "title" 或 "name" 字段，都尝试获取
+            String name = (String) candidate.get("title");
+            if (name == null || name.trim().isEmpty()) {
+                name = (String) candidate.get("name");
+            }
+
+            if (name != null && !name.trim().isEmpty()) {
+                // 如果已存在同名知识点，保留置信度更高的
+                if (uniqueMap.containsKey(name)) {
+                    double existingConf = ((Number) uniqueMap.get(name).getOrDefault("confidence", 0.0)).doubleValue();
+                    double newConf = ((Number) candidate.getOrDefault("confidence", 0.0)).doubleValue();
+                    if (newConf > existingConf) {
+                        uniqueMap.put(name, candidate);
+                    }
+                } else {
+                    uniqueMap.put(name, candidate);
+                }
+            }
+        }
+
+        return new ArrayList<>(uniqueMap.values());
+    }
+
+    /**
+     * 去重关系
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String,Object>> deduplicateRelations(List<Map<String,Object>> relations) {
+        Map<String, Map<String,Object>> uniqueMap = new LinkedHashMap<>();
+
+        for (Map<String,Object> relation : relations) {
+            String source = (String) relation.get("source");
+            String target = (String) relation.get("target");
+            String type = (String) relation.get("type");
+
+            if (source != null && target != null && type != null) {
+                String key = source + "->" + target + ":" + type;
+
+                // 如果已存在同样的关系，保留置信度更高的
+                if (uniqueMap.containsKey(key)) {
+                    double existingConf = ((Number) uniqueMap.get(key).getOrDefault("confidence", 0.0)).doubleValue();
+                    double newConf = ((Number) relation.getOrDefault("confidence", 0.0)).doubleValue();
+                    if (newConf > existingConf) {
+                        uniqueMap.put(key, relation);
+                    }
+                } else {
+                    uniqueMap.put(key, relation);
+                }
+            }
+        }
+
+        return new ArrayList<>(uniqueMap.values());
     }
 
     /**
@@ -96,85 +244,28 @@ public class AiExtractionService {
         Map<String,String> userMsg = new HashMap<>();
         userMsg.put("role", "user");
 
-        // 使用通用的知识点抽取提示词，支持题目和视频内容
-        String prompt = "你是一个智慧课堂知识点抽取器（批量处理模式）。\n\n"
-            + "【输入说明】\n"
-            + "输入可能包含以下类型的教学内容，每条内容以 === 题目 ID === 分隔：\n"
-            + "1. 教学题目：包含题干、选项、答案、解析等\n"
-            + "2. 视频内容：包含视频标题、视频描述、视频讲解内容等（可能来自语音识别，存在识别错误）\n"
-            + "3. 课程资源：包含资源标题、资源描述、资源内容等\n"
-            + "内容可能涉及数学、物理、化学、生物、语文、英语、历史、地理、计算机等各个学科。\n\n"
-            + "【任务要求】\n"
-            + "请从输入的所有内容中抽取知识点和知识点之间的关系，返回纯JSON格式。\n\n"
-            + "【返回格式】\n"
-            + "返回格式为一个对象 {\"candidates\": [...], \"relations\": [...] }。\n\n"
-            + "【candidates数组说明】\n"
-            + "每个候选（candidate）是对象，必须包含以下字段：\n"
-            + "- \"title\"（知识点名称）：简洁的知识点名称，如\"面向对象编程\"、\"牛顿第一定律\"、\"光合作用\"\n"
-            + "- \"definition\"（定义）：一句话定义该知识点，如\"面向对象编程是一种程序设计范式，使用对象来设计应用程序\"\n"
-            + "- \"evidence\"（证据）：从原文中摘录的关键表达，证明该知识点的存在\n"
-            + "- \"confidence\"（置信度）：0.0-1.0的浮点数，表示该知识点的可信度\n\n"
-            + "【置信度评估标准】（重要！）\n"
-            + "根据以下标准严格评估每个知识点的置信度：\n\n"
-            + "★ 高置信度 (0.7-1.0)：\n"
-            + "  - 原文明确提到该知识点的定义、概念或详细解释\n"
-            + "  - 有充分的证据支持（如题目解析、视频详细讲解）\n"
-            + "  - 知识点表述清晰、准确、完整\n"
-            + "  - 示例：题目解析中明确说明的概念、视频中详细讲解的知识点\n\n"
-            + "★ 中置信度 (0.4-0.7)：\n"
-            + "  - 原文提到该知识点，但解释不够详细\n"
-            + "  - 可以从上下文推断出该知识点，但不是直接表述\n"
-            + "  - 视频语音识别可能有误，但大致意思清楚\n"
-            + "  - 示例：题干中隐含的概念、视频简要提及的知识点\n\n"
-            + "★ 低置信度 (0.0-0.4)：\n"
-            + "  - 仅从标题或简短描述推测的知识点\n"
-            + "  - 证据不足，主要靠推断\n"
-            + "  - 视频语音识别质量差，内容不确定\n"
-            + "  - 示例：仅从视频标题推测的知识点、模糊的相关概念\n\n"
-            + "【抽取规则】\n"
-            + "1. 从所有内容中综合抽取知识点，去除重复\n"
-            + "2. 最多返回30个候选知识点（包含各置信度级别）\n"
-            + "3. 优先抽取高置信度知识点，但也要包含中低置信度的知识点\n"
-            + "4. 如果没有明确的知识点，返回 {\"candidates\":[], \"relations\":[] }\n"
-            + "5. 对于专业表达式（数学公式、化学方程式、物理定律、代码片段等）保留原式作为evidence\n"
-            + "6. 在title中使用规范化的学术名称\n"
-            + "7. 对于视频内容，即使语音识别有误，也尝试推断知识点（标记为中低置信度）\n"
-            + "8. 置信度必须严格按照上述标准评估，不要都给高分\n\n"
-            + "【relations数组说明】\n"
-            + "如果能够推断知识点之间的关系，请放在relations数组中，格式：\n"
-            + "{\n"
-            + "  \"source\": \"知识点A名称\",\n"
-            + "  \"target\": \"知识点B名称\",\n"
-            + "  \"type\": \"prerequisite|uses|related_method|similar\",\n"
-            + "  \"confidence\": 0.0-1.0,\n"
-            + "  \"evidence\": \"推断依据\"\n"
-            + "}\n\n"
-            + "关系类型说明：\n"
-            + "- prerequisite：前置关系（A是B的前置知识）\n"
-            + "- uses：应用关系（A应用了B）\n"
-            + "- related_method：相关方法（A和B是相关的方法）\n"
-            + "- similar：相似概念（A和B是相似的概念）\n\n"
-            + "【关系置信度评估】\n"
-            + "- 高置信度 (≥0.7)：原文明确说明的关系（如\"A是B的基础\"、\"需要先学习A才能理解B\"）\n"
-            + "- 中置信度 (0.4-0.7)：从上下文可以推断的关系（如A和B在同一段落中讨论）\n"
-            + "- 低置信度 (<0.4)：基于常识推断的关系（如两个相关概念可能有联系）\n\n"
-            + "【置信度示例】\n"
-            + "示例1 - 高置信度 (0.9)：\n"
-            + "原文：\"面向对象编程（OOP）是一种程序设计范式，它使用'对象'来设计应用程序。对象包含数据（属性）和代码（方法）。\"\n"
-            + "抽取：{\"title\":\"面向对象编程\", \"definition\":\"使用对象来设计应用程序的程序设计范式\", \"evidence\":\"面向对象编程（OOP）是一种程序设计范式，它使用'对象'来设计应用程序\", \"confidence\":0.9}\n\n"
-            + "示例2 - 中置信度 (0.6)：\n"
-            + "原文：\"这个视频讲解了Java的类和对象的概念...\"\n"
-            + "抽取：{\"title\":\"类和对象\", \"definition\":\"Java中的基本概念\", \"evidence\":\"讲解了Java的类和对象的概念\", \"confidence\":0.6}\n\n"
-            + "示例3 - 低置信度 (0.3)：\n"
-            + "原文：\"【视频标题】Java入门教程\"\n"
-            + "抽取：{\"title\":\"Java基础\", \"definition\":\"Java编程语言的基础知识\", \"evidence\":\"Java入门教程\", \"confidence\":0.3}\n\n"
-            + "【重要提示】\n"
-            + "1. 只返回纯JSON，不要有任何其他文字\n"
-            + "2. 确保JSON格式正确，可以被解析\n"
-            + "3. 如果内容太少或没有明确知识点，返回空数组\n"
-            + "4. 置信度必须真实反映证据的充分程度，不要都给高分\n"
-            + "5. 对于视频内容，考虑到语音识别可能有误，适当降低置信度\n\n"
-            + "【待抽取的原文】\n" + text;
+        // 简化的提示词，避免API 500错误，字段名与代码处理逻辑匹配
+        String prompt = "从教学内容中提取知识点，返回纯JSON：{\"candidates\": [...], \"relations\": [...]}\n\n"
+            + "candidates数组中每个对象包含：\n"
+            + "- title: 知识点名称（如\"导数\"、\"极限\"、\"函数连续性\"）\n"
+            + "- definition: 清晰准确的定义（不能是乱码或口语化表达）\n"
+            + "- confidence: 0.0-1.0（明确定义=0.7-1.0，简要提及=0.4-0.7，推测=0.0-0.4）\n\n"
+            + "规则：\n"
+            + "1. 忽略乱码、口语词（\"嗯\"、\"啊\"、\"这个\"、\"那个\"、\"AXJXDNNGJ\"等）\n"
+            + "2. definition必须有实际意义，不能是无意义文本\n"
+            + "3. **严格限制：最多返回10个最核心的知识点**（优先选择重要度高、置信度高的）\n"
+            + "4. 视频内容：从标题推断主题，从内容提取概念，忽略识别错误\n"
+            + "5. 保留数学公式（lim, sin, cos等）\n"
+            + "6. 无有意义知识点时返回 {\"candidates\":[], \"relations\":[]}\n"
+            + "7. 优先提取核心概念，忽略次要细节\n\n"
+            + "relations数组（可选）：\n"
+            + "- source/target: 知识点title\n"
+            + "- type: PREREQUISITE|BELONGS_TO|EXAMPLE|EXTENSION|SIMILAR（前置|从属|示例|扩展|相似）\n"
+            + "- confidence: 0.0-1.0\n\n"
+            + "示例：\n"
+            + "✅ {\"title\":\"导数\", \"definition\":\"函数在某点的瞬时变化率\", \"confidence\":0.85}\n"
+            + "❌ {\"title\":\"导数\", \"definition\":\"然后呢这个AXJXDNNGJ\", ...}\n\n"
+            + "只返回JSON，严格控制在10个知识点以内。\n\n【原文】\n" + text;
         userMsg.put("content", prompt);
         messages.add(userMsg);
         body.put("messages", messages);
