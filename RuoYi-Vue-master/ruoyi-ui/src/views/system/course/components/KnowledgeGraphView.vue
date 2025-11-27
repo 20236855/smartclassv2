@@ -144,25 +144,112 @@
     </el-card>
 
     <!-- 节点详情对话框 -->
-    <el-dialog :title="nodeDetail.label" :visible.sync="nodeDialogVisible" width="600px" class="node-dialog">
-      <el-descriptions :column="1" border>
-        <el-descriptions-item label="知识点名称">
-          <el-tag size="medium">{{ nodeDetail.label }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="定义">
-          {{ nodeDetail.definition || '暂无定义' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="置信度">
-          <el-progress 
-            :percentage="Math.round(nodeDetail.confidence * 100)" 
-            :color="getConfidenceColor(nodeDetail.confidence)"
-            :stroke-width="8">
-          </el-progress>
-        </el-descriptions-item>
-        <el-descriptions-item label="知识点ID" v-if="nodeDetail.kpId">
-          <el-tag type="info" size="small">{{ nodeDetail.kpId }}</el-tag>
-        </el-descriptions-item>
-      </el-descriptions>
+    <el-dialog :title="nodeDetail.label" :visible.sync="nodeDialogVisible" width="700px" class="node-dialog">
+      <div v-loading="masteryLoading">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="知识点名称">
+            <el-tag size="medium">{{ nodeDetail.label }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="定义">
+            {{ nodeDetail.definition || '暂无定义' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="置信度">
+            <el-progress
+              :percentage="Math.round(nodeDetail.confidence * 100)"
+              :color="getConfidenceColor(nodeDetail.confidence)"
+              :stroke-width="8">
+            </el-progress>
+          </el-descriptions-item>
+          <el-descriptions-item label="知识点ID" v-if="nodeDetail.kpId">
+            <el-tag type="info" size="small">{{ nodeDetail.kpId }}</el-tag>
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <!-- 学生掌握情况 -->
+        <el-divider content-position="left">
+          <i class="el-icon-data-analysis"></i> 我的掌握情况
+        </el-divider>
+
+        <div v-if="masteryData" class="mastery-section">
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <div class="mastery-card">
+                <div class="mastery-label">掌握状态</div>
+                <div class="mastery-value">
+                  <el-tag :type="getMasteryStatusType(masteryData.masteryStatus)" size="large">
+                    {{ getMasteryStatusText(masteryData.masteryStatus) }}
+                  </el-tag>
+                </div>
+              </div>
+            </el-col>
+            <el-col :span="12">
+              <div class="mastery-card">
+                <div class="mastery-label">掌握指标</div>
+                <div class="mastery-value">
+                  <span class="score-text" :style="{ color: getMasteryScoreColor(masteryData.masteryScore) }">
+                    {{ masteryData.masteryScore || 0 }}分
+                  </span>
+                  <span class="score-total">/100</span>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
+
+          <el-row :gutter="20" style="margin-top: 15px;">
+            <el-col :span="8">
+              <div class="mastery-card">
+                <div class="mastery-label">正确率</div>
+                <div class="mastery-value">
+                  <el-progress
+                    type="circle"
+                    :percentage="parseFloat(masteryData.accuracy) || 0"
+                    :width="80"
+                    :color="getAccuracyColor(parseFloat(masteryData.accuracy))">
+                  </el-progress>
+                </div>
+              </div>
+            </el-col>
+            <el-col :span="8">
+              <div class="mastery-card">
+                <div class="mastery-label">答题统计</div>
+                <div class="mastery-value">
+                  <div class="stat-item">
+                    <i class="el-icon-success" style="color: #67C23A;"></i>
+                    答对 {{ masteryData.correctCount || 0 }} 次
+                  </div>
+                  <div class="stat-item">
+                    <i class="el-icon-document"></i>
+                    总计 {{ masteryData.totalCount || 0 }} 次
+                  </div>
+                </div>
+              </div>
+            </el-col>
+            <el-col :span="8">
+              <div class="mastery-card">
+                <div class="mastery-label">学习趋势</div>
+                <div class="mastery-value">
+                  <el-tag :type="getTrendType(masteryData.trend)" effect="plain">
+                    {{ getTrendText(masteryData.trend) }}
+                  </el-tag>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
+
+          <div v-if="masteryData.lastTestTime" class="last-test-info">
+            <i class="el-icon-time"></i>
+            最近测试：{{ masteryData.lastTestTime }}
+            <span v-if="masteryData.lastTestScore" style="margin-left: 10px;">
+              得分：<strong>{{ masteryData.lastTestScore }}</strong>
+            </span>
+          </div>
+        </div>
+
+        <div v-else class="no-mastery-data">
+          <i class="el-icon-info"></i>
+          <span>暂无学习数据，开始学习后将显示掌握情况</span>
+        </div>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -171,6 +258,7 @@
 import * as echarts from 'echarts'
 import { listGraph, extractCourseGraph, extractChapterGraph } from '@/api/system/graph'
 import { listChapter } from '@/api/system/chapter'
+import { listMastery } from '@/api/learning/mastery'
 
 export default {
   name: 'KnowledgeGraphView',
@@ -197,7 +285,9 @@ export default {
         definition: '',
         confidence: 0,
         kpId: null
-      }
+      },
+      masteryLoading: false,
+      masteryData: null
     }
   },
   mounted() {
@@ -530,7 +620,40 @@ export default {
             kpId: data.kpId
           }
           this.nodeDialogVisible = true
+
+          // 加载学生掌握情况
+          if (data.kpId) {
+            this.loadMasteryData(data.kpId)
+          } else {
+            this.masteryData = null
+          }
         }
+      })
+    },
+
+    // 加载学生对该知识点的掌握情况
+    loadMasteryData(kpId) {
+      this.masteryLoading = true
+      this.masteryData = null
+
+      const studentId = this.$store.getters.userId
+
+      listMastery({
+        studentUserId: studentId,
+        courseId: this.courseId,
+        kpId: kpId
+      }).then(response => {
+        if (response.rows && response.rows.length > 0) {
+          this.masteryData = response.rows[0]
+          console.log('知识点掌握情况:', this.masteryData)
+        } else {
+          this.masteryData = null
+        }
+      }).catch(error => {
+        console.error('加载掌握情况失败:', error)
+        this.masteryData = null
+      }).finally(() => {
+        this.masteryLoading = false
       })
     },
     handleGenerate() {
@@ -638,6 +761,58 @@ export default {
     formatTime(time) {
       if (!time) return '未知'
       return new Date(time).toLocaleString()
+    },
+
+    // 掌握状态相关方法
+    getMasteryStatusType(status) {
+      const map = {
+        'mastered': 'success',
+        'learning': 'warning',
+        'weak': 'danger',
+        'not_started': 'info'
+      }
+      return map[status] || 'info'
+    },
+
+    getMasteryStatusText(status) {
+      const map = {
+        'mastered': '已掌握',
+        'learning': '学习中',
+        'weak': '薄弱点',
+        'not_started': '未学习'
+      }
+      return map[status] || '未知'
+    },
+
+    getMasteryScoreColor(score) {
+      if (score >= 80) return '#67C23A'
+      if (score >= 60) return '#E6A23C'
+      if (score >= 40) return '#F56C6C'
+      return '#909399'
+    },
+
+    getAccuracyColor(accuracy) {
+      if (accuracy >= 80) return '#67C23A'
+      if (accuracy >= 60) return '#E6A23C'
+      return '#F56C6C'
+    },
+
+    getTrendType(trend) {
+      const map = {
+        'up': 'success',
+        'stable': 'warning',
+        'down': 'danger'
+      }
+      return map[trend] || 'info'
+    },
+
+    getTrendText(trend) {
+      const map = {
+        'up': '上升 ↑',
+        'stable': '稳定 →',
+        'down': '下降 ↓'
+      }
+      return map[trend] || '暂无'
     }
   }
 }
@@ -932,5 +1107,85 @@ export default {
 .graph-info-card >>> .el-statistic__content {
   color: #ffffff;
   font-weight: 700;
+}
+
+/* 节点详情对话框样式 */
+.node-dialog >>> .el-dialog__body {
+  padding: 20px;
+}
+
+.mastery-section {
+  margin-top: 20px;
+}
+
+.mastery-card {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 15px;
+  text-align: center;
+  height: 100%;
+  transition: all 0.3s;
+}
+
+.mastery-card:hover {
+  background: #ecf5ff;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.mastery-label {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 10px;
+}
+
+.mastery-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.score-text {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.score-total {
+  font-size: 14px;
+  color: #909399;
+  margin-left: 4px;
+}
+
+.stat-item {
+  font-size: 14px;
+  margin: 5px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.last-test-info {
+  margin-top: 15px;
+  padding: 12px;
+  background: #f0f9ff;
+  border-left: 3px solid #409EFF;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #606266;
+}
+
+.no-mastery-data {
+  text-align: center;
+  padding: 40px 20px;
+  color: #909399;
+  font-size: 14px;
+}
+
+.no-mastery-data i {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 10px;
+  opacity: 0.5;
 }
 </style>
