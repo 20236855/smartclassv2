@@ -1,0 +1,500 @@
+﻿<template>
+  <div class="app-container">
+    <!-- 椤甸潰澶撮儴 -->
+    <div class="page-header">
+      <h2>瀛︾敓瀛︿範鏁版嵁涓績</h2>
+      <p>鏁村悎鑳藉姏闆疯揪鍥句笌鏁板瓧鍒嗚韩锛屽叏鏂逛綅灞曠ず瀛︾敓瀛︿範鎯呭喌</p>
+    </div>
+
+    <!-- 鎼滅储琛ㄥ崟 -->
+    <el-card shadow="hover" class="search-card">
+      <el-form :model="searchForm" :inline="true" label-width="100px">
+        <el-form-item label="瀛︾敓ID" required>
+          <el-input
+            v-model.number="searchForm.studentId"
+            placeholder="璇疯緭鍏ュ鐢烮D锛堝锛?4锛?
+            type="number"
+            style="width: 200px;"
+          />
+        </el-form-item>
+        <el-form-item label="璇剧▼ID" required>
+          <el-input
+            v-model.number="searchForm.courseId"
+            placeholder="璇疯緭鍏ヨ绋婭D锛堝锛?23锛?
+            type="number"
+            style="width: 200px;"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="fetchData">鏌ヨ鏁版嵁</el-button>
+          <el-button @click="resetForm">閲嶇疆</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <!-- Tab鍒囨崲锛氶浄杈惧浘 + 鏁板瓧鍒嗚韩 -->
+    <el-tabs v-model="activeTab" type="card" class="data-tabs" v-loading="loading">
+      
+      <!-- Tab 1: 鑳藉姏闆疯揪鍥?-->
+      <el-tab-pane label="鑳藉姏闆疯揪鍥? name="radar">
+        <el-card shadow="hover" class="radar-card">
+          <h3 class="chart-title">鑳藉姏鎺屾彙鎯呭喌闆疯揪鍥?/h3>
+          
+          <!-- 鍔ㄦ€佹彁绀烘枃鏈?(浠呭綋鏈夋暟鎹杩囨护鏃舵樉绀? -->
+          <div class="dynamic-tip" v-if="radarData.length > 0 && radarData.length > filteredRadarData.length">
+            <i class="el-icon-info"></i> 鏈涔犵殑鑳藉姏宸茶嚜鍔ㄩ殣钘忥紝闆疯揪鍥鹃殢瀛︿範杩涘害鍔ㄦ€佹洿鏂?
+          </div>
+
+          <div class="chart-wrapper">
+            <div id="radarChart" class="radar-chart-container"></div>
+          </div>
+          <!-- 鏃犳暟鎹彁绀?-->
+          <div class="no-data" v-if="!loading && radarData.length === 0">
+            鏆傛棤闆疯揪鍥炬暟鎹紝璇疯緭鍏ユ纭殑瀛︾敓ID鍜岃绋婭D鏌ヨ
+          </div>
+        </el-card>
+      </el-tab-pane>
+
+      <!-- Tab 2: 鏁板瓧鍒嗚韩 -->
+      <el-tab-pane label="鏁板瓧鍒嗚韩" name="twin">
+        <div class="result-container">
+          <div class="no-data" v-if="!loading && !digitalTwinResult">
+            鏆傛棤鏁板瓧鍒嗚韩鏁版嵁锛岃杈撳叆姝ｇ‘鐨勫鐢烮D鍜岃绋婭D鏌ヨ
+          </div>
+
+          <div v-if="!loading && digitalTwinResult" class="result-content">
+            
+            <!-- 鍏ㄥ绂忓睍绀烘爮 -->
+            <div class="twins-preview-bar">
+              <div class="bar-title">鎺㈢储瀛︿範鍒嗚韩绫诲瀷</div>
+              <div class="twins-row">
+                <div 
+                  v-for="type in ['绋虫绉疮鍨?, '閫昏緫鏀诲潥鍨?, '楂樻晥绐佸嚮鍨?, '鏌ユ紡琛ョ己鍨?]" 
+                  :key="type" 
+                  class="mini-twin-item"
+                  :class="{ 'is-active': digitalTwinResult.twinType === type }"
+                >
+                  <div v-if="digitalTwinResult.twinType === type" class="current-badge">鎴戠殑</div>
+                  <div class="mini-avatar-circle" :style="{ borderColor: getDebugColor(type) }">
+                    <svg class="avatar-mini" viewBox="0 0 200 200">
+                      <defs><clipPath :id="'clip-mini-' + type"><circle cx="100" cy="100" r="90" /></clipPath></defs>
+                      <g v-if="type === '绋虫绉疮鍨?">
+                        <circle cx="100" cy="100" r="90" fill="#ecf5ff" />
+                        <rect x="85" y="110" width="30" height="40" fill="#ffdec7" />
+                        <rect x="70" y="60" width="60" height="80" rx="25" ry="25" fill="#ffdec7" />
+                        <path d="M50 190 L50 160 Q50 140 100 140 Q150 140 150 160 L150 190 Z" fill="#409EFF" :clip-path="'url(#clip-mini-' + type + ')'"/>
+                        <path d="M90 140 L100 190 L110 140 Z" fill="#fff" />
+                        <path d="M95 140 L100 170 L105 140 Z" fill="#303133" />
+                        <path d="M68 91 Q68 61 100 61 Q132 61 132 91 L132 85 Q132 61 100 61 Q68 61 68 85 Z" fill="#303133" />
+                        <circle cx="85" cy="95" r="3" fill="#303133" />
+                        <circle cx="115" cy="95" r="3" fill="#303133" />
+                        <path d="M95 110 Q100 113 105 110" stroke="#c08e70" stroke-width="2" fill="none" />
+                      </g>
+                      <g v-else-if="type === '閫昏緫鏀诲潥鍨?">
+                        <circle cx="100" cy="100" r="90" fill="#f0f9eb" />
+                        <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" fill="#67C23A" :clip-path="'url(#clip-mini-' + type + ')'" />
+                        <rect x="70" y="65" width="60" height="75" rx="25" fill="#ffdec7" />
+                        <path d="M68 100 Q68 60 100 60 Q132 60 132 100 L132 80 Q100 60 68 80 Z" fill="#5e4636" />
+                        <circle cx="85" cy="95" r="3" fill="#303133" />
+                        <circle cx="115" cy="95" r="3" fill="#303133" />
+                        <path d="M97 110 L103 110" stroke="#c08e70" stroke-width="2" />
+                        <circle cx="125" cy="130" r="12" fill="#ffdec7" stroke="#f0f9eb" stroke-width="2" />
+                        <g><path d="M145 60 Q155 40 165 60 Q165 70 155 70 L150 70 Z" fill="#E6A23C" /></g>
+                      </g>
+                      <g v-else-if="type === '楂樻晥绐佸嚮鍨?">
+                        <circle cx="100" cy="100" r="90" fill="#fdf6ec" />
+                        <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" fill="#E6A23C" :clip-path="'url(#clip-mini-' + type + ')'" />
+                        <rect x="70" y="65" width="60" height="75" rx="25" fill="#ffdec7" />
+                        <rect x="68" y="78" width="64" height="12" fill="#F56C6C" rx="3" />
+                        <path d="M68 78 Q68 75 100 75 Q132 75 132 78 L135 75 L100 58 L65 75 Z" fill="#303133" />
+                        <circle cx="85" cy="98" r="3" fill="#303133" />
+                        <circle cx="115" cy="98" r="3" fill="#303133" />
+                        <path d="M95 115 Q100 110 105 115" stroke="#c08e70" stroke-width="2" fill="none" />
+                      </g>
+                      <g v-else>
+                        <circle cx="100" cy="100" r="90" fill="#f4f4f5" />
+                        <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" fill="#909399" :clip-path="'url(#clip-mini-' + type + ')'" />
+                        <rect x="70" y="65" width="60" height="75" rx="25" fill="#ffdec7" />
+                        <path d="M68 90 Q68 55 100 55 Q132 55 132 90 L132 80 Q100 60 68 80 Z" fill="#303133" />
+                        <circle cx="85" cy="95" r="3" fill="#303133" />
+                        <circle cx="115" cy="95" r="3" fill="#303133" />
+                        <path d="M98 112 Q100 114 102 112" stroke="#c08e70" stroke-width="2" fill="none" />
+                        <circle cx="120" cy="110" r="15" fill="none" stroke="#303133" stroke-width="2" />
+                        <line x1="120" y1="125" x2="120" y2="135" stroke="#303133" stroke-width="3" />
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="mini-label">{{ type.substring(0, 2) }}鍨?/div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 姝ｅ紡灞曠ず鍖哄煙 -->
+            <div class="twin-character-container">
+              <div class="avatar-circle" :style="{ borderColor: twinColor + '40' }">
+                <svg class="avatar-base" viewBox="0 0 200 200" :key="'real-svg-v7-' + digitalTwinResult.twinType">
+                  <defs><clipPath id="avatar-clip-real"><circle cx="100" cy="100" r="90" /></clipPath></defs>
+                  <g v-if="digitalTwinResult.twinType === '绋虫绉疮鍨?" class="avatar-group steady-type">
+                    <circle cx="100" cy="100" r="90" fill="#ecf5ff" />
+                    <rect x="85" y="110" width="30" height="40" fill="#ffdec7" />
+                    <rect x="70" y="60" width="60" height="80" rx="25" ry="25" fill="#ffdec7" />
+                    <path d="M50 190 L50 160 Q50 140 100 140 Q150 140 150 160 L150 190 Z" :fill="twinColor" clip-path="url(#avatar-clip-real)"/>
+                    <path d="M90 140 L100 190 L110 140 Z" fill="#fff" />
+                    <path d="M95 140 L100 170 L105 140 Z" fill="#303133" />
+                    <path d="M68 91 Q68 61 100 61 Q132 61 132 91 L132 85 Q132 61 100 61 Q68 61 68 85 Z" fill="#303133" />
+                    <circle cx="85" cy="95" r="3" fill="#303133" class="blink-eye" />
+                    <circle cx="115" cy="95" r="3" fill="#303133" class="blink-eye" />
+                    <g stroke="#303133" stroke-width="1.5" fill="none" opacity="0.8">
+                       <rect x="78" y="88" width="14" height="10" rx="2" />
+                       <rect x="108" y="88" width="14" height="10" rx="2" />
+                       <line x1="92" y1="93" x2="108" y2="93" />
+                    </g>
+                    <path d="M95 110 Q100 113 105 110" stroke="#c08e70" stroke-width="2" fill="none" stroke-linecap="round" />
+                  </g>
+                  <g v-else-if="digitalTwinResult.twinType === '閫昏緫鏀诲潥鍨?" class="avatar-group logic-type">
+                    <circle cx="100" cy="100" r="90" fill="#f0f9eb" />
+                    <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" :fill="twinColor" clip-path="url(#avatar-clip-real)" />
+                    <rect x="70" y="65" width="60" height="75" rx="25" fill="#ffdec7" />
+                    <path d="M68 100 Q68 60 100 60 Q132 60 132 100 L132 80 Q100 60 68 80 Z" fill="#5e4636" />
+                    <circle cx="85" cy="95" r="3" fill="#303133" class="blink-eye" />
+                    <circle cx="115" cy="95" r="3" fill="#303133" class="blink-eye" />
+                    <path d="M97 110 L103 110" stroke="#c08e70" stroke-width="2" stroke-linecap="round" />
+                    <circle cx="125" cy="130" r="12" fill="#ffdec7" stroke="#f0f9eb" stroke-width="2" />
+                    <g class="idea-bulb">
+                      <path d="M145 60 Q155 40 165 60 Q165 70 155 70 L150 70 Z" fill="#E6A23C" />
+                      <line x1="140" y1="50" x2="135" y2="45" stroke="#E6A23C" stroke-width="2" />
+                      <line x1="170" y1="50" x2="175" y2="45" stroke="#E6A23C" stroke-width="2" />
+                      <line x1="155" y1="35" x2="155" y2="30" stroke="#E6A23C" stroke-width="2" />
+                    </g>
+                  </g>
+                  <g v-else-if="digitalTwinResult.twinType === '楂樻晥绐佸嚮鍨?" class="avatar-group efficient-type">
+                    <circle cx="100" cy="100" r="90" fill="#fdf6ec" />
+                    <path d="M20 100 L180 100 M40 50 L160 50" stroke="#faecd8" stroke-width="2" class="bg-speed-lines" />
+                    <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" :fill="twinColor" clip-path="url(#avatar-clip-real)" />
+                    <rect x="70" y="65" width="60" height="75" rx="25" fill="#ffdec7" class="face-tilt" />
+                    <rect x="68" y="78" width="64" height="12" fill="#F56C6C" rx="3" class="face-tilt" />
+                    <path d="M68 78 Q68 75 100 75 Q132 75 132 78 L135 75 L100 58 L65 75 Z" fill="#303133" class="face-tilt" />
+                    <g class="face-tilt">
+                      <line x1="80" y1="90" x2="90" y2="92" stroke="#303133" stroke-width="2" />
+                      <line x1="110" y1="92" x2="120" y2="90" stroke="#303133" stroke-width="2" />
+                      <circle cx="85" cy="98" r="3" fill="#303133" />
+                      <circle cx="115" cy="98" r="3" fill="#303133" />
+                      <path d="M95 115 Q100 110 105 115" stroke="#c08e70" stroke-width="2" fill="none" />
+                    </g>
+                  </g>
+                  <g v-else class="avatar-group gap-type">
+                    <circle cx="100" cy="100" r="90" fill="#f4f4f5" />
+                    <path d="M40 200 Q40 150 100 150 Q160 150 160 200 Z" :fill="twinColor" clip-path="url(#avatar-clip-real)" />
+                    <rect x="70" y="65" width="60" height="75" rx="25" fill="#ffdec7" />
+                    <path d="M68 90 Q68 55 100 55 Q132 55 132 90 L132 80 Q100 60 68 80 Z" fill="#303133" />
+                    <circle cx="85" cy="95" r="3" fill="#303133" class="blink-eye" />
+                    <circle cx="115" cy="95" r="3" fill="#303133" class="blink-eye" />
+                    <path d="M98 112 Q100 114 102 112" stroke="#c08e70" stroke-width="2" fill="none" />
+                    <g class="magnifier-float">
+                      <circle cx="120" cy="110" r="15" fill="rgba(255,255,255,0.3)" stroke="#303133" stroke-width="2" />
+                      <line x1="120" y1="125" x2="120" y2="145" stroke="#303133" stroke-width="3" stroke-linecap="round" />
+                    </g>
+                  </g>
+                </svg>
+              </div>
+              
+              <div class="character-info">
+                <div class="info-header">
+                   <h2 :style="{ color: twinColor }">{{ digitalTwinResult.twinType }}</h2>
+                   <el-tag size="small" effect="plain" :type="twinTypeTagType" class="ai-badge">AI 鏅鸿兘鐢诲儚</el-tag>
+                </div>
+                
+                <!-- 鏂板锛氭櫤鑳藉苟鍒楁彁绀?(褰撳涓被鍨嬪垎鏁扮浉鍚屾椂鏄剧ず) -->
+                <div v-if="isScoreTie" class="smart-insight-box" :style="{ background: twinColor + '15', color: twinColor }">
+                  <i class="el-icon-cpu"></i>
+                  <span>鎮ㄧ殑鏁版嵁鍛堢幇<strong>澶氶噸楂樺垎鐗瑰緛</strong>锛孉I 缁煎悎鍒嗘瀽鍒ゅ畾褰撳墠绫诲瀷涓烘偍鐨?strong>鏍稿績涓诲椋庢牸</strong>銆?/span>
+                </div>
+
+                <p class="info-text">
+                  <i class="el-icon-chat-dot-round" style="color: #909399; margin-right: 4px;"></i>
+                  瀛︿範椋庢牸濡傚悓<strong>{{ getCharacterDesc(digitalTwinResult.twinType) }}</strong>
+                </p>
+                <div class="advice-box" :style="{ borderLeftColor: twinColor }">
+                  <strong>馃挕 鎻愬崌寤鸿锛?/strong>{{ getAdvice(digitalTwinResult.twinType) }}
+                </div>
+              </div>
+            </div>
+
+            <!-- 鏁板瓧鍒嗚韩姒傝鍗＄墖 -->
+            <el-card shadow="hover" class="overview-card">
+              <div class="overview-header">
+                <h3 class="card-title">鏁板瓧鍒嗚韩姒傝</h3>
+                <el-tag :type="twinTypeTagType" size="large" class="twin-type-tag">
+                  {{ digitalTwinResult.twinType }}
+                </el-tag>
+              </div>
+              <div class="overview-body">
+                <div class="score-item">
+                  <span class="label">鍖归厤鍒嗘暟锛?/span>
+                  <span class="score" :style="{ color: twinColor }">{{ digitalTwinResult.score }}鍒?/span>
+                  <span class="total-score">锛堟弧鍒?5鍒嗭級</span>
+                </div>
+                <div class="feature-title">鏍稿績鐗瑰緛锛?/div>
+                <div class="feature-tags">
+                  <el-tag 
+                    v-for="(feature, index) in digitalTwinResult.features" 
+                    :key="index" 
+                    type="info" 
+                    effect="plain"
+                    class="feature-tag"
+                  >
+                    {{ feature }}
+                  </el-tag>
+                </div>
+              </div>
+            </el-card>
+
+            <!-- 寰楀垎鏄庣粏琛ㄦ牸 -->
+            <el-card shadow="hover" class="detail-card">
+              <h3 class="card-title">鍚勫垎韬緱鍒嗘槑缁?/h3>
+              <el-table 
+                :data="digitalTwinResult.scoreDetails" 
+                border 
+                stripe 
+                style="width: 100%;"
+                :header-cell-style="{ 'background-color': '#f5f7fa', 'font-weight': 600 }"
+              >
+                <el-table-column label="鍒嗚韩绫诲瀷" prop="twinType" width="180" align="center">
+                  <template #default="scope">
+                    <el-tag :type="getTagType(scope.row.twinType)" size="medium">
+                      {{ scope.row.twinType }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="鍖归厤鍒嗘暟" prop="score" width="120" align="center">
+                  <template #default="scope">
+                    <span class="table-score">{{ scope.row.score }}鍒?/span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="瑙勫垯鍖归厤鎯呭喌" prop="ruleMatches">
+                  <template #default="scope">
+                    <div class="rule-matches">
+                      <div v-for="(rule, index) in scope.row.ruleMatches" :key="index" class="rule-item">
+                        <i class="el-icon-circle-check" v-if="rule.includes('绗﹀悎') && !rule.includes('涓嶇鍚?)"></i>
+                        <i class="el-icon-circle-close" v-else></i>
+                        <span class="rule-text">{{ rule }}</span>
+                      </div>
+                    </div>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-card>
+          </div>
+        </div>
+      </el-tab-pane>
+    </el-tabs>
+  </div>
+</template>
+
+<script>
+import { getRadarData } from '@/api/learning/radar'
+import { calculateDigitalTwin } from '@/api/learning/digitalTwin'
+import * as echarts from 'echarts'
+
+export default {
+  name: 'StudentLearningDataCenter',
+  data() {
+    return {
+      searchForm: { 
+        studentId: '', 
+        courseId: '', 
+        assignmentId: '' 
+      },
+      activeTab: 'radar',
+      radarData: [],
+      filteredRadarData: [],
+      digitalTwinResult: null,
+      loading: false,
+      radarChart: null
+    }
+  },
+  mounted() {
+    this.initRadarChart()
+    window.addEventListener('resize', this.resizeChart)
+  },
+  beforeDestroy() {
+    if (this.radarChart) this.radarChart.dispose()
+    window.removeEventListener('resize', this.resizeChart)
+  },
+  computed: {
+    twinTypeTagType() {
+      if (!this.digitalTwinResult) return 'primary'
+      const type = this.digitalTwinResult.twinType
+      switch (type) {
+        case '绋虫绉疮鍨?: return 'primary'
+        case '閫昏緫鏀诲潥鍨?: return 'success'
+        case '楂樻晥绐佸嚮鍨?: return 'warning'
+        case '鏌ユ紡琛ョ己鍨?: return 'info'
+        default: return 'primary'
+      }
+    },
+    twinColor() {
+      if (!this.digitalTwinResult) return '#409EFF'
+      const type = this.digitalTwinResult.twinType
+      switch (type) {
+        case '绋虫绉疮鍨?: return '#409EFF'
+        case '閫昏緫鏀诲潥鍨?: return '#67C23A'
+        case '楂樻晥绐佸嚮鍨?: return '#E6A23C'
+        case '鏌ユ紡琛ョ己鍨?: return '#909399'
+        default: return '#409EFF'
+      }
+    },
+    // 鏂板锛氭娴嬫槸鍚﹀瓨鍦ㄦ渶楂樺垎骞跺垪鐨勬儏鍐?
+    isScoreTie() {
+      if (!this.digitalTwinResult || !this.digitalTwinResult.scoreDetails) return false
+      const currentScore = this.digitalTwinResult.score
+      // 缁熻鏈夊灏戜釜绫诲瀷鐨勫垎鏁扮瓑浜庡綋鍓嶆渶楂樺垎
+      const tiedCount = this.digitalTwinResult.scoreDetails.filter(
+        item => item.score === currentScore
+      ).length
+      return tiedCount > 1
+    }
+  },
+  methods: {
+    getDebugColor(type) {
+      const map = {
+        '绋虫绉疮鍨?: '#409EFF',
+        '閫昏緫鏀诲潥鍨?: '#67C23A',
+        '楂樻晥绐佸嚮鍨?: '#E6A23C',
+        '鏌ユ紡琛ョ己鍨?: '#909399'
+      }
+      return map[type] || '#409EFF'
+    },
+    getCharacterDesc(type) {
+      const map = {
+        '绋虫绉疮鍨?: '涓€浣嶇櫥灞辫€咃紝涓€姝ヤ竴涓剼鍗拌笍瀹炲墠琛?,
+        '閫昏緫鏀诲潥鍨?: '涓€浣嶄睛鎺紝鍠勪簬鎶戒笣鍓ヨ導鍙戠幇閫昏緫鐪熺浉',
+        '楂樻晥绐佸嚮鍨?: '涓€浣嶇煭璺戝仴灏嗭紝鍦ㄧ煭鏃堕棿鍐呯垎鍙戝姏鏋佸己',
+        '鏌ユ紡琛ョ己鍨?: '涓€浣嶈川妫€鍛橈紝缁嗚嚧鍏ュ井涓嶆斁杩囦换浣曠煡璇嗙憰鐤?
+      }
+      return map[type] || '涓€浣嶇煡璇嗘帰绱㈣€?
+    },
+    getAdvice(type) {
+      const map = {
+        '绋虫绉疮鍨?: '淇濇寔褰撳墠鑺傚锛屽皾璇曟寫鎴樻洿楂橀毦搴︾殑缁煎悎棰橈紝绐佺牬鑸掗€傚尯銆?,
+        '閫昏緫鏀诲潥鍨?: '缁х画鍙戞尌閫昏緫浼樺娍锛屽悓鏃舵敞鎰忔彁鍗囪В棰橀€熷害锛屽钩琛℃繁鎬濅笌鏁堢巼銆?,
+        '楂樻晥绐佸嚮鍨?: '娉ㄦ剰鍩虹鐭ヨ瘑鐨勬矇娣€锛岄伩鍏嶇矖蹇冧涪鍒嗭紝娆查€熷垯涓嶈揪銆?,
+        '鏌ユ紡琛ョ己鍨?: '寤虹珛閿欓鏈紝瀹氭湡鍥為【鐩茬偣鐭ヨ瘑锛屽皢鐭澘杞寲涓烘綔鍔涙澘銆?
+      }
+      return map[type] || '鍒跺畾鍚堢悊鐨勫涔犺鍒掋€?
+    },
+
+    initRadarChart() {
+      const chartDom = document.getElementById('radarChart')
+      if (!chartDom) return
+      this.radarChart = echarts.init(chartDom)
+      this.radarChart.setOption({ radar: { indicator: [] }, series: [{ type: 'radar', data: [] }] })
+    },
+
+    updateRadarChart() {
+      if (!this.radarChart) return
+      if (this.radarData.length === 0) {
+        this.filteredRadarData = []
+        this.radarChart.clear()
+        return
+      }
+
+      // 杩囨护鎺夊垎鏁?=0鐨勮兘鍔?
+      this.filteredRadarData = this.radarData.filter(item => item.competencyScore > 0)
+
+      const option = {
+        grid: { top: 20, left: 0, right: 0, bottom: 20, containLabel: true },
+        radar: {
+          indicator: this.filteredRadarData.map(item => ({ name: item.competencyName, max: 100 })),
+          radius: this.filteredRadarData.length > 3 ? '65%' : '75%',
+          center: ['50%', '50%'],
+          name: {
+            textStyle: { fontSize: 13, fontWeight: 600, color: '#2c3e50', padding: [4, 8] },
+            formatter: value => value.length > 8 ? value.substring(0, 8) + '\n' + value.substring(8) : value
+          },
+          splitNumber: 5,
+          shape: 'polygon',
+          splitLine: { lineStyle: { color: '#e8e8e8', width: 1.5 } },
+          splitArea: { show: true, areaStyle: { color: ['rgba(114, 172, 209, 0.05)', 'rgba(114, 172, 209, 0.1)'] } },
+          axisLine: { lineStyle: { color: '#d0d0d0', width: 2 } }
+        },
+        series: [{
+          type: 'radar',
+          data: [{
+            value: this.filteredRadarData.map(item => item.competencyScore),
+            name: `瀛︾敓${this.searchForm.studentId}鑳藉姏璇勫垎`
+          }],
+          symbol: 'circle',
+          symbolSize: 8,
+          areaStyle: { 
+            opacity: 0.3,
+            color: '#409EFF'
+          },
+          lineStyle: { width: 2, color: '#409EFF' },
+          itemStyle: { color: '#409EFF' },
+          label: { show: true, fontSize: 12, color: '#409EFF' }
+        }],
+        tooltip: { trigger: 'item' }
+      }
+      this.radarChart.setOption(option)
+    },
+
+    resizeChart() {
+      this.radarChart && this.radarChart.resize()
+    },
+
+    getTagType(twinType) {
+      switch (twinType) {
+        case '绋虫绉疮鍨?: return 'primary'
+        case '閫昏緫鏀诲潥鍨?: return 'success'
+        case '楂樻晥绐佸嚮鍨?: return 'warning'
+        case '鏌ユ紡琛ョ己鍨?: return 'info'
+        default: return 'default'
+      }
+    },
+
+    resetForm() {
+      this.searchForm = { studentId: '', courseId: '', assignmentId: '' }
+      this.radarData = []
+      this.filteredRadarData = []
+      this.digitalTwinResult = null
+      if (this.radarChart) this.radarChart.clear()
+    },
+
+    fetchData() {
+      if (!this.searchForm.studentId) return this.$message.warning('璇疯緭鍏ュ鐢烮D')
+      if (!this.searchForm.courseId) return this.$message.warning('璇疯緭鍏ヨ绋婭D')
+
+      this.loading = true
+      
+      if (this.activeTab === 'radar') {
+        getRadarData(this.searchForm)
+          .then(response => {
+            this.radarData = response.data
+            this.$nextTick(() => this.updateRadarChart())
+            this.$message.success('闆疯揪鍥炬暟鎹煡璇㈡垚鍔燂紒')
+          })
+          .catch(error => this.$message.error('闆疯揪鍥炬煡璇㈠け璐?))
+          .finally(() => this.loading = false)
+      } else {
+        calculateDigitalTwin({
+          userId: this.searchForm.studentId,
+          courseId: this.searchForm.courseId
+        })
+          .then(response => {
+            this.digitalTwinResult = response.data
+            this.$message.success('鏁板瓧鍒嗚韩鏌ヨ鎴愬姛锛?)
+          })
+          .catch(error => {
+            this.$message.error('鏁板瓧鍒嗚韩鏌ヨ澶辫触锛? + (error.msg || error.message))
+            this.digitalTwinResult = null
+          })
+          .finally(() => this.loading = false)
+      }
+    }
+  },
+  watch: {
+    activeTab(val) {
+      if (val === 'radar') {
+        this.$nextTick(() => {
+          this.resizeChart()

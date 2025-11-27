@@ -153,7 +153,18 @@
             </div>
           </el-tab-pane>
 
-          <!-- Tab 4: 题目练习 -->
+          <!-- Tab 4: 学习分析 -->
+          <el-tab-pane name="learning-analysis">
+            <span slot="label">
+              <i class="el-icon-data-analysis"></i>
+              学习分析
+            </span>
+            <div class="tab-content-wrapper">
+              <LearningAnalysis :courseId="courseId" v-if="activeTab === 'learning-analysis'" />
+            </div>
+          </el-tab-pane>
+
+          <!-- Tab 5: 题目练习 -->
           <el-tab-pane name="practice">
             <span slot="label">
               <i class="el-icon-edit-outline"></i>
@@ -300,11 +311,13 @@ import { getQuestion } from "@/api/system/question";
 import axios from 'axios';
 import { getToken } from '@/utils/auth';
 import KnowledgeGraphView from '@/views/system/course/components/KnowledgeGraphView.vue';
+import LearningAnalysis from '@/views/system/course/components/LearningAnalysis.vue';
 
 export default {
   name: "CourseDetail",
   components: {
-    KnowledgeGraphView
+    KnowledgeGraphView,
+    LearningAnalysis
   },
   data() {
     return {
