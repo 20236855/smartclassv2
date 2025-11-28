@@ -50,11 +50,11 @@
       <el-card class="tabs-card" shadow="hover">
         <el-tabs v-model="activeTab" @tab-click="handleTabClick" class="custom-tabs">
 
-          <!-- Tab 1: 课程章节 -->
+          <!-- Tab 1: 视频学习 -->
           <el-tab-pane name="chapters">
             <span slot="label">
               <i class="el-icon-menu"></i>
-              课程章节
+              视频学习
               <el-badge :value="chapterData.length" :max="99" v-if="chapterData.length > 0" class="tab-badge"></el-badge>
             </span>
             <div v-loading="chapterLoading" class="tab-content-wrapper">
@@ -265,13 +265,13 @@
                           <!-- 操作按钮 -->
                           <div class="task-footer">
                             <el-button
-                              :type="isTaskExpired(task) ? 'info' : 'primary'"
+                              :type="isTaskSubmitted(task) ? 'success' : (isTaskExpired(task) ? 'info' : 'primary')"
                               size="small"
-                              :disabled="isTaskExpired(task)"
+                              :disabled="isTaskExpired(task) && !isTaskSubmitted(task)"
                               plain
                             >
-                              {{ task.mode === 'question' ? '开始答题' : '提交作业' }}
-                              <i class="el-icon-arrow-right"></i>
+                              {{ getTaskButtonText(task) }}
+                              <i :class="isTaskSubmitted(task) ? 'el-icon-refresh' : 'el-icon-arrow-right'"></i>
                             </el-button>
                           </div>
                         </div>
@@ -297,6 +297,92 @@
         </el-tabs>
       </el-card>
     </div>
+
+    <!-- 提交作业对话框 -->
+    <el-dialog
+      :visible.sync="submitDialogVisible"
+      width="650px"
+      append-to-body
+      class="assignment-dialog"
+      :close-on-click-modal="false"
+    >
+      <div slot="title" class="dialog-title-custom">
+        <i class="el-icon-upload"></i>
+        <span>提交作业</span>
+      </div>
+      <div v-if="currentAssignment" class="submit-wrapper">
+        <!-- 作业信息卡片 -->
+        <div class="submit-info-card">
+          <div class="info-header">
+            <h3 class="info-title">{{ currentAssignment.title }}</h3>
+            <el-tag type="primary">📎 上传型</el-tag>
+          </div>
+          <div class="info-meta">
+            <div class="meta-item-row">
+              <span class="meta-label">
+                <i class="el-icon-folder-opened"></i>
+                课程编号：
+              </span>
+              <span class="meta-value">{{ currentAssignment.courseId }}</span>
+            </div>
+            <div class="meta-item-row">
+              <span class="meta-label">
+                <i class="el-icon-time"></i>
+                开始时间：
+              </span>
+              <span class="meta-value">{{ parseTime(currentAssignment.startTime, '{y}-{m}-{d} {h}:{i}') }}</span>
+            </div>
+            <div class="meta-item-row deadline-meta">
+              <span class="meta-label">
+                <i class="el-icon-alarm-clock"></i>
+                截止时间：
+              </span>
+              <span class="meta-value">{{ parseTime(currentAssignment.endTime, '{y}-{m}-{d} {h}:{i}') }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 上传型：显示文件上传 -->
+        <div class="submit-form-section">
+          <el-form label-width="100px" class="dialog-form">
+            <el-form-item label="上传文件" required>
+              <FileUpload v-model="studentSubmitForm.files" :limit="5" />
+              <div class="form-tip">
+                <i class="el-icon-info"></i>
+                支持上传多个文件，单个文件不超过10MB
+              </div>
+            </el-form-item>
+            <el-form-item label="备注说明">
+              <el-input
+                v-model="studentSubmitForm.remark"
+                type="textarea"
+                :rows="4"
+                placeholder="如有特别说明，可以在此填写给老师..."
+                class="remark-textarea"
+              />
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <!-- 提交提示 -->
+        <el-alert
+          v-if="isTaskSubmitted(currentAssignment)"
+          title="您已提交过此作业，重新提交将覆盖之前的内容"
+          type="warning"
+          :closable="false"
+          show-icon
+        >
+        </el-alert>
+      </div>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="submitDialogVisible = false" size="medium">
+          <i class="el-icon-close"></i> 取消
+        </el-button>
+        <el-button type="primary" @click="handleSubmitUpload" size="medium" :loading="submitting">
+          <i class="el-icon-check"></i> 确认提交
+        </el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -306,18 +392,20 @@ import { getCourse } from "@/api/system/course";
 import { listChapter } from "@/api/system/chapter";
 import { listSection } from "@/api/system/section";
 import { listResource } from "@/api/system/resource";
-import { listAssignment, getAssignmentQuestions } from "@/api/system/assignment";
+import { listAssignment, getAssignmentQuestions, getMySubmissions, uploadAssignment } from "@/api/system/assignment";
 import { getQuestion } from "@/api/system/question";
 import axios from 'axios';
 import { getToken } from '@/utils/auth';
 import KnowledgeGraphView from '@/views/system/course/components/KnowledgeGraphView.vue';
 import LearningAnalysis from '@/views/system/course/components/LearningAnalysis.vue';
+import FileUpload from '@/components/FileUpload';
 
 export default {
   name: "CourseDetail",
   components: {
     KnowledgeGraphView,
-    LearningAnalysis
+    LearningAnalysis,
+    FileUpload
   },
   data() {
     return {
@@ -351,7 +439,18 @@ export default {
         homework: 0,
         exam: 0,
         completed: 0
-      }
+      },
+      // 学生提交记录 Map: { assignmentId: { status, score, submitTime } }
+      submittedMap: {},
+
+      // 上传作业对话框
+      submitDialogVisible: false,
+      currentAssignment: null,
+      studentSubmitForm: {
+        files: "",
+        remark: ""
+      },
+      submitting: false
     };
   },
   created() {
@@ -481,9 +580,39 @@ export default {
         const assignments = assignmentResponse.rows || [];
         console.log('📚 获取到任务列表:', assignments.length, '个任务', assignments);
 
+        // 1.5 加载学生的提交记录
+        try {
+          const submissionsResponse = await getMySubmissions();
+          const submissions = submissionsResponse.data || [];
+          console.log('📝 获取到提交记录:', submissions);
+          // 构建提交记录 Map
+          this.submittedMap = {};
+          submissions.forEach(sub => {
+            this.submittedMap[sub.assignmentId] = {
+              status: sub.status,
+              score: sub.score,
+              submitTime: sub.submitTime
+            };
+          });
+          console.log('📝 提交记录Map:', this.submittedMap);
+        } catch (subError) {
+          console.error('获取提交记录失败:', subError);
+          this.submittedMap = {};
+        }
+
         // 2. 为每个任务获取题目，从而获取章节信息
         const tasksWithChapters = await Promise.all(
           assignments.map(async (assignment) => {
+            // 如果是上传型作业，不需要获取题目，直接返回空章节ID
+            if (assignment.mode === 'upload' || assignment.mode === 'file') {
+              console.log(`📎 任务 ${assignment.id} (${assignment.title}) 是上传型作业，无需获取题目`);
+              return {
+                ...assignment,
+                chapterIds: []
+              };
+            }
+
+            // 答题型作业，获取题目来确定章节
             try {
               const questionsResponse = await getAssignmentQuestions(assignment.id);
               const questions = questionsResponse.data || [];
@@ -512,6 +641,7 @@ export default {
 
         // 3. 按章节分组任务
         const chapterMap = new Map();
+        const unassignedTasks = []; // 没有章节关联的任务
 
         // 初始化所有章节
         console.log('📖 当前课程的章节列表:', this.chapterData);
@@ -524,20 +654,23 @@ export default {
           });
         });
 
-        // 将任务分配到对应章节
+        // 将任务分配到对应章节（每个任务只添加到第一个关联的章节，避免重复）
         tasksWithChapters.forEach(task => {
           if (task.chapterIds && task.chapterIds.length > 0) {
-            // 如果任务有多个章节，添加到所有相关章节
-            task.chapterIds.forEach(chapterId => {
-              if (chapterMap.has(chapterId)) {
-                chapterMap.get(chapterId).tasks.push(task);
-                console.log(`✓ 将任务 "${task.title}" 添加到章节 ${chapterId}`);
-              } else {
-                console.warn(`⚠️ 章节 ${chapterId} 不存在于章节列表中`);
-              }
-            });
+            // 只将任务添加到第一个有效的章节，避免重复显示
+            const firstValidChapterId = task.chapterIds.find(chapterId => chapterMap.has(chapterId));
+
+            if (firstValidChapterId) {
+              chapterMap.get(firstValidChapterId).tasks.push(task);
+              console.log(`✓ 将任务 "${task.title}" 添加到章节 ${firstValidChapterId}${task.chapterIds.length > 1 ? ' (该任务关联多个章节，仅显示在第一个章节)' : ''}`);
+            } else {
+              console.warn(`⚠️ 任务 "${task.title}" 的所有章节ID都不存在于章节列表中:`, task.chapterIds);
+              unassignedTasks.push(task);
+            }
           } else {
-            console.warn(`⚠️ 任务 "${task.title}" 没有关联任何章节`);
+            // 没有章节关联的任务（主要是上传型作业）
+            console.log(`📎 任务 "${task.title}" 没有关联章节，添加到"其他任务"分组`);
+            unassignedTasks.push(task);
           }
         });
 
@@ -545,6 +678,17 @@ export default {
         this.chapterTasks = Array.from(chapterMap.values())
           .filter(chapter => chapter.tasks.length > 0)
           .sort((a, b) => a.sortOrder - b.sortOrder);
+
+        // 5. 如果有未分配章节的任务，添加"其他任务"分组
+        if (unassignedTasks.length > 0) {
+          this.chapterTasks.push({
+            id: 'other',
+            title: '其他任务',
+            sortOrder: 9999, // 放在最后
+            tasks: unassignedTasks
+          });
+          console.log(`📋 添加"其他任务"分组，包含 ${unassignedTasks.length} 个任务`);
+        }
 
         console.log('📊 最终按章节分组的任务:', this.chapterTasks);
         console.log('📊 chapterTasks.length:', this.chapterTasks.length);
@@ -554,7 +698,8 @@ export default {
         this.taskStats.total = assignments.length;
         this.taskStats.homework = assignments.filter(t => t.type === 'homework').length;
         this.taskStats.exam = assignments.filter(t => t.type === 'exam').length;
-        this.taskStats.completed = 0; // TODO: 从提交记录获取
+        // 从提交记录计算已完成数量
+        this.taskStats.completed = assignments.filter(t => this.isTaskSubmitted(t)).length;
 
         console.log('📈 任务统计:', this.taskStats);
 
@@ -577,11 +722,31 @@ export default {
       return this.parseTime(date, '{m}-{d} {h}:{i}');
     },
 
+    // 判断任务是否已提交
+    isTaskSubmitted(task) {
+      const submission = this.submittedMap[task.id];
+      return submission && submission.status >= 1;
+    },
+
+    // 获取任务的提交信息（分数等）
+    getTaskSubmission(task) {
+      return this.submittedMap[task.id] || null;
+    },
+
     // 获取任务状态文本
     getTaskStatusText(task) {
       const now = new Date();
       const start = task.startTime ? new Date(task.startTime) : null;
       const end = task.endTime ? new Date(task.endTime) : null;
+
+      // 优先判断是否已提交
+      if (this.isTaskSubmitted(task)) {
+        const submission = this.getTaskSubmission(task);
+        if (submission.score != null) {
+          return `已批改 ${submission.score}分`;
+        }
+        return '已提交';
+      }
 
       if (end && now > end) return '已截止';
       if (start && now < start) return '未开始';
@@ -590,17 +755,21 @@ export default {
 
     // 获取任务状态标签类型
     getTaskStatusTagType(task) {
+      if (this.isTaskSubmitted(task)) return 'success';
       const status = this.getTaskStatusText(task);
-      if (status === '进行中') return 'success';
+      if (status === '进行中') return 'warning';
       if (status === '未开始') return 'info';
       return 'danger';
     },
 
     // 获取任务卡片样式类
     getTaskStatusClass(task) {
-      const status = this.getTaskStatusText(task);
-      if (status === '已截止') return 'task-expired';
-      if (status === '未开始') return 'task-pending';
+      if (this.isTaskSubmitted(task)) return 'task-submitted';
+      const now = new Date();
+      const start = task.startTime ? new Date(task.startTime) : null;
+      const end = task.endTime ? new Date(task.endTime) : null;
+      if (end && now > end) return 'task-expired';
+      if (start && now < start) return 'task-pending';
       return 'task-active';
     },
 
@@ -610,9 +779,17 @@ export default {
       return new Date() > new Date(task.endTime);
     },
 
+    // 获取按钮文字
+    getTaskButtonText(task) {
+      if (this.isTaskSubmitted(task)) {
+        return task.mode === 'question' ? '重新答题' : '重新提交';
+      }
+      return task.mode === 'question' ? '开始答题' : '提交作业';
+    },
+
     // 开始任务
     startTask(task) {
-      if (this.isTaskExpired(task)) {
+      if (this.isTaskExpired(task) && !this.isTaskSubmitted(task)) {
         this.$modal.msgWarning('任务已截止');
         return;
       }
@@ -630,15 +807,53 @@ export default {
           }
         });
       } else {
-        // 文件上传型任务，跳转到作业列表页面
-        this.$router.push({
-          path: '/system/assignment',
-          query: {
-            assignmentId: task.id,
-            courseId: this.courseId
-          }
-        });
+        // 文件上传型任务，打开上传对话框
+        this.openSubmitDialog(task);
       }
+    },
+
+    // 打开提交作业对话框
+    openSubmitDialog(task) {
+      if (!task || !task.id) {
+        return;
+      }
+      this.currentAssignment = task;
+      this.studentSubmitForm = {
+        files: "",
+        remark: ""
+      };
+      this.submitDialogVisible = true;
+    },
+
+    // 提交上传作业
+    handleSubmitUpload() {
+      if (!this.studentSubmitForm.files) {
+        this.$modal.msgError("请先上传作业文件");
+        return;
+      }
+
+      this.submitting = true;
+      const assignmentId = this.currentAssignment.id;
+
+      uploadAssignment(assignmentId, {
+        files: this.studentSubmitForm.files,
+        remark: this.studentSubmitForm.remark
+      }).then(response => {
+        // 更新本地状态
+        this.$set(this.submittedMap, assignmentId, {
+          status: 1,
+          submitTime: new Date().toISOString()
+        });
+        this.$modal.msgSuccess("提交成功！");
+        this.submitting = false;
+        this.submitDialogVisible = false;
+        // 重新加载任务列表以更新状态
+        this.loadCourseTasks();
+      }).catch(error => {
+        console.error('提交失败:', error);
+        this.$modal.msgError("提交失败，请稍后重试");
+        this.submitting = false;
+      });
     },
     handleDownload(resource) {
       // 乐观更新UI
@@ -1493,7 +1708,7 @@ export default {
       width: 100%;
 
       &.task-active {
-        background: linear-gradient(90deg, #67C23A 0%, #85CE61 100%);
+        background: linear-gradient(90deg, #E6A23C 0%, #F5C06A 100%);
       }
 
       &.task-pending {
@@ -1502,6 +1717,10 @@ export default {
 
       &.task-expired {
         background: linear-gradient(90deg, #F56C6C 0%, #f78989 100%);
+      }
+
+      &.task-submitted {
+        background: linear-gradient(90deg, #67C23A 0%, #85CE61 100%);
       }
     }
 
@@ -1546,8 +1765,8 @@ export default {
         border-radius: 10px;
 
         &.status-task-active {
-          background: #f0f9ff;
-          color: #67C23A;
+          background: #fdf6ec;
+          color: #E6A23C;
         }
 
         &.status-task-pending {
@@ -1558,6 +1777,11 @@ export default {
         &.status-task-expired {
           background: #fef0f0;
           color: #F56C6C;
+        }
+
+        &.status-task-submitted {
+          background: #f0f9eb;
+          color: #67C23A;
         }
       }
     }
@@ -1625,6 +1849,157 @@ export default {
 
         &:hover i {
           transform: translateX(3px);
+        }
+      }
+    }
+  }
+}
+
+/* ==================== 提交作业对话框样式 ==================== */
+.assignment-dialog {
+  ::v-deep .el-dialog__header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px 24px;
+    border-radius: 8px 8px 0 0;
+  }
+
+  ::v-deep .el-dialog__body {
+    padding: 24px;
+  }
+
+  ::v-deep .el-dialog__footer {
+    padding: 16px 24px;
+    border-top: 1px solid #f0f2f5;
+  }
+
+  .dialog-title-custom {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+
+    i {
+      font-size: 22px;
+    }
+  }
+
+  .submit-wrapper {
+    .submit-info-card {
+      background: linear-gradient(135deg, #f8f9ff 0%, #eff6ff 100%);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      border: 1px solid rgba(102, 126, 234, 0.2);
+
+      .info-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(102, 126, 234, 0.15);
+
+        .info-title {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 600;
+          color: #303133;
+        }
+      }
+
+      .info-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+
+        .meta-item-row {
+          display: flex;
+          align-items: center;
+          font-size: 14px;
+
+          .meta-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #606266;
+            font-weight: 500;
+            min-width: 100px;
+
+            i {
+              color: #667eea;
+              font-size: 16px;
+            }
+          }
+
+          .meta-value {
+            color: #303133;
+          }
+
+          &.deadline-meta {
+            .meta-value {
+              color: #E6A23C;
+              font-weight: 500;
+            }
+          }
+        }
+      }
+    }
+
+    .submit-form-section {
+      .dialog-form {
+        .form-tip {
+          margin-top: 8px;
+          font-size: 12px;
+          color: #909399;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+
+          i {
+            color: #667eea;
+          }
+        }
+
+        .remark-textarea {
+          ::v-deep textarea {
+            border-radius: 8px;
+            border-color: #dcdfe6;
+            transition: all 0.3s;
+
+            &:focus {
+              border-color: #667eea;
+              box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    .el-button {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.3s;
+
+      i {
+        margin-right: 4px;
+      }
+
+      &.el-button--primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
       }
     }

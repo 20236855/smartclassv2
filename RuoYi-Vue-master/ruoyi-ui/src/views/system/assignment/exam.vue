@@ -16,7 +16,7 @@
           <i class="el-icon-time"></i>
           <span>剩余时间：{{ formatTime(remainingTime) }}</span>
         </div>
-        <el-button type="primary" @click="handleSubmit" size="small">提交答卷</el-button>
+        <el-button type="primary" @click="handleSubmit" size="small" :loading="submitting">提交答卷</el-button>
       </div>
     </div>
 
@@ -145,13 +145,14 @@
 </template>
 
 <script>
-import { getAssignmentQuestions } from "@/api/system/assignment";
+import { getAssignmentQuestions, submitAssignment } from "@/api/system/assignment";
 
 export default {
   name: "AssignmentExam",
   data() {
     return {
       loading: false,
+      submitting: false,
       assignmentId: null,
       courseId: null,
       assignmentInfo: {},
@@ -370,7 +371,7 @@ export default {
     },
 
     // 提交答案
-    submitAnswers() {
+    async submitAnswers() {
       // 停止计时器
       if (this.timer) {
         clearInterval(this.timer);
@@ -395,13 +396,33 @@ export default {
 
       console.log('提交的答案:', answerData);
 
-      // TODO: 调用提交API
-      this.$modal.msgSuccess('提交成功！');
+      // 调用提交API保存到数据库
+      this.submitting = true;
+      try {
+        const submitData = {
+          answers: answerData,
+          content: JSON.stringify(answerData)  // 将答案内容保存到 content 字段
+        };
 
-      // 跳转到结果页面或返回
-      setTimeout(() => {
-        this.$router.back();
-      }, 1500);
+        const response = await submitAssignment(this.assignmentId, submitData);
+        console.log('提交响应:', response);
+
+        this.$modal.msgSuccess('提交成功！');
+
+        // 跳转到结果页面或返回
+        setTimeout(() => {
+          this.$router.back();
+        }, 1500);
+      } catch (error) {
+        console.error('提交失败:', error);
+        this.$modal.msgError('提交失败: ' + (error.message || '请稍后重试'));
+        // 重新启动计时器
+        if (this.remainingTime > 0) {
+          this.startTimer();
+        }
+      } finally {
+        this.submitting = false;
+      }
     }
   }
 };

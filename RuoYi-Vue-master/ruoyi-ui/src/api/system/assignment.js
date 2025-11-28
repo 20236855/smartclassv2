@@ -50,3 +50,37 @@ export function getAssignmentQuestions(assignmentId) {
     method: 'get'
   })
 }
+
+// 获取我的提交记录
+export function getMySubmissions() {
+  return request({
+    url: '/system/assignment/my-submissions',
+    method: 'get'
+  })
+}
+
+// 上传作业（上传型作业提交）
+export function uploadAssignment(assignmentId, data) {
+  return request({
+    url: '/system/assignment/' + assignmentId + '/upload',
+    method: 'post',
+    data: data
+  })
+}
+
+// 提交作业答案（答题型作业提交）
+export function submitAssignment(assignmentId, data) {
+  return request({
+    url: '/system/assignment/' + assignmentId + '/submit',
+    method: 'post',
+    data: data
+  })
+}
+
+// 获取作业提交详情
+export function getSubmissionDetail(assignmentId) {
+  return request({
+    url: '/system/assignment/' + assignmentId + '/submission',
+    method: 'get'
+  })
+}

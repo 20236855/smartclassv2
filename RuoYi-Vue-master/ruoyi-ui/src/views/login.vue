@@ -50,7 +50,10 @@
             <img :src="codeUrl" @click="getCode" class="login-code-img"/>
           </div>
         </el-form-item>
-        <el-checkbox v-model="loginForm.rememberMe" style="margin:0px 0px 25px 0px;">记住密码</el-checkbox>
+        <div class="login-options">
+          <el-checkbox v-model="loginForm.rememberMe">记住密码</el-checkbox>
+          <span class="forget-pwd" @click="showResetPwdDialog">忘记密码？</span>
+        </div>
         <el-form-item style="width:100%;">
           <el-button
             :loading="loading"
@@ -81,11 +84,71 @@
     <div class="el-login-footer">
       <span>Copyright © 2018-2025 智慧课程系统 All Rights Reserved.</span>
     </div>
+
+    <!-- 忘记密码对话框 -->
+    <el-dialog
+      title="重置密码"
+      :visible.sync="resetPwdDialogVisible"
+      width="420px"
+      :close-on-click-modal="false"
+      class="reset-pwd-dialog"
+    >
+      <el-form ref="resetPwdForm" :model="resetPwdForm" :rules="resetPwdRules" label-width="0">
+        <el-form-item prop="email">
+          <el-input v-model="resetPwdForm.email" placeholder="请输入绑定的邮箱">
+            <i slot="prefix" class="el-icon-message"></i>
+          </el-input>
+        </el-form-item>
+        <el-form-item prop="code">
+          <el-row :gutter="10">
+            <el-col :span="16">
+              <el-input v-model="resetPwdForm.code" placeholder="请输入验证码">
+                <i slot="prefix" class="el-icon-key"></i>
+              </el-input>
+            </el-col>
+            <el-col :span="8">
+              <el-button
+                type="primary"
+                :disabled="resetCodeBtnDisabled"
+                @click="sendResetCode"
+                style="width: 100%;"
+              >
+                {{ resetCodeBtnText }}
+              </el-button>
+            </el-col>
+          </el-row>
+        </el-form-item>
+        <el-form-item prop="newPassword">
+          <el-input
+            v-model="resetPwdForm.newPassword"
+            type="password"
+            placeholder="请输入新密码(5-20位)"
+            show-password
+          >
+            <i slot="prefix" class="el-icon-lock"></i>
+          </el-input>
+        </el-form-item>
+        <el-form-item prop="confirmPassword">
+          <el-input
+            v-model="resetPwdForm.confirmPassword"
+            type="password"
+            placeholder="请确认新密码"
+            show-password
+          >
+            <i slot="prefix" class="el-icon-lock"></i>
+          </el-input>
+        </el-form-item>
+      </el-form>
+      <div slot="footer">
+        <el-button @click="resetPwdDialogVisible = false">取 消</el-button>
+        <el-button type="primary" :loading="resetPwdLoading" @click="handleResetPwd">确认重置</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { getCodeImg } from "@/api/login"
+import { getCodeImg, sendResetPwdCode, resetPwdByEmail } from "@/api/login"
 import Cookies from "js-cookie"
 import { encrypt, decrypt } from '@/utils/jsencrypt'
 import loginImage from '@/assets/images/picture1.png'
@@ -93,6 +156,16 @@ import loginImage from '@/assets/images/picture1.png'
 export default {
   name: "Login",
   data() {
+    // 确认密码校验
+    const validateConfirmPwd = (rule, value, callback) => {
+      if (value === '') {
+        callback(new Error('请再次输入新密码'))
+      } else if (value !== this.resetPwdForm.newPassword) {
+        callback(new Error('两次输入的密码不一致'))
+      } else {
+        callback()
+      }
+    }
     return {
       title: process.env.VUE_APP_TITLE,
       loginImage,
@@ -124,7 +197,36 @@ export default {
       captchaEnabled: true,
       // 注册开关
       register: false,
-      redirect: undefined
+      redirect: undefined,
+      // 重置密码相关
+      resetPwdDialogVisible: false,
+      resetPwdLoading: false,
+      resetCodeBtnDisabled: false,
+      resetCodeBtnText: '获取验证码',
+      resetCodeTimer: null,
+      resetPwdForm: {
+        email: '',
+        code: '',
+        newPassword: '',
+        confirmPassword: ''
+      },
+      resetPwdRules: {
+        email: [
+          { required: true, message: '请输入邮箱', trigger: 'blur' },
+          { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+        ],
+        code: [
+          { required: true, message: '请输入验证码', trigger: 'blur' },
+          { min: 6, max: 6, message: '验证码为6位数字', trigger: 'blur' }
+        ],
+        newPassword: [
+          { required: true, message: '请输入新密码', trigger: 'blur' },
+          { min: 5, max: 20, message: '密码长度必须在5到20个字符之间', trigger: 'blur' }
+        ],
+        confirmPassword: [
+          { required: true, validator: validateConfirmPwd, trigger: 'blur' }
+        ]
+      }
     }
   },
   watch: {
@@ -257,6 +359,78 @@ export default {
             if (this.captchaEnabled) {
               this.getCode()
             }
+          })
+        }
+      })
+    },
+    // 显示重置密码对话框
+    showResetPwdDialog() {
+      this.resetPwdDialogVisible = true
+      this.resetPwdForm = {
+        email: '',
+        code: '',
+        newPassword: '',
+        confirmPassword: ''
+      }
+      this.$nextTick(() => {
+        if (this.$refs.resetPwdForm) {
+          this.$refs.resetPwdForm.resetFields()
+        }
+      })
+    },
+    // 发送重置密码验证码
+    sendResetCode() {
+      if (!this.resetPwdForm.email) {
+        this.$message.warning('请先输入邮箱')
+        return
+      }
+      // 简单邮箱格式校验
+      const emailReg = /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/
+      if (!emailReg.test(this.resetPwdForm.email)) {
+        this.$message.warning('请输入正确的邮箱格式')
+        return
+      }
+
+      this.resetCodeBtnDisabled = true
+      sendResetPwdCode(this.resetPwdForm.email).then(res => {
+        this.$message.success('验证码已发送，请查收邮箱')
+        // 开始倒计时
+        let countdown = 60
+        this.resetCodeBtnText = `${countdown}s后重发`
+        this.resetCodeTimer = setInterval(() => {
+          countdown--
+          if (countdown <= 0) {
+            clearInterval(this.resetCodeTimer)
+            this.resetCodeBtnDisabled = false
+            this.resetCodeBtnText = '获取验证码'
+          } else {
+            this.resetCodeBtnText = `${countdown}s后重发`
+          }
+        }, 1000)
+      }).catch(() => {
+        this.resetCodeBtnDisabled = false
+      })
+    },
+    // 执行重置密码
+    handleResetPwd() {
+      this.$refs.resetPwdForm.validate(valid => {
+        if (valid) {
+          this.resetPwdLoading = true
+          resetPwdByEmail({
+            email: this.resetPwdForm.email,
+            code: this.resetPwdForm.code,
+            newPassword: this.resetPwdForm.newPassword
+          }).then(res => {
+            this.$message.success('密码重置成功，请使用新密码登录')
+            this.resetPwdDialogVisible = false
+            // 清除倒计时
+            if (this.resetCodeTimer) {
+              clearInterval(this.resetCodeTimer)
+              this.resetCodeBtnDisabled = false
+              this.resetCodeBtnText = '获取验证码'
+            }
+          }).finally(() => {
+            this.resetPwdLoading = false
           })
         }
       })
@@ -503,6 +677,96 @@ export default {
     background: #081f4f;
     border-color: #081f4f;
     color: #ffffff;
+  }
+}
+
+// 登录选项（记住密码 + 忘记密码）
+.login-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.forget-pwd {
+  color: #002982;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    color: #1e40af;
+    text-decoration: underline;
+  }
+}
+
+// 重置密码对话框
+.reset-pwd-dialog {
+  .el-dialog {
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .el-dialog__header {
+    background: linear-gradient(135deg, #041946 0%, #0a3d8f 100%);
+    padding: 18px 24px;
+
+    .el-dialog__title {
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 18px;
+    }
+
+    .el-dialog__headerbtn .el-dialog__close {
+      color: #ffffff;
+      font-size: 18px;
+    }
+  }
+
+  .el-dialog__body {
+    padding: 30px 24px 10px;
+  }
+
+  .el-dialog__footer {
+    padding: 10px 24px 24px;
+    border-top: none;
+  }
+
+  .el-input__inner {
+    height: 44px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    font-size: 14px;
+
+    &:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    }
+  }
+
+  .el-input__prefix {
+    left: 12px;
+    color: #64748b;
+  }
+
+  .el-form-item {
+    margin-bottom: 20px;
+  }
+
+  .el-button--primary {
+    background: #041946;
+    border-color: #041946;
+    border-radius: 8px;
+    font-weight: 500;
+
+    &:hover {
+      background: #0a3d8f;
+      border-color: #0a3d8f;
+    }
+  }
+
+  .el-button--default {
+    border-radius: 8px;
   }
 }
 </style>
