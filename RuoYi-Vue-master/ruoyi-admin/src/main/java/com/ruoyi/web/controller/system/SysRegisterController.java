@@ -118,6 +118,34 @@ public class SysRegisterController extends BaseController
     }
 
     /**
+     * 通过邮箱查询用户名
+     */
+    @Anonymous
+    @GetMapping("/getUserByEmail")
+    public AjaxResult getUserByEmail(@RequestParam("email") String email)
+    {
+        if (StringUtils.isEmpty(email))
+        {
+            return error("邮箱不能为空");
+        }
+        // 简单的邮箱格式验证
+        if (!email.matches("^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$"))
+        {
+            return error("邮箱格式不正确");
+        }
+        // 验证邮箱是否存在对应的用户
+        SysUser sysUser = userService.selectUserByEmail(email);
+        if (sysUser == null)
+        {
+            return error("该邮箱未绑定任何账号");
+        }
+        AjaxResult ajax = AjaxResult.success();
+        ajax.put("userName", sysUser.getUserName());
+        ajax.put("nickName", sysUser.getNickName());
+        return ajax;
+    }
+
+    /**
      * 发送重置密码验证码（通过邮箱）
      */
     @Anonymous
@@ -140,7 +168,13 @@ public class SysRegisterController extends BaseController
             return error("该邮箱未绑定任何账号");
         }
         boolean result = emailService.sendResetPwdCode(email);
-        return result ? success("验证码发送成功") : error("验证码发送失败，请稍后重试");
+        if (result) {
+            AjaxResult ajax = AjaxResult.success("验证码发送成功");
+            ajax.put("userName", sysUser.getUserName());
+            ajax.put("nickName", sysUser.getNickName());
+            return ajax;
+        }
+        return error("验证码发送失败，请稍后重试");
     }
 
     /**

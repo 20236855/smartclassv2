@@ -52,11 +52,12 @@ public class StudentDashboardController extends BaseController {
     @GetMapping("/student-data")
     public AjaxResult getStudentDashboardData() {
         logger.info("=== 开始获取学生Dashboard数据 ===");
-        Long studentUserId = getStudentUserId();
+        Long sysUserId = getUserId();  // sys_user.user_id（用于视频学习行为查询）
+        Long studentUserId = getStudentUserId();  // user.id（用于课程、作业等查询）
         Map<String, Object> result = new HashMap<>();
 
         if (studentUserId == null) {
-            logger.warn("studentUserId 为 null，返回空数据");
+            logger.warn("studentUserId(user.id) 为 null，只返回视频学习统计（使用sysUserId={}）", sysUserId);
             result.put("courses", new ArrayList<>());
             result.put("submissions", new ArrayList<>());
             Map<String, Integer> emptyTaskStats = new HashMap<>();
@@ -65,12 +66,29 @@ public class StudentDashboardController extends BaseController {
             emptyTaskStats.put("pending", 0);
             emptyTaskStats.put("expired", 0);
             result.put("taskStats", emptyTaskStats);
-            Map<String, Object> emptyVideoStats = new HashMap<>();
-            emptyVideoStats.put("totalVideos", 0);
-            emptyVideoStats.put("completedVideos", 0);
-            emptyVideoStats.put("totalWatchDuration", 0);
-            result.put("videoStats", emptyVideoStats);
+            result.put("taskStatsByCourse", new HashMap<>());
             result.put("knowledgePointCount", 0);
+
+            // 即使 user 表中没有记录，也查询视频学习统计（使用 sysUserId）
+            Map<String, Object> videoStats = new HashMap<>();
+            try {
+                String videoStatsSql = "SELECT " +
+                        "COUNT(*) as totalVideos, " +
+                        "SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) as completedVideos, " +
+                        "SUM(COALESCE(watch_duration, 0)) as totalWatchDuration " +
+                        "FROM video_learning_behavior WHERE student_id = ?";
+                Map<String, Object> videoData = jdbcTemplate.queryForMap(videoStatsSql, sysUserId);
+                videoStats.put("totalVideos", videoData.get("totalVideos") != null ? ((Number)videoData.get("totalVideos")).intValue() : 0);
+                videoStats.put("completedVideos", videoData.get("completedVideos") != null ? ((Number)videoData.get("completedVideos")).intValue() : 0);
+                videoStats.put("totalWatchDuration", videoData.get("totalWatchDuration") != null ? ((Number)videoData.get("totalWatchDuration")).intValue() : 0);
+                logger.info("视频学习统计(无user记录) - sysUserId={}, 结果: {}", sysUserId, videoStats);
+            } catch (Exception e) {
+                logger.warn("获取视频学习行为失败: {}", e.getMessage());
+                videoStats.put("totalVideos", 0);
+                videoStats.put("completedVideos", 0);
+                videoStats.put("totalWatchDuration", 0);
+            }
+            result.put("videoStats", videoStats);
             return AjaxResult.success(result);
         }
 
@@ -138,9 +156,14 @@ public class StudentDashboardController extends BaseController {
             int total = submissions.size();
             int submitted = 0, pending = 0, expired = 0;
             LocalDateTime now = LocalDateTime.now();
+
+            // 按课程分组的任务统计
+            Map<Long, Map<String, Integer>> taskStatsByCourse = new HashMap<>();
+
             for (Map<String, Object> sub : submissions) {
                 Integer submitStatus = (Integer) sub.get("submitStatus");
                 Object endTimeObj = sub.get("endTime");
+                Long courseId = ((Number) sub.get("courseId")).longValue();
                 boolean isSubmitted = submitStatus != null && submitStatus >= 1;
 
                 // 处理日期比较（兼容 LocalDateTime 类型）
@@ -153,27 +176,49 @@ public class StudentDashboardController extends BaseController {
                     }
                 }
 
-                // 已提交
+                // 总体统计
                 if (isSubmitted) {
                     submitted++;
                 }
-                // 已截止（不管是否提交）
                 if (isExpired) {
                     expired++;
                 }
-                // 待提交（未提交且未截止）
                 if (!isSubmitted && !isExpired) {
                     pending++;
                 }
+
+                // 按课程分组统计
+                taskStatsByCourse.putIfAbsent(courseId, new HashMap<>());
+                Map<String, Integer> courseStats = taskStatsByCourse.get(courseId);
+                courseStats.put("total", courseStats.getOrDefault("total", 0) + 1);
+                if (isSubmitted) {
+                    courseStats.put("submitted", courseStats.getOrDefault("submitted", 0) + 1);
+                }
+                if (isExpired) {
+                    courseStats.put("expired", courseStats.getOrDefault("expired", 0) + 1);
+                }
+                if (!isSubmitted && !isExpired) {
+                    courseStats.put("pending", courseStats.getOrDefault("pending", 0) + 1);
+                }
             }
+
+            // 确保每个课程的统计都有完整的字段
+            for (Map<String, Integer> courseStats : taskStatsByCourse.values()) {
+                courseStats.putIfAbsent("total", 0);
+                courseStats.putIfAbsent("submitted", 0);
+                courseStats.putIfAbsent("pending", 0);
+                courseStats.putIfAbsent("expired", 0);
+            }
+
             Map<String, Integer> taskStats = new HashMap<>();
             taskStats.put("total", total);
             taskStats.put("submitted", submitted);
             taskStats.put("pending", pending);
             taskStats.put("expired", expired);
             result.put("taskStats", taskStats);
+            result.put("taskStatsByCourse", taskStatsByCourse);
 
-            // 4. 获取视频学习行为统计
+            // 4. 获取视频学习行为统计（使用 sysUserId，因为前端保存时用的是 sys_user.user_id）
             Map<String, Object> videoStats = new HashMap<>();
             try {
                 String videoStatsSql = "SELECT " +
@@ -181,7 +226,8 @@ public class StudentDashboardController extends BaseController {
                         "SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) as completedVideos, " +
                         "SUM(COALESCE(watch_duration, 0)) as totalWatchDuration " +
                         "FROM video_learning_behavior WHERE student_id = ?";
-                Map<String, Object> videoData = jdbcTemplate.queryForMap(videoStatsSql, studentUserId);
+                Map<String, Object> videoData = jdbcTemplate.queryForMap(videoStatsSql, sysUserId);
+                logger.info("视频学习行为查询 - sysUserId={}, 结果: {}", sysUserId, videoData);
                 videoStats.put("totalVideos", videoData.get("totalVideos") != null ? ((Number)videoData.get("totalVideos")).intValue() : 0);
                 videoStats.put("completedVideos", videoData.get("completedVideos") != null ? ((Number)videoData.get("completedVideos")).intValue() : 0);
                 videoStats.put("totalWatchDuration", videoData.get("totalWatchDuration") != null ? ((Number)videoData.get("totalWatchDuration")).intValue() : 0);
@@ -227,6 +273,7 @@ public class StudentDashboardController extends BaseController {
             emptyTaskStats.put("pending", 0);
             emptyTaskStats.put("expired", 0);
             result.put("taskStats", emptyTaskStats);
+            result.put("taskStatsByCourse", new HashMap<>());
             Map<String, Object> emptyVideoStats = new HashMap<>();
             emptyVideoStats.put("totalVideos", 0);
             emptyVideoStats.put("completedVideos", 0);

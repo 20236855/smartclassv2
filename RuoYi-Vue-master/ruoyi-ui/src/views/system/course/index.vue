@@ -37,22 +37,6 @@
         </el-form-item>
       </el-form>
 
-      <!-- 管理员操作按钮 -->
-      <div class="admin-actions" v-hasPermi="['system:course:add']">
-        <el-button
-          type="primary"
-          icon="el-icon-plus"
-          size="small"
-          @click="handleAdd"
-        >新增课程</el-button>
-        <el-button
-          type="warning"
-          icon="el-icon-download"
-          size="small"
-          @click="handleExport"
-          v-hasPermi="['system:course:export']"
-        >导出</el-button>
-      </div>
     </div>
 
     <!-- 课程卡片列表 -->
@@ -114,53 +98,27 @@
 
             <!-- 操作按钮 -->
             <div class="card-actions">
-              <!-- 学生操作：申请选课或已选 -->
-              <template v-if="!hasPermi(['system:course:edit'])">
-                <!-- 已选课程显示"已选"按钮 -->
-                <el-button
-                  v-if="isCourseEnrolled(course.id)"
-                  type="success"
-                  size="small"
-                  icon="el-icon-check"
-                  disabled
-                >
-                  已选课程
-                </el-button>
-                <!-- 未选课程显示"申请选课"按钮 -->
-                <el-button
-                  v-else
-                  type="primary"
-                  size="small"
-                  :icon="getCourseButtonIcon(course)"
-                  :loading="applyLoadingId === course.id"
-                  @click="handleCourseAction(course)"
-                >
-                  {{ getCourseButtonText(course) }}
-                </el-button>
-              </template>
-
-              <!-- 管理员操作 -->
-              <template v-if="hasPermi(['system:course:edit'])">
-                <el-button
-                  type="primary"
-                  size="small"
-                  icon="el-icon-edit"
-                  @click="handleUpdate(course)"
-                >修改</el-button>
-                <el-button
-                  type="success"
-                  size="small"
-                  icon="el-icon-share"
-                  @click="handleKnowledgeGraph(course)"
-                >图谱</el-button>
-                <el-button
-                  type="danger"
-                  size="small"
-                  icon="el-icon-delete"
-                  @click="handleDelete(course)"
-                  v-hasPermi="['system:course:remove']"
-                >删除</el-button>
-              </template>
+              <!-- 已选课程显示"课程已选"按钮 -->
+              <el-button
+                v-if="isCourseEnrolled(course.id)"
+                type="success"
+                size="small"
+                icon="el-icon-check"
+                disabled
+              >
+                课程已选
+              </el-button>
+              <!-- 未选课程显示"申请选课"按钮 -->
+              <el-button
+                v-else
+                type="primary"
+                size="small"
+                :icon="getCourseButtonIcon(course)"
+                :loading="applyLoadingId === course.id"
+                @click="handleCourseAction(course)"
+              >
+                {{ getCourseButtonText(course) }}
+              </el-button>
             </div>
           </el-card>
         </el-col>
@@ -170,9 +128,8 @@
       <el-empty
         v-if="!loading && (!courseList || courseList.length === 0)"
         description="暂无课程"
-      >
-        <el-button type="primary" @click="handleAdd" v-hasPermi="['system:course:add']">新增课程</el-button>
-      </el-empty>
+      />
+
     </div>
 
     <!-- 分页 -->
@@ -402,10 +359,6 @@ export default {
     },
     /** 加载已选课程列表 */
     loadEnrolledCourses() {
-      // 只有学生才需要加载已选课程
-      if (this.hasPermi(['system:course:edit'])) {
-        return; // 管理员不需要加载
-      }
       getMyCourses().then(response => {
         // 提取已选课程的ID列表
         this.enrolledCourseIds = response.data.map(course => course.id);

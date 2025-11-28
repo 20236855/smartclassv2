@@ -548,8 +548,10 @@ export default {
   }
 
   &:disabled {
-    background: #c0c4cc;
+    background: #a0a5b0;
+    color: #ffffff;
     cursor: not-allowed;
+    opacity: 1;
   }
 }
 

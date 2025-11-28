@@ -94,12 +94,49 @@
       class="reset-pwd-dialog"
     >
       <el-form ref="resetPwdForm" :model="resetPwdForm" :rules="resetPwdRules" label-width="0">
+        <!-- 邮箱输入和查询按钮 -->
         <el-form-item prop="email">
-          <el-input v-model="resetPwdForm.email" placeholder="请输入绑定的邮箱">
-            <i slot="prefix" class="el-icon-message"></i>
-          </el-input>
+          <el-row :gutter="10">
+            <el-col :span="16">
+              <el-input
+                v-model="resetPwdForm.email"
+                placeholder="请输入绑定的邮箱"
+                :disabled="resetUserInfo.userName !== ''"
+              >
+                <i slot="prefix" class="el-icon-message"></i>
+              </el-input>
+            </el-col>
+            <el-col :span="8">
+              <el-button
+                type="primary"
+                :loading="queryUserLoading"
+                :disabled="resetUserInfo.userName !== ''"
+                @click="queryUserByEmail"
+                style="width: 100%;"
+              >
+                {{ resetUserInfo.userName ? '已查询' : '查询账号' }}
+              </el-button>
+            </el-col>
+          </el-row>
         </el-form-item>
-        <el-form-item prop="code">
+
+        <!-- 显示查询到的用户信息 -->
+        <div v-if="resetUserInfo.userName" class="user-info-card">
+          <div class="user-info-item">
+            <span class="label">用户名：</span>
+            <span class="value">{{ resetUserInfo.userName }}</span>
+          </div>
+          <div class="user-info-item" v-if="resetUserInfo.nickName">
+            <span class="label">昵称：</span>
+            <span class="value">{{ resetUserInfo.nickName }}</span>
+          </div>
+          <el-button type="text" size="small" @click="resetEmailQuery" style="padding: 0; margin-top: 5px;">
+            <i class="el-icon-refresh"></i> 重新查询
+          </el-button>
+        </div>
+
+        <!-- 验证码输入（查询到用户后显示） -->
+        <el-form-item prop="code" v-if="resetUserInfo.userName">
           <el-row :gutter="10">
             <el-col :span="16">
               <el-input v-model="resetPwdForm.code" placeholder="请输入验证码">
@@ -118,7 +155,9 @@
             </el-col>
           </el-row>
         </el-form-item>
-        <el-form-item prop="newPassword">
+
+        <!-- 新密码输入（查询到用户后显示） -->
+        <el-form-item prop="newPassword" v-if="resetUserInfo.userName">
           <el-input
             v-model="resetPwdForm.newPassword"
             type="password"
@@ -128,7 +167,9 @@
             <i slot="prefix" class="el-icon-lock"></i>
           </el-input>
         </el-form-item>
-        <el-form-item prop="confirmPassword">
+
+        <!-- 确认密码输入（查询到用户后显示） -->
+        <el-form-item prop="confirmPassword" v-if="resetUserInfo.userName">
           <el-input
             v-model="resetPwdForm.confirmPassword"
             type="password"
@@ -141,14 +182,14 @@
       </el-form>
       <div slot="footer">
         <el-button @click="resetPwdDialogVisible = false">取 消</el-button>
-        <el-button type="primary" :loading="resetPwdLoading" @click="handleResetPwd">确认重置</el-button>
+        <el-button type="primary" :loading="resetPwdLoading" :disabled="!resetUserInfo.userName" @click="handleResetPwd">确认重置</el-button>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script>
-import { getCodeImg, sendResetPwdCode, resetPwdByEmail } from "@/api/login"
+import { getCodeImg, getUserByEmail, sendResetPwdCode, resetPwdByEmail } from "@/api/login"
 import Cookies from "js-cookie"
 import { encrypt, decrypt } from '@/utils/jsencrypt'
 import loginImage from '@/assets/images/picture1.png'
@@ -201,9 +242,14 @@ export default {
       // 重置密码相关
       resetPwdDialogVisible: false,
       resetPwdLoading: false,
+      queryUserLoading: false,
       resetCodeBtnDisabled: false,
       resetCodeBtnText: '获取验证码',
       resetCodeTimer: null,
+      resetUserInfo: {
+        userName: '',
+        nickName: ''
+      },
       resetPwdForm: {
         email: '',
         code: '',
@@ -372,14 +418,18 @@ export default {
         newPassword: '',
         confirmPassword: ''
       }
+      this.resetUserInfo = {
+        userName: '',
+        nickName: ''
+      }
       this.$nextTick(() => {
         if (this.$refs.resetPwdForm) {
           this.$refs.resetPwdForm.resetFields()
         }
       })
     },
-    // 发送重置密码验证码
-    sendResetCode() {
+    // 通过邮箱查询用户
+    queryUserByEmail() {
       if (!this.resetPwdForm.email) {
         this.$message.warning('请先输入邮箱')
         return
@@ -388,6 +438,43 @@ export default {
       const emailReg = /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/
       if (!emailReg.test(this.resetPwdForm.email)) {
         this.$message.warning('请输入正确的邮箱格式')
+        return
+      }
+
+      this.queryUserLoading = true
+      getUserByEmail(this.resetPwdForm.email).then(res => {
+        this.resetUserInfo = {
+          userName: res.userName,
+          nickName: res.nickName || ''
+        }
+        this.$message.success(`查询成功，用户名: ${res.userName}`)
+      }).finally(() => {
+        this.queryUserLoading = false
+      })
+    },
+    // 重新查询邮箱
+    resetEmailQuery() {
+      this.resetUserInfo = {
+        userName: '',
+        nickName: ''
+      }
+      this.resetPwdForm = {
+        email: '',
+        code: '',
+        newPassword: '',
+        confirmPassword: ''
+      }
+      // 清除倒计时
+      if (this.resetCodeTimer) {
+        clearInterval(this.resetCodeTimer)
+        this.resetCodeBtnDisabled = false
+        this.resetCodeBtnText = '获取验证码'
+      }
+    },
+    // 发送重置密码验证码
+    sendResetCode() {
+      if (!this.resetUserInfo.userName) {
+        this.$message.warning('请先查询账号')
         return
       }
 
@@ -423,7 +510,8 @@ export default {
           }).then(res => {
             this.$message.success('密码重置成功，请使用新密码登录')
             this.resetPwdDialogVisible = false
-            // 清除倒计时
+            // 清除倒计时和用户信息
+            this.resetUserInfo = { userName: '', nickName: '' }
             if (this.resetCodeTimer) {
               clearInterval(this.resetCodeTimer)
               this.resetCodeBtnDisabled = false
@@ -767,6 +855,36 @@ export default {
 
   .el-button--default {
     border-radius: 8px;
+  }
+
+  .user-info-card {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+
+    .user-info-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+
+      &:last-of-type {
+        margin-bottom: 0;
+      }
+
+      .label {
+        color: #64748b;
+        font-size: 13px;
+        min-width: 60px;
+      }
+
+      .value {
+        color: #0369a1;
+        font-size: 14px;
+        font-weight: 600;
+      }
+    }
   }
 }
 </style>

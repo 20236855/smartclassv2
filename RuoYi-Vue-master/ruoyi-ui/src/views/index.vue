@@ -138,7 +138,17 @@
         <div class="dashboard-card">
           <div class="card-header">
             <span class="card-title">任务完成情况</span>
-            <span class="card-subtitle">作业考试提交状态统计</span>
+            <div class="task-filter">
+              <el-select v-model="selectedTaskCourseId" placeholder="选择课程" size="mini" @change="updateTaskChart">
+                <el-option label="总体完成情况" :value="null"></el-option>
+                <el-option
+                  v-for="course in courseList"
+                  :key="course.id"
+                  :label="course.name"
+                  :value="course.id">
+                </el-option>
+              </el-select>
+            </div>
           </div>
           <div ref="taskChart" class="chart-container"></div>
         </div>
@@ -340,8 +350,10 @@ export default {
       // 成绩分析切换
       scoreChartMode: 'time',       // 'time' 同科目时间趋势 | 'course' 不同科目对比
       selectedCourseId: null,       // 选中的课程ID
+      selectedTaskCourseId: null,   // 任务统计选中的课程ID（null表示总体）
       courseList: [],               // 课程列表
       allAssignments: [],           // 所有作业数据（用于切换）
+      taskStatsByCourse: {},        // 按课程分组的任务统计
 
       // Dashboard 数据
       dashboardData: {
@@ -973,13 +985,19 @@ export default {
         // total: 作业总数, submitted: 已提交, pending: 待提交, expired: 已截止
         this.dashboardData.taskStats = data.taskStats || { total: 0, submitted: 0, pending: 0, expired: 0 }
 
+        // 3.1 按课程分组的任务统计
+        this.taskStatsByCourse = data.taskStatsByCourse || {}
+
         // 4. 使用后端返回的视频学习数据
         const videoStats = data.videoStats || { totalVideos: 0, completedVideos: 0, totalWatchDuration: 0 }
+        console.log('📹 后端返回的视频统计数据:', videoStats)
         const totalVideos = videoStats.totalVideos || 1
         const completedVideos = videoStats.completedVideos || 0
         const totalWatchDuration = videoStats.totalWatchDuration || 0
+        console.log('📹 视频统计详情: totalVideos=', totalVideos, ', completedVideos=', completedVideos, ', totalWatchDuration=', totalWatchDuration)
 
         this.dashboardData.videoProgress = totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0
+        console.log('📹 计算的视频进度:', this.dashboardData.videoProgress, '%')
         // 学习时长能力值：每小时10分，最高100
         this.dashboardData.abilityData.学习时长 = Math.min(100, Math.round(totalWatchDuration / 360))
 
@@ -1291,23 +1309,47 @@ export default {
     initTaskChart() {
       if (!this.$refs.taskChart) return
       this.taskChart = echarts.init(this.$refs.taskChart)
+      this.renderTaskChart()
+    },
 
-      // 使用与作业考试页面一致的统计: total, submitted, pending, expired
-      const { total, submitted, pending, expired } = this.dashboardData.taskStats
+    // 更新任务图表（课程切换时调用）
+    updateTaskChart() {
+      if (!this.taskChart) return
+      this.renderTaskChart()
+    },
+
+    // 渲染任务图表（根据选中的课程）
+    renderTaskChart() {
+      // 根据选中的课程获取对应的统计数据
+      let taskStats
+      if (this.selectedTaskCourseId === null) {
+        // 总体完成情况
+        taskStats = this.dashboardData.taskStats
+      } else {
+        // 某个课程的完成情况
+        taskStats = this.taskStatsByCourse[this.selectedTaskCourseId] || { total: 0, submitted: 0, pending: 0, expired: 0 }
+      }
+
+      const { total, submitted, pending, expired } = taskStats
 
       // 没有数据时显示引导提示
       if (total === 0) {
+        const courseName = this.selectedTaskCourseId
+          ? (this.courseList.find(c => c.id === this.selectedTaskCourseId)?.name || '该课程')
+          : ''
         this.taskChart.setOption({
           title: {
             text: '📝 作业考试完成情况',
-            subtext: '选课后，这里将显示您的作业和考试完成状态',
+            subtext: this.selectedTaskCourseId
+              ? `${courseName}暂无作业考试数据`
+              : '选课后，这里将显示您的作业和考试完成状态',
             left: 'center',
             top: 'center',
             textStyle: { color: '#667eea', fontSize: 14, fontWeight: 'normal' },
             subtextStyle: { color: '#94a3b8', fontSize: 12 }
           },
           series: []
-        })
+        }, true)
         return
       }
 
@@ -1378,7 +1420,7 @@ export default {
             }
           ]
         }]
-      })
+      }, true)
     },
 
     // 能力分析雷达图
@@ -2288,6 +2330,23 @@ export default {
         font-size: 12px;
         height: 28px;
         line-height: 28px;
+      }
+    }
+  }
+
+  .task-filter {
+    ::v-deep .el-select {
+      width: 140px;
+      .el-input__inner {
+        border-color: rgba(96, 165, 250, 0.5);
+        background: rgba(255, 255, 255, 0.98);
+        font-size: 12px;
+        height: 26px;
+        line-height: 26px;
+        padding: 0 25px 0 10px;
+      }
+      .el-input__suffix {
+        right: 5px;
       }
     }
   }

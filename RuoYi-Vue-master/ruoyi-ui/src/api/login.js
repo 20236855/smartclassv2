@@ -84,6 +84,18 @@ export function verifySyncStatus(username) {
   })
 }
 
+// 通过邮箱查询用户
+export function getUserByEmail(email) {
+  return request({
+    url: '/getUserByEmail',
+    headers: {
+      isToken: false
+    },
+    method: 'get',
+    params: { email }
+  })
+}
+
 // 发送重置密码验证码
 export function sendResetPwdCode(email) {
   return request({
