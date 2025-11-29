@@ -119,15 +119,40 @@
                   </div>
                   
                   <div class="card-body">
-                    <!-- 正文区 -->
-                    <div class="content-text" v-html="cleanAndFormatContent(item.recommendReason)"></div>
-                    
+                    <!-- 结构化显示推荐内容 -->
+                    <div class="structured-content">
+                      <div class="content-row" v-if="parseRecommendField(item.recommendReason, '知识点ID')">
+                        <span class="field-label">知识点ID:</span>
+                        <span class="field-value" v-html="parseRecommendField(item.recommendReason, '知识点ID')"></span>
+                      </div>
+                      <div class="content-row" v-if="parseRecommendField(item.recommendReason, '推荐动作')">
+                        <span class="field-label">推荐动作:</span>
+                        <span class="field-value" v-html="parseRecommendField(item.recommendReason, '推荐动作')"></span>
+                      </div>
+                      <div class="content-row" v-if="parseRecommendField(item.recommendReason, '视频位置')">
+                        <span class="field-label">视频位置:</span>
+                        <span class="field-value" v-html="parseRecommendField(item.recommendReason, '视频位置')"></span>
+                      </div>
+                      <div class="content-row" v-if="parseRecommendField(item.recommendReason, '重点关注内容')">
+                        <span class="field-label">重点关注内容:</span>
+                        <span class="field-value" v-html="parseRecommendField(item.recommendReason, '重点关注内容')"></span>
+                      </div>
+                      <div class="content-row" v-if="parseRecommendField(item.recommendReason, '对应错题')">
+                        <span class="field-label">对应错题:</span>
+                        <span class="field-value" v-html="parseRecommendField(item.recommendReason, '对应错题')"></span>
+                      </div>
+                      <div class="content-row" v-if="parseRecommendField(item.recommendReason, '执行建议')">
+                        <span class="field-label">执行建议:</span>
+                        <span class="field-value" v-html="parseRecommendField(item.recommendReason, '执行建议')"></span>
+                      </div>
+                    </div>
+
                     <div class="card-footer">
                       <div class="footer-item">
-                        <i class="el-icon-price-tag"></i> 关联：{{ formatKpIds(item.relatedKpIds, item) }}
+                        <i class="el-icon-price-tag"></i> 关联知识点：{{ formatKpNames(item) }}
                       </div>
                       <div class="footer-item">
-                        <i class="el-icon-aim"></i> 目标ID：{{ item.targetId }}
+                        <i class="el-icon-s-flag"></i> 推荐动作：{{ getRecommendActionText(item.recommendType) }}
                       </div>
                     </div>
                   </div>
@@ -307,24 +332,53 @@ export default {
     },
 
     extractTagsFromRecommendations(itemList) {
-      const tags = []
-      const seenIds = new Set()
+      const kpNameSet = new Set()
       itemList.forEach(item => {
-        const ids = (item.relatedKpIds || '').split(',')
-        let names = []
+        // 优先使用relatedKpNames
         if (item.relatedKpNames) {
-           names = item.relatedKpNames.split(/[,，、]/)
+          const names = item.relatedKpNames.split(/[,，、]/).map(name => name.trim())
+          names.forEach(name => {
+            if (name && name !== '无') {
+              kpNameSet.add(name)
+            }
+          })
+        } else if (item.relatedKpIds) {
+          // 如果没有relatedKpNames，则使用relatedKpIds
+          const ids = item.relatedKpIds.split(',').map(id => id.trim())
+          ids.forEach(id => {
+            if (id && id !== '无') {
+              kpNameSet.add(`知识点${id}`)
+            }
+          })
         }
-        ids.forEach((idStr, index) => {
-          const id = idStr.trim()
-          if (id && id !== '无' && !seenIds.has(id)) {
-            const name = (names[index] && names[index].trim()) ? names[index].trim() : `知识点${id}`
-            tags.push({ kpId: id, kpName: name })
-            seenIds.add(id)
-          }
-        })
       })
-      this.statusTags = tags
+      this.statusTags = Array.from(kpNameSet).map(kpName => ({ kpName }))
+    },
+
+    // 解析推荐理由中的特定字段
+    parseRecommendField(content, fieldName) {
+      if (!content) return ''
+
+      // 匹配格式：字段名：内容
+      const regex = new RegExp(`${fieldName}[:：]\\s*([^\\n]+)`, 'i')
+      const match = content.match(regex)
+
+      if (match && match[1]) {
+        let value = match[1].trim()
+
+        // 特殊处理：将【1.极限】格式的内容转换为蓝色链接样式
+        value = value.replace(/【(\d+\.\S+?)】/g, '<span class="highlight-link">【$1】</span>')
+
+        // 特殊处理：将作业《xxx》格式的内容转换为蓝色链接样式
+        value = value.replace(/《([^》]+)》/g, '<span class="highlight-link">《$1》</span>')
+
+        // 特殊处理：将（ID: xxx）格式的内容转换为灰色
+        value = value.replace(/（ID[:：]\s*(\d+)）/g, '<span class="id-text">（ID: $1）</span>')
+
+        return value
+      }
+
+      return ''
     },
 
     formatTime(timeStr) {
@@ -350,6 +404,36 @@ export default {
     getStatusTagType(status) {
       const typeMap = { 'pending': 'danger', 'viewed': 'primary', 'completed': 'success', 'expired': 'info' }
       return typeMap[status] || 'info'
+    },
+
+    // 格式化知识点名称（优先使用relatedKpNames）
+    formatKpNames(item) {
+      if (item && item.relatedKpNames) {
+        const names = item.relatedKpNames.split(',').map(n => n.trim())
+        if (names.length > 3) {
+          return names.slice(0, 3).join('、') + '...'
+        }
+        return names.join('、')
+      }
+      if (item && item.relatedKpIds) {
+        const ids = item.relatedKpIds.split(',').map(id => id.trim())
+        if (ids.length > 3) {
+          return ids.slice(0, 3).map(id => `知识点${id}`).join('、') + '...'
+        }
+        return ids.map(id => `知识点${id}`).join('、')
+      }
+      return '暂无关联'
+    },
+
+    // 获取推荐动作文本
+    getRecommendActionText(type) {
+      const actionMap = {
+        'video': '观看视频学习',
+        'exercise': '习题训练',
+        'resource': '资料补充学习',
+        'kp_review': '知识点复盘巩固'
+      }
+      return actionMap[type] || '个性化提升'
     },
 
     formatKpIds(kpIdsStr, item) {
@@ -417,6 +501,48 @@ export default {
   font-size: 14px;
   color: #555; /* 字体颜色稍微加深 */
   line-height: 1.8; /* 增加行高，阅读更舒适 */
+}
+
+/* 结构化内容样式 */
+.structured-content {
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.content-row {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.content-row:last-child {
+  margin-bottom: 0;
+}
+
+.field-label {
+  font-weight: 600;
+  color: #303133;
+  min-width: 100px;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.field-value {
+  color: #606266;
+  flex: 1;
+  word-break: break-word;
+}
+
+/* 高亮链接样式（蓝色） */
+::v-deep .highlight-link {
+  color: #409EFF;
+  font-weight: 500;
+}
+
+/* ID文本样式（灰色） */
+::v-deep .id-text {
+  color: #909399;
+  font-size: 13px;
 }
 
 /* 关键：美化 Label Strong 样式 */
