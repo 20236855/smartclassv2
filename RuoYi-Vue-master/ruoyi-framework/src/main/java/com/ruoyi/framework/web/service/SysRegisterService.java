@@ -52,12 +52,17 @@ public class SysRegisterService
     @Autowired
     private SysUserRoleMapper sysUserRoleMapper;
 
+    @Autowired
+    private EmailService emailService;
+
     /**
      * 注册
      */
     public String register(RegisterBody registerBody)
     {
         String msg = "", username = registerBody.getUsername(), password = registerBody.getPassword();
+        String email = registerBody.getEmail();
+        String emailCode = registerBody.getEmailCode();
         SysUser sysUser = new SysUser();
         sysUser.setUserName(username);
 
@@ -68,7 +73,20 @@ public class SysRegisterService
             validateCaptcha(username, registerBody.getCode(), registerBody.getUuid());
         }
 
-        if (StringUtils.isEmpty(username))
+        // 验证邮箱验证码（必填）
+        if (StringUtils.isEmpty(email))
+        {
+            msg = "邮箱不能为空";
+        }
+        else if (StringUtils.isEmpty(emailCode))
+        {
+            msg = "邮箱验证码不能为空";
+        }
+        else if (!emailService.verifyCode(email, emailCode))
+        {
+            msg = "邮箱验证码错误或已过期";
+        }
+        else if (StringUtils.isEmpty(username))
         {
             msg = "用户名不能为空";
         }
@@ -93,6 +111,7 @@ public class SysRegisterService
         else
         {
             sysUser.setNickName(username);
+            sysUser.setEmail(email);
             sysUser.setPwdUpdateDate(DateUtils.getNowDate());
             sysUser.setPassword(SecurityUtils.encryptPassword(password));
             boolean regFlag = userService.registerUser(sysUser);

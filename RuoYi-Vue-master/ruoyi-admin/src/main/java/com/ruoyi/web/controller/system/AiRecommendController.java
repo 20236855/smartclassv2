@@ -32,8 +32,8 @@ public class AiRecommendController extends BaseController {
 
     /**
      * 获取AI个性化推荐结果（核心接口，已优化响应体积）
+     * 所有登录用户（包括学生）都可以访问
      */
-    @PreAuthorize("@ss.hasPermi('system:ai:recommend')")
     @Log(title = "AI个性化推荐", businessType = BusinessType.OTHER)
     @GetMapping("/getResult")
     @ApiOperation(value = "获取个性化推荐", notes = "传入学生ID和课程ID，返回含大模型推荐的报告")

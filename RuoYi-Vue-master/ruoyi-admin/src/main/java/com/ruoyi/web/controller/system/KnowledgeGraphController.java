@@ -83,9 +83,8 @@ public class KnowledgeGraphController extends BaseController
 
 
     /**
-     * 查询知识图谱列表
+     * 查询知识图谱列表（所有登录用户都可以访问）
      */
-    @PreAuthorize("@ss.hasPermi('system:graph:list')")
     @GetMapping("/list")
     public TableDataInfo list(KnowledgeGraph knowledgeGraph)
     {
@@ -108,9 +107,8 @@ public class KnowledgeGraphController extends BaseController
     }
 
     /**
-     * 获取知识图谱详细信息
+     * 获取知识图谱详细信息（所有登录用户都可以访问）
      */
-    @PreAuthorize("@ss.hasPermi('system:graph:query')")
     @GetMapping(value = "/{id}")
     public AjaxResult getInfo(@PathVariable("id") Long id)
     {

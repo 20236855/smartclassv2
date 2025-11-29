@@ -60,6 +60,18 @@ export function getCodeImg() {
   })
 }
 
+// 发送邮箱验证码
+export function sendEmailCode(email) {
+  return request({
+    url: '/sendEmailCode',
+    headers: {
+      isToken: false
+    },
+    method: 'post',
+    params: { email }
+  })
+}
+
 // 验证用户同步状态
 export function verifySyncStatus(username) {
   return request({
@@ -69,5 +81,41 @@ export function verifySyncStatus(username) {
     },
     method: 'get',
     params: { username }
+  })
+}
+
+// 通过邮箱查询用户
+export function getUserByEmail(email) {
+  return request({
+    url: '/getUserByEmail',
+    headers: {
+      isToken: false
+    },
+    method: 'get',
+    params: { email }
+  })
+}
+
+// 发送重置密码验证码
+export function sendResetPwdCode(email) {
+  return request({
+    url: '/sendResetPwdCode',
+    headers: {
+      isToken: false
+    },
+    method: 'post',
+    params: { email }
+  })
+}
+
+// 通过邮箱验证码重置密码
+export function resetPwdByEmail(data) {
+  return request({
+    url: '/resetPwdByEmail',
+    headers: {
+      isToken: false
+    },
+    method: 'post',
+    data: data
   })
 }

@@ -675,7 +675,7 @@
 </template>
 
 <script>
-import { listAssignment, getAssignment, delAssignment, addAssignment, updateAssignment, getAssignmentQuestions } from "@/api/system/assignment"
+import { listAssignment, getAssignment, delAssignment, addAssignment, updateAssignment, getAssignmentQuestions, submitAssignment, uploadAssignment, getMySubmissions } from "@/api/system/assignment"
 
 export default {
   name: "Assignment",
@@ -814,6 +814,7 @@ export default {
   },
   created() {
     this.getList()
+    this.loadMySubmissions()
   },
   methods: {
     /** 查询作业或考试列表 */
@@ -1093,7 +1094,27 @@ export default {
       }
       return "danger"
     },
-    // 学生端：提交作业（演示用，仅前端状态）
+    // 加载当前学生的已提交作业记录
+    loadMySubmissions() {
+      getMySubmissions().then(response => {
+        const submissions = response.data || []
+        // 将提交记录转换为 Map，key 为 assignmentId
+        this.submittedAssignmentMap = {}
+        submissions.forEach(item => {
+          if (item.assignmentId) {
+            this.$set(this.submittedAssignmentMap, item.assignmentId, {
+              status: item.status,
+              score: item.score,
+              submitTime: item.submitTime
+            })
+          }
+        })
+        console.log('已加载提交记录:', this.submittedAssignmentMap)
+      }).catch(error => {
+        console.error('加载提交记录失败:', error)
+      })
+    },
+    // 学生端：提交作业
     handleSubmitAssignment() {
       // 答题型作业
       if (this.currentAssignment && this.currentAssignment.mode === 'question') {
@@ -1117,16 +1138,36 @@ export default {
           this.$modal.msgError("请先上传作业文件")
           return
         }
-        if (this.currentAssignment && this.currentAssignment.id != null) {
-          this.$set(this.submittedAssignmentMap, this.currentAssignment.id, true)
-        }
-        this.$modal.msgSuccess("提交成功")
-        this.submitDialogVisible = false
+        this.submitUploadAssignment()
       }
     },
-    // 学生端：提交答案
+    // 学生端：提交上传型作业
+    submitUploadAssignment() {
+      this.submitting = true
+      const assignmentId = this.currentAssignment.id
+
+      uploadAssignment(assignmentId, {
+        files: this.studentSubmitForm.files,
+        remark: this.studentSubmitForm.remark
+      }).then(response => {
+        // 更新本地状态
+        this.$set(this.submittedAssignmentMap, assignmentId, {
+          status: 1,
+          submitTime: new Date().toISOString()
+        })
+        this.$modal.msgSuccess("提交成功！")
+        this.submitting = false
+        this.submitDialogVisible = false
+      }).catch(error => {
+        console.error('提交失败:', error)
+        this.$modal.msgError("提交失败，请稍后重试")
+        this.submitting = false
+      })
+    },
+    // 学生端：提交答案（答题型作业）
     submitAnswers() {
       this.submitting = true
+      const assignmentId = this.currentAssignment.id
 
       // 格式化答案数据
       const answers = Object.keys(this.studentAnswers).map(questionId => {
@@ -1141,23 +1182,23 @@ export default {
         }
       })
 
-      console.log('提交答案:', {
-        assignmentId: this.currentAssignment.id,
-        answers: answers
-      })
+      console.log('提交答案:', { assignmentId, answers })
 
-      // TODO: 调用后端API提交答案
-      // submitAssignmentAnswers(this.currentAssignment.id, answers).then(response => {...})
-
-      // 模拟提交
-      setTimeout(() => {
-        if (this.currentAssignment && this.currentAssignment.id != null) {
-          this.$set(this.submittedAssignmentMap, this.currentAssignment.id, true)
-        }
+      // 调用后端API提交答案
+      submitAssignment(assignmentId, { answers }).then(response => {
+        // 更新本地状态
+        this.$set(this.submittedAssignmentMap, assignmentId, {
+          status: 1,
+          submitTime: new Date().toISOString()
+        })
         this.$modal.msgSuccess("提交成功！")
         this.submitting = false
         this.submitDialogVisible = false
-      }, 1000)
+      }).catch(error => {
+        console.error('提交失败:', error)
+        this.$modal.msgError("提交失败，请稍后重试")
+        this.submitting = false
+      })
     },
     // 获取题型标签类型
     getQuestionTypeTag(type) {

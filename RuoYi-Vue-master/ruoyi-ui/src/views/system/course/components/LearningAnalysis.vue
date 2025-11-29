@@ -410,7 +410,7 @@ export default {
   name: 'LearningAnalysis',
   props: {
     courseId: {
-      type: Number,
+      type: [Number, String],
       required: true
     }
   },
@@ -490,7 +490,7 @@ export default {
       this.radarLoading = true
       getRadarData({
         studentId: this.studentId,
-        courseId: this.courseId
+        courseId: Number(this.courseId)
       }).then(response => {
         this.radarData = response.data || []
         this.$nextTick(() => {
@@ -570,7 +570,7 @@ export default {
 
       getRecommendResult({
         studentUserId: this.studentId,
-        courseId: this.courseId
+        courseId: Number(this.courseId)
       }).then(response => {
         setTimeout(() => {
           if (response && response.data) {
@@ -747,7 +747,7 @@ export default {
       this.twinLoading = true
       calculateDigitalTwin({
         studentId: this.studentId,  // 后端接收参数名是 studentId
-        courseId: this.courseId
+        courseId: Number(this.courseId)
       }).then(response => {
         console.log('数字分身数据:', response)
         this.digitalTwinResult = response.data

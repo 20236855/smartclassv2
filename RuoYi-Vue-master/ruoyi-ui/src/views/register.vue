@@ -10,9 +10,26 @@
           </el-input>
         </el-form-item>
         <el-form-item prop="email">
-          <el-input v-model="registerForm.email" type="text" auto-complete="off" placeholder="邮箱（选填）">
+          <el-input v-model="registerForm.email" type="text" auto-complete="off" placeholder="邮箱">
             <svg-icon slot="prefix" icon-class="email" class="el-input__icon input-icon" />
           </el-input>
+        </el-form-item>
+        <el-form-item prop="emailCode">
+          <el-input
+            v-model="registerForm.emailCode"
+            auto-complete="off"
+            placeholder="邮箱验证码"
+            style="width: 63%"
+          >
+            <svg-icon slot="prefix" icon-class="validCode" class="el-input__icon input-icon" />
+          </el-input>
+          <el-button
+            class="email-code-btn"
+            :disabled="emailCodeDisabled"
+            @click="sendEmailCode"
+          >
+            {{ emailCodeText }}
+          </el-button>
         </el-form-item>
         <el-form-item prop="password">
           <el-input
@@ -40,7 +57,7 @@
           <el-input
             v-model="registerForm.code"
             auto-complete="off"
-            placeholder="验证码"
+            placeholder="图形验证码"
             style="width: 63%"
             @keyup.enter.native="handleRegister"
           >
@@ -84,7 +101,7 @@
 </template>
 
 <script>
-import { getCodeImg, register, verifySyncStatus } from "@/api/login"
+import { getCodeImg, register, verifySyncStatus, sendEmailCode } from "@/api/login"
 import registerImage from '@/assets/images/picture1.png'
 
 export default {
@@ -103,9 +120,13 @@ export default {
       codeUrl: "",
       particles: [],
       animationId: null,
+      emailCodeDisabled: false,
+      emailCodeText: "获取验证码",
+      emailCodeTimer: null,
       registerForm: {
         username: "",
         email: "",
+        emailCode: "",
         password: "",
         confirmPassword: "",
         code: "",
@@ -117,7 +138,11 @@ export default {
           { min: 2, max: 20, message: '用户账号长度必须介于 2 和 20 之间', trigger: 'blur' }
         ],
         email: [
-          { type: 'email', message: '请输入正确的邮箱地址', trigger: ['blur', 'change'] }
+          { required: true, trigger: "blur", message: "请输入您的邮箱" },
+          { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+        ],
+        emailCode: [
+          { required: true, trigger: "blur", message: "请输入邮箱验证码" }
         ],
         password: [
           { required: true, trigger: "blur", message: "请输入您的密码" },
@@ -128,7 +153,7 @@ export default {
           { required: true, trigger: "blur", message: "请再次输入您的密码" },
           { required: true, validator: equalToPassword, trigger: "blur" }
         ],
-        code: [{ required: true, trigger: "change", message: "请输入验证码" }]
+        code: [{ required: true, trigger: "change", message: "请输入图形验证码" }]
       },
       loading: false,
       captchaEnabled: true
@@ -141,11 +166,51 @@ export default {
     if (this.animationId) {
       cancelAnimationFrame(this.animationId)
     }
+    if (this.emailCodeTimer) {
+      clearInterval(this.emailCodeTimer)
+    }
   },
   created() {
     this.getCode()
   },
   methods: {
+    // 发送邮箱验证码
+    sendEmailCode() {
+      // 先验证邮箱格式
+      this.$refs.registerForm.validateField('email', (errorMsg) => {
+        if (errorMsg) {
+          return
+        }
+        if (!this.registerForm.email) {
+          this.$message.error('请输入邮箱')
+          return
+        }
+        // 发送验证码
+        sendEmailCode(this.registerForm.email).then(res => {
+          this.$message.success('验证码已发送到您的邮箱，请注意查收')
+          // 开始倒计时
+          this.startCountdown()
+        }).catch(err => {
+          this.$message.error(err.msg || '发送失败，请稍后重试')
+        })
+      })
+    },
+    // 倒计时
+    startCountdown() {
+      let seconds = 60
+      this.emailCodeDisabled = true
+      this.emailCodeText = `${seconds}秒后重试`
+      this.emailCodeTimer = setInterval(() => {
+        seconds--
+        if (seconds <= 0) {
+          clearInterval(this.emailCodeTimer)
+          this.emailCodeDisabled = false
+          this.emailCodeText = '获取验证码'
+        } else {
+          this.emailCodeText = `${seconds}秒后重试`
+        }
+      }, 1000)
+    },
     initParticles() {
       const canvas = this.$refs.particleCanvas
       if (!canvas) return
@@ -462,6 +527,31 @@ export default {
     &:hover {
       border-color: #2563eb;
     }
+  }
+}
+
+.email-code-btn {
+  width: 35%;
+  height: 48px;
+  float: right;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #001d5c;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background: #283666;
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    background: #a0a5b0;
+    color: #ffffff;
+    cursor: not-allowed;
+    opacity: 1;
   }
 }
 

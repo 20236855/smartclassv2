@@ -110,7 +110,7 @@ public class SysUserServiceImpl implements ISysUserService
 
     /**
      * 通过用户名查询用户
-     * 
+     *
      * @param userName 用户名
      * @return 用户对象信息
      */
@@ -118,6 +118,18 @@ public class SysUserServiceImpl implements ISysUserService
     public SysUser selectUserByUserName(String userName)
     {
         return userMapper.selectUserByUserName(userName);
+    }
+
+    /**
+     * 通过邮箱查询用户
+     *
+     * @param email 邮箱
+     * @return 用户对象信息
+     */
+    @Override
+    public SysUser selectUserByEmail(String email)
+    {
+        return userMapper.selectUserByEmail(email);
     }
 
     /**
