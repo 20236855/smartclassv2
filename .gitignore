@@ -1,0 +1,28 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+
+# Maven
+target/
+*.versionsBackup
+
+# Log files
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules
+node_modules/
+dist/
+
+# Python
+*.pyc
+__pycache__/
+*.py[cod]
+venv/
+.env

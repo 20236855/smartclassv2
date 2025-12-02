@@ -136,4 +136,15 @@ public class SectionController extends BaseController
         }
         return error("关联知识点失败");
     }
+    
+    /**
+     * 获取课时燃尽图数据
+     * 统计教师所有课程的小节数量和上课时间
+     */
+    @GetMapping("/burndown")
+    public AjaxResult getBurndownData()
+    {
+        Map<String, Object> data = sectionService.getBurndownChartData();
+        return success(data);
+    }
 }

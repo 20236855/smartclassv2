@@ -1,6 +1,7 @@
 package com.ruoyi.system.service;
 
 import java.util.List;
+import java.util.Map;
 import com.ruoyi.system.domain.Section;
 
 /**
@@ -73,4 +74,12 @@ public interface ISectionService
      * @return 小节信息
      */
     public Section selectSectionByVideoUrl(String videoUrl);
+    
+    /**
+     * 获取课时燃尽图数据
+     * 统计教师所有课程的小节数量和上课时间
+     *
+     * @return 燃尽图数据
+     */
+    public Map<String, Object> getBurndownChartData();
 }

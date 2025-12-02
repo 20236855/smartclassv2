@@ -489,7 +489,7 @@
 </template>
 
 <script>
-import { analyzeFileOnlyRenwu3, saveResourceRenwu3, confirmKnowledgePointsRenwu3, chatWithAIRenwu3, delResourceRenwu3 } from '@/api/system/courseResourceRenwu3'
+import { analyzeFileOnlyRenwu3, uploadAndAnalyzeRenwu3, saveResourceRenwu3, confirmKnowledgePointsRenwu3, chatWithAIRenwu3, delResourceRenwu3 } from '@/api/system/courseResourceRenwu3'
 import { listCourse } from '@/api/course/course'
 import { listKnowledgePointByCourse, addKnowledgePoint, batchAddKnowledgePoints } from '@/api/course/knowledgePoint'
 import { listChapterByCourse } from '@/api/course/chapter'
@@ -1111,35 +1111,74 @@ export default {
       }
       
       try {
-        // 如果是新分析的资源（还未保存到数据库）
-        if (this.tempResourceInfo && !this.currentResourceId) {
+        // 如果有文件但还未保存到数据库，则保存资源
+        if (!this.currentResourceId && this.selectedFile) {
           // 第一步：保存资源到数据库
-          const saveResponse = await saveResourceRenwu3({
-            courseId: this.uploadForm.courseId,
-            fileName: this.tempResourceInfo.fileName,
-            fileType: this.tempResourceInfo.fileType,
-            fileSize: this.tempResourceInfo.fileSize,
-            filePath: this.tempResourceInfo.filePath,
-            description: this.tempResourceInfo.description
-          })
-          
-          console.log('保存资源响应:', saveResponse) // 调试日志
-          
-          if (saveResponse.code !== 200) {
-            this.$message.error('保存资源失败')
-            return
+          // 如果有智能分析的临时信息就用，否则手动构建
+          let resourceData
+          if (this.tempResourceInfo) {
+            // 使用智能分析后的临时信息
+            resourceData = {
+              courseId: this.uploadForm.courseId,
+              fileName: this.tempResourceInfo.fileName,
+              fileType: this.tempResourceInfo.fileType,
+              fileSize: this.tempResourceInfo.fileSize,
+              filePath: this.tempResourceInfo.filePath,
+              description: this.uploadForm.description || this.tempResourceInfo.description || ''
+            }
+          } else {
+            // 手动匹配的情况：先上传文件
+            const formData = new FormData()
+            formData.append('file', this.selectedFile)
+            formData.append('courseId', this.uploadForm.courseId)
+            formData.append('courseTitle', this.uploadForm.courseTitle)
+            if (this.uploadForm.description) {
+              formData.append('description', this.uploadForm.description)
+            }
+            
+            this.$message.info('正在上传文件...')
+            const uploadResponse = await uploadAndAnalyzeRenwu3(formData)
+            
+            if (uploadResponse.code !== 200) {
+              this.$message.error('文件上传失败')
+              return
+            }
+            
+            // 获取上传后的资源信息
+            const uploadedResource = uploadResponse.resource || uploadResponse.data?.resource
+            if (!uploadedResource) {
+              this.$message.error('上传成功但获取资源信息失败')
+              return
+            }
+            
+            this.currentResourceId = uploadedResource.id
+            console.log('手动上传资源已保存，ID:', this.currentResourceId)
+            
+            // 直接跳到关联知识点步骤
+            // 不需要再调用saveResourceRenwu3，因为uploadAndAnalyzeRenwu3已经保存了
           }
           
-          // 获取保存的资源ID（处理不同的响应结构）
-          const resource = saveResponse.resource || (saveResponse.data && saveResponse.data.resource)
-          if (!resource || !resource.id) {
-            console.error('无法获取资源ID:', saveResponse)
-            this.$message.error('保存成功但获取资源ID失败')
-            return
+          // 如果是智能分析后的资源（有tempResourceInfo），调用saveResourceRenwu3
+          if (resourceData && !this.currentResourceId) {
+            const saveResponse = await saveResourceRenwu3(resourceData)
+            
+            console.log('保存资源响应:', saveResponse)
+            
+            if (saveResponse.code !== 200) {
+              this.$message.error('保存资源失败: ' + (saveResponse.msg || ''))
+              return
+            }
+            
+            const resource = saveResponse.resource || (saveResponse.data && saveResponse.data.resource)
+            if (!resource || !resource.id) {
+              console.error('无法获取资源ID:', saveResponse)
+              this.$message.error('保存成功但获取资源ID失败')
+              return
+            }
+            
+            this.currentResourceId = resource.id
+            console.log('资源已保存，ID:', this.currentResourceId)
           }
-          
-          this.currentResourceId = resource.id
-          console.log('资源已保存，ID:', this.currentResourceId)
         }
         
         // 第二步：如果有资源ID，将资源关联到课程资源知识点表

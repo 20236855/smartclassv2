@@ -1,6 +1,13 @@
 <template>
   <div>
-    <el-dialog :visible="visible" @open="onOpen" @close="onClose" :title="editData ? '修改考试' : '添加考试'" append-to-body :width="dialogWidth">
+    <el-dialog 
+      :visible.sync="dialogVisible" 
+      @open="onOpen" 
+      @close="handleDialogClose" 
+      :title="editData ? '修改考试' : '添加考试'" 
+      append-to-body 
+      :width="dialogWidth"
+    >
       <el-form ref="elForm" :model="formData" :rules="rules" size="small" label-width="100px">
         <el-form-item label="考试标题" prop="field101">
           <el-input v-model="formData.field101" placeholder="请输入考试标题" clearable :style="{width: '100%'}">
@@ -35,7 +42,7 @@
           <el-input-number v-model="formData.field112" placeholder="总分"></el-input-number>
         </el-form-item>
         <el-form-item label="开始组卷" prop="field113">
-          <el-button type="primary" icon="el-icon-search" size="medium"> 主要按钮 </el-button>
+          <el-button type="primary" icon="el-icon-magic-stick" size="medium" @click="handleStartSmartPaper">主要组卷</el-button>
         </el-form-item>
       </el-form>
       <div slot="footer">
@@ -43,16 +50,28 @@
         <el-button type="primary" @click="handleConfirm">确定</el-button>
       </div>
     </el-dialog>
+
+    <!-- AI智能组卷对话框 -->
+    <smart-paper-dialog
+      :visible.sync="smartPaperVisible"
+      :course-id="formData.field105"
+      :pre-filled-exam-data="preFilledExamData"
+      :append-to-body="true"
+      @paper-published="handlePaperPublished"
+    />
   </div>
 </template>
 <script>
 import { listCourse } from "@/api/course/course"
 import { mapState } from "vuex"
 import { getToken } from "@/utils/auth"
+import SmartPaperDialog from "@/components/SmartFeatures/SmartPaperDialog.vue"
 
 export default {
   inheritAttrs: false,
-  components: {},
+  components: {
+    SmartPaperDialog
+  },
   props: {
     visible: {
       type: Boolean,
@@ -77,6 +96,7 @@ export default {
   },
   data() {
     return {
+      dialogVisible: false, // 内部对话框显示状态
       formData: {
         field101: undefined, // 考试标题
         field102: undefined, // 考试描述
@@ -123,6 +143,9 @@ export default {
       headers: {
         Authorization: "Bearer " + getToken()
       },
+      // AI智能组卷相关
+      smartPaperVisible: false,
+      preFilledExamData: null,
     }
   },
   computed: {
@@ -133,6 +156,8 @@ export default {
   watch: {
     visible: {
       handler(newVal) {
+        console.log('[exam.vue] visible变化:', newVal)
+        this.dialogVisible = newVal
         if (newVal) {
           this.loadCourses()
           // 如果隐藏课程选择且传入了courseId，自动设置
@@ -176,13 +201,18 @@ export default {
         this.$refs.courseSelect && this.$refs.courseSelect.showPicker()
       })
     },
-    onClose() {
+    handleDialogClose() {
+      // el-dialog的@close事件处理
+      this.dialogVisible = false
       // 关闭对话框时立即清空文件列表，避免再次打开时出现文件消失动画
       this.field111fileList = []
       this.uploadedFiles = []
       this.$refs['elForm'].resetFields()
-      this.editData = null
       this.$emit('close')
+    },
+    onClose() {
+      // 保留原有的onClose方法，以防有其他地方调用
+      this.handleDialogClose()
     },
     // 加载编辑数据到表单
     loadEditData() {
@@ -320,6 +350,50 @@ export default {
         console.error('加载课程失败:', error); // 调试信息
         this.$message.error('加载课程失败：' + (error.msg || '未知错误'))
       })
+    },
+    // 处理开始组卷按钮点击
+    handleStartSmartPaper() {
+      // 验证必填字段
+      if (!this.formData.field105) {
+        this.$message.warning('请先选择课程')
+        return
+      }
+      if (!this.formData.field101) {
+        this.$message.warning('请先输入考试标题')
+        return
+      }
+      if (!this.formData.field107) {
+        this.$message.warning('请先选择考试日期')
+        return
+      }
+      if (!this.formData.field109 || this.formData.field109.length !== 2) {
+        this.$message.warning('请先选择时间范围')
+        return
+      }
+      
+      // 准备预填充的考试数据
+      this.preFilledExamData = {
+        title: this.formData.field101,
+        description: this.formData.field102,
+        courseId: this.formData.field105,
+        examDate: this.formData.field107,
+        startTime: this.formData.field109[0],
+        endTime: this.formData.field109[1],
+        totalScore: this.formData.field112,
+        uploadedFiles: this.uploadedFiles
+      }
+      
+      // 打开智能组卷对话框
+      this.smartPaperVisible = true
+    },
+    // 处理组卷发布成功
+    handlePaperPublished(data) {
+      console.log('组卷发布成功:', data)
+      this.smartPaperVisible = false
+      // 关闭考试编辑对话框
+      this.close()
+      // 通知父组件刷新列表
+      this.$emit('submit', data)
     }
   }
 }

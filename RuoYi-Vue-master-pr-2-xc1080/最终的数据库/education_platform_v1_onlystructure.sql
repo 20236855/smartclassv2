@@ -872,6 +872,7 @@ CREATE TABLE `section` (
   `sort_order` int(11) NOT NULL DEFAULT '0' COMMENT '小节顺序，用于排序',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `class_time` datetime DEFAULT NULL COMMENT '上课时间',
   `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
   `delete_time` datetime DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,

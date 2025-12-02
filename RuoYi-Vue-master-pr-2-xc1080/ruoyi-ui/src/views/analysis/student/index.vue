@@ -453,48 +453,29 @@ export default {
       this.studentLoading = true
       this.studentError = ''
       try {
-        // 方案1: 优先尝试从RuoYi获取课程学生列表
-        try {
-          const response = await request({
-            url: '/system/class/student/list',
-            method: 'get',
-            params: { 
-              courseId: this.filters.courseId,
-              status: 1  // 只获取已批准的学生
-            }
-          })
-          
-          if (response.rows && response.rows.length > 0) {
-            // 从选课记录中提取学生信息
-            this.studentOptions = response.rows.map(enrollment => ({
-              id: enrollment.studentUserId,
-              name: enrollment.studentName || `学生${enrollment.studentUserId}`
-            }))
-            return
+        // 从RuoYi获取该课程的选课学生列表
+        const response = await request({
+          url: '/system/class/student/list',
+          method: 'get',
+          params: { 
+            courseId: this.filters.courseId,
+            status: 1  // 只获取已批准的学生
           }
-        } catch (e) {
-          console.warn("RuoYi课程学生API调用失败，尝试备用方案:", e)
-        }
+        })
         
-        // 方案2: 备用方案 - 从8083获取所有学生（无课程筛选）
-        const url = `${BASE_URL}/api/ai-grading/users?pageSize=1000`
-        const resp = await fetch(url)
-        const data = await resp.json()
-        
-        if (data.code === 200 || data.code === 0) {
-          const allUsers = data.data?.records || data.data || []
-          const students = allUsers.filter(u => u.role === 'STUDENT')
-          
-          this.studentOptions = students.map(u => ({
-            id: u.id,
-            name: u.realName || u.username || `学生${u.id}`
+        if (response.rows && response.rows.length > 0) {
+          // 从选课记录中提取学生信息
+          this.studentOptions = response.rows.map(enrollment => ({
+            id: enrollment.studentUserId,
+            name: enrollment.studentName || `学生${enrollment.studentUserId}`
           }))
         } else {
-          throw new Error(data.message || "获取学生列表失败")
+          // 课程没有学生，返回空列表
+          this.studentOptions = []
         }
       } catch (e) {
         console.error("Fetch students error:", e)
-        this.studentError = "获取学生列表失败，请检查网络"
+        this.studentError = "获取学生列表失败，请检查网络连接"
         this.studentOptions = []
       } finally {
         this.studentLoading = false

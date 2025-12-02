@@ -1117,10 +1117,16 @@ export default {
     },
     /** 新增按钮操作 */
     handleAdd() {
+      console.log('[exam/index] handleAdd被调用')
+      console.log('[exam/index] examOpen当前值:', this.examOpen)
       this.reset()
       // 直接显示考试弹窗
       this.examEditData = null
       this.examOpen = true
+      console.log('[exam/index] examOpen已设置为:', this.examOpen)
+      this.$nextTick(() => {
+        console.log('[exam/index] nextTick后examOpen值:', this.examOpen)
+      })
     },
     /** 修改按钮操作 */
     handleUpdate(row) {

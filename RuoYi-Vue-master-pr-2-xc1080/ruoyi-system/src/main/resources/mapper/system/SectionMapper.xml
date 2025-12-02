@@ -14,6 +14,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="sortOrder"    column="sort_order"   />
         <result property="createTime"   column="create_time"  />
         <result property="updateTime"   column="update_time"  />
+        <result property="classTime"    column="class_time"   />
         <result property="isDeleted"    column="is_deleted"   />
         <result property="deleteTime"   column="delete_time"  />
     </resultMap>
@@ -26,14 +27,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <sql id="selectSectionVo">
         select id, chapter_id, title, description, video_url, duration, sort_order,
-               create_time, update_time, is_deleted, delete_time
+               create_time, update_time, class_time, is_deleted, delete_time
         from section
     </sql>
 
     <!-- 带章节和课程信息的查询 -->
     <sql id="selectSectionWithChapterVo">
         select s.id, s.chapter_id, s.title, s.description, s.video_url, s.duration, s.sort_order,
-               s.create_time, s.update_time, s.is_deleted, s.delete_time,
+               s.create_time, s.update_time, s.class_time, s.is_deleted, s.delete_time,
                c.title as chapter_name, c.course_id
         from section s
         left join chapter c on s.chapter_id = c.id and c.is_deleted = 0
@@ -78,6 +79,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="videoUrl != null and videoUrl != ''">video_url, </if>
             <if test="duration != null">duration, </if>
             <if test="sortOrder != null">sort_order, </if>
+            <if test="classTime != null">class_time, </if>
             create_time,
             is_deleted
         )values(
@@ -87,6 +89,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="videoUrl != null and videoUrl != ''">#{videoUrl}, </if>
             <if test="duration != null">#{duration}, </if>
             <if test="sortOrder != null">#{sortOrder}, </if>
+            <if test="classTime != null">#{classTime}, </if>
             sysdate(),
             0
         )
@@ -100,6 +103,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="videoUrl != null">video_url = #{videoUrl}, </if>
             <if test="duration != null">duration = #{duration}, </if>
             <if test="sortOrder != null">sort_order = #{sortOrder}, </if>
+            <if test="classTime != null">class_time = #{classTime}, </if>
             update_time = sysdate()
         </set>
         where id = #{id} and is_deleted = 0

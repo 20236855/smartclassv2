@@ -1151,7 +1151,8 @@ export default {
         console.log('作业保存成功，响应:', JSON.stringify(response, null, 2))
         
         // 获取作业ID（新增时从响应中获取，修改时使用原ID）
-        const assignmentId = data.id || response.data?.id || response.id
+        // response.data 可能是ID数字，也可能是包含id的对象
+        const assignmentId = data.id || response.data?.id || response.data || response.id
         
         if (!assignmentId) {
           console.error('无法获取作业ID，response:', response)

@@ -82,7 +82,14 @@ public class AssignmentController extends BaseController
         Long userId = BusinessUserUtils.getCurrentBusinessUserId();
         assignment.setPublisherUserId(userId);
         
-        return toAjax(assignmentService.insertAssignment(assignment));
+        int result = assignmentService.insertAssignment(assignment);
+        if (result > 0) {
+            // 返回新增记录的ID
+            AjaxResult ajax = AjaxResult.success("操作成功");
+            ajax.put("data", assignment.getId());
+            return ajax;
+        }
+        return toAjax(result);
     }
 
     /**

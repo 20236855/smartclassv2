@@ -485,6 +485,7 @@ import { listAssignment } from "@/api/system/assignment";
 import { listAssignmentSubmission } from "@/api/system/assignmentSubmission";
 import { listEnrollment } from "@/api/system/enrollment";
 import { getTeacherProfile } from "@/api/system/teacher";
+import * as sectionApi from '@/api/course/section';
 import * as echarts from 'echarts';
 
 export default {
@@ -539,7 +540,10 @@ export default {
         department: '',
         title: '',
         specialty: ''
-      }
+      },
+      // 燃尽图数据相关
+      burndownDataLoading: false, // 燃尽图数据加载状态
+      realBurndownData: null // 真实燃尽图数据
     };
   },
   computed: {
@@ -598,7 +602,7 @@ export default {
   mounted() {
     this.$nextTick(() => {
       this.initActivityChart();
-      this.initBurndownChart();
+      this.loadRealBurndownData(); // 加载真实燃尽图数据
       this.initErrorKpChart();
     });
   },
@@ -1131,17 +1135,26 @@ export default {
         this.burndownChartInstance = null;
       }
       this.burndownChartInstance = echarts.init(this.$refs.burndownChart);
-      const days = [];
-      for (let i = 1; i <= 12; i++) {
-        days.push('第' + i + '天');
+      
+      // 如果真实数据还未加载，显示加载状态
+      if (!this.realBurndownData) {
+        this.burndownChartInstance.showLoading({
+          text: '加载中...',
+          color: '#409EFF',
+          textColor: '#000',
+          maskColor: 'rgba(255, 255, 255, 0.8)',
+          zlevel: 0
+        });
+        return;
       }
-      const totalHours = 260;
-      const idealData = [];
-      for (let i = 0; i <= 12; i++) {
-        idealData.push(Math.round(totalHours - (totalHours / 12) * i));
-      }
-      const actualData = [260, 245, 230, 210, 205, 180, 160, 115, null, null, null, null, null];
-      const forecastData = [null, null, null, null, null, null, null, 115, 85, 55, 25, 5, 0];
+
+      // 使用真实数据
+      const days = this.realBurndownData.days;
+      const totalHours = this.realBurndownData.totalHours;
+      const idealData = this.realBurndownData.idealData;
+      const actualData = this.realBurndownData.actualData;
+      const forecastData = this.realBurndownData.forecastData;
+
       const option = {
         tooltip: {
           trigger: 'axis',
@@ -1183,7 +1196,7 @@ export default {
           boundaryGap: false,
           axisLabel: {
             fontSize: 10,
-            interval: 1
+            interval: Math.max(0, Math.floor(days.length / 12))
           }
         },
         yAxis: {
@@ -1683,6 +1696,187 @@ export default {
     },
     getStudentName(submission) {
       return submission.studentName || submission.studentUserName || '未知学生';
+    },
+    // 切换燃尽图数据模式
+    async toggleBurndownData() {
+      if (!this.useRealBurndownData) {
+        // 切换到真实数据
+        if (!this.realBurndownData) {
+          // 首次加载真实数据
+          await this.loadRealBurndownData();
+        }
+        this.useRealBurndownData = true;
+      } else {
+        // 切换回模拟数据
+        this.useRealBurndownData = false;
+      }
+      // 重新渲染图表
+      this.initBurndownChart();
+    },
+    // 加载真实燃尽图数据
+    async loadRealBurndownData() {
+      this.burndownDataLoading = true;
+      try {
+        const response = await sectionApi.getBurndownChartData();
+        if (response.code === 200) {
+          const data = response.data;
+          
+          // 解析真实数据
+          const days = [];
+          const idealData = [];
+          const actualData = [];
+          const forecastData = [];
+          
+          const totalHours = data.totalSections || 0;
+          const timeline = data.timeline || [];
+          
+          if (timeline.length === 0 || totalHours === 0) {
+            this.$message.warning('暂无课时数据');
+            return;
+          }
+          
+          // 获取当前日期
+          const today = new Date();
+          const currentYear = today.getFullYear();
+          const currentMonth = today.getMonth() + 1;
+          const currentDay = today.getDate();
+          
+          // 找到当前日期在timeline中的位置
+          let currentDateIndex = -1;
+          
+          // 生成日期标签并处理数据
+          timeline.forEach((item, index) => {
+            const dateStr = item.date; // 格式: "MM-DD"
+            const [month, day] = dateStr.split('-').map(Number);
+            
+            days.push(dateStr);
+            
+            // 理想剩余课时：线性递减
+            const idealRemaining = Math.max(0, Math.round(totalHours - (totalHours / (timeline.length - 1)) * index));
+            idealData.push(idealRemaining);
+            
+            // 判断这个日期是否在当前日期之前或当天
+            // 考虑跨年情况：如果月份比当前月份小很多（如1月 vs 12月），可能是明年
+            let itemYear = currentYear;
+            if (currentMonth === 12 && month <= 2) {
+              // 当前12月，但数据是1-2月，认为是明年
+              itemYear = currentYear + 1;
+            } else if (currentMonth <= 2 && month >= 11) {
+              // 当前1-2月，但数据是11-12月，认为是去年
+              itemYear = currentYear - 1;
+            }
+            
+            const itemDate = new Date(itemYear, month - 1, day);
+            const todayDate = new Date(currentYear, currentMonth - 1, currentDay);
+            
+            // 实际剩余课时：只显示到当前日期
+            if (itemDate <= todayDate) {
+              actualData.push(item.remaining);
+              currentDateIndex = index; // 更新当前日期索引
+            } else {
+              actualData.push(null);
+            }
+          });
+          
+          // 计算预测剩余课时：从当前日期开始到结束
+          if (currentDateIndex >= 0 && currentDateIndex < timeline.length - 1) {
+            const currentValue = actualData[currentDateIndex];
+            
+            if (currentValue !== null && currentValue !== undefined) {
+              // 使用改进的预测算法：基于最近趋势 + 理想完成曲线混合
+              
+              // 1. 计算最近趋势（取最近3-5个点的平均速率，如果数据足够的话）
+              let recentRate = 0;
+              const recentWindow = Math.min(5, currentDateIndex + 1); // 最近5个点或所有已有点
+              const startIdx = Math.max(0, currentDateIndex - recentWindow + 1);
+              
+              if (startIdx < currentDateIndex) {
+                const recentStartValue = actualData[startIdx];
+                const recentCompleted = recentStartValue - currentValue;
+                const recentPoints = currentDateIndex - startIdx;
+                recentRate = recentPoints > 0 ? recentCompleted / recentPoints : 0;
+              }
+              
+              // 2. 计算整体平均速率
+              const completedHours = totalHours - currentValue;
+              const elapsedPoints = currentDateIndex + 1;
+              const overallRate = elapsedPoints > 0 ? completedHours / elapsedPoints : 0;
+              
+              // 3. 计算理想速率（剩余课时需要均匀分配到剩余时间点）
+              const remainingPoints = timeline.length - currentDateIndex - 1;
+              const idealRate = remainingPoints > 0 ? currentValue / remainingPoints : 0;
+              
+              // 4. 混合预测：近期趋势占40%，整体速率占30%，理想速率占30%
+              let predictedRate = recentRate * 0.4 + overallRate * 0.3 + idealRate * 0.3;
+              
+              // 5. 如果进度落后（当前实际值 > 理想值），加速预测
+              const currentIdealValue = idealData[currentDateIndex];
+              if (currentValue > currentIdealValue * 1.1) {
+                // 落后超过10%，需要加速，增加预测速率
+                predictedRate = predictedRate * 1.2;
+              } else if (currentValue < currentIdealValue * 0.9) {
+                // 超前超过10%，可能会放缓，降低预测速率
+                predictedRate = predictedRate * 0.9;
+              }
+              
+              // 6. 生成预测曲线（带轻微加速效应，模拟期末冲刺）
+              for (let i = 0; i < timeline.length; i++) {
+                if (i < currentDateIndex) {
+                  forecastData.push(null);
+                } else if (i === currentDateIndex) {
+                  forecastData.push(currentValue);
+                } else {
+                  const pointsFromCurrent = i - currentDateIndex;
+                  const remainingFromI = timeline.length - i;
+                  
+                  // 越接近结束，加速因子越大（模拟期末冲刺，最多加速20%）
+                  const accelerationFactor = 1 + (0.2 * (1 - remainingFromI / remainingPoints));
+                  const adjustedRate = predictedRate * accelerationFactor;
+                  
+                  let predicted = currentValue - adjustedRate * pointsFromCurrent;
+                  
+                  // 确保预测曲线不会低于0，也不会高于当前值
+                  predicted = Math.max(0, Math.min(currentValue, Math.round(predicted)));
+                  
+                  // 确保最后一个点接近0（课程应该完成）
+                  if (i === timeline.length - 1 && predicted > totalHours * 0.1) {
+                    predicted = Math.round(totalHours * 0.05); // 最后保留5%左右
+                  }
+                  
+                  forecastData.push(predicted);
+                }
+              }
+            } else {
+              forecastData.push(...new Array(timeline.length).fill(null));
+            }
+          } else {
+            // 没有预测数据或已到达最后一个点
+            forecastData.push(...new Array(timeline.length).fill(null));
+          }
+          
+          this.realBurndownData = {
+            days,
+            totalHours,
+            idealData,
+            actualData,
+            forecastData
+          };
+          
+          this.$message.success('真实数据加载成功');
+          
+          // 加载完成后初始化图表
+          this.$nextTick(() => {
+            this.initBurndownChart();
+          });
+        } else {
+          this.$message.error(response.msg || '加载真实数据失败');
+        }
+      } catch (error) {
+        console.error('加载燃尽图真实数据失败:', error);
+        this.$message.error('加载真实数据失败');
+      } finally {
+        this.burndownDataLoading = false;
+      }
     },
     // AI助手功能处理
     handleAiFeature(type) {
