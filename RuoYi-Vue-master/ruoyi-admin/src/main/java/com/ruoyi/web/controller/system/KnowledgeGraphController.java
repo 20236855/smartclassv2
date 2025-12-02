@@ -36,8 +36,8 @@ public class KnowledgeGraphController extends BaseController
 
     /**
      * 为指定课程生成知识图谱（触发抽取任务）
+     * 已移除权限限制，所有登录用户（包括学生）都可以生成知识图谱
      */
-    @PreAuthorize("@ss.hasPermi('system:graph:generate')")
     @PostMapping("/extract/course/{courseId}")
     public AjaxResult extractCourseGraph(@PathVariable("courseId") Long courseId)
     {
@@ -48,8 +48,8 @@ public class KnowledgeGraphController extends BaseController
 
     /**
      * 同步触发为指定课程生成知识图谱并返回新创建的图谱（仅用于本地调试/测试）
+     * 已移除权限限制，所有登录用户（包括学生）都可以生成知识图谱
      */
-    @PreAuthorize("@ss.hasPermi('system:graph:generate')")
     @PostMapping("/extract/course/{courseId}/sync")
     public AjaxResult extractCourseGraphSync(@PathVariable("courseId") Long courseId)
     {
@@ -69,8 +69,8 @@ public class KnowledgeGraphController extends BaseController
 
     /**
      * 为指定章节生成知识图谱（从题库抽取知识点和关系）
+     * 已移除权限限制，所有登录用户（包括学生）都可以生成知识图谱
      */
-    @PreAuthorize("@ss.hasPermi('system:graph:generate')")
     @PostMapping("/extract/chapter/{courseId}/{chapterId}")
     public AjaxResult extractChapterGraph(@PathVariable("courseId") Long courseId,
                                           @PathVariable("chapterId") Long chapterId)

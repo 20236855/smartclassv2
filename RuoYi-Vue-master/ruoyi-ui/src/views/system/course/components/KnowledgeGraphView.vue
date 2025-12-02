@@ -1,7 +1,7 @@
 <template>
-  <div class="knowledge-graph-container">
+  <div class="knowledge-graph-container" :class="{ 'fullscreen-mode': isFullscreen }">
     <!-- 控制面板 -->
-    <el-card class="control-panel" shadow="never">
+    <el-card class="control-panel" shadow="never" v-if="!isFullscreen">
       <el-row :gutter="20" type="flex" align="middle">
         <el-col :span="6">
           <el-select v-model="selectedGraphType" placeholder="选择图谱类型" @change="handleTypeChange" class="graph-select">
@@ -31,11 +31,59 @@
     </el-card>
 
     <!-- 图谱可视化区域 -->
-    <el-card class="graph-card" shadow="hover">
-      <div ref="chart" class="knowledge-graph-chart" v-loading="loading"></div>
+    <el-card class="graph-card" :class="{ 'fullscreen': isFullscreen }" shadow="hover">
+      <!-- 全屏按钮 -->
+      <div class="fullscreen-btn" @click="toggleFullscreen" v-if="graphInfo">
+        <i :class="isFullscreen ? 'el-icon-close' : 'el-icon-full-screen'"></i>
+        <span>{{ isFullscreen ? '退出全屏' : '全屏查看' }}</span>
+      </div>
+
+      <!-- 缩放控制按钮 -->
+      <div class="zoom-controls" v-if="graphInfo && !loading">
+        <el-button-group>
+          <el-button size="mini" icon="el-icon-plus" @click="zoomIn" title="放大"></el-button>
+          <el-button size="mini" icon="el-icon-minus" @click="zoomOut" title="缩小"></el-button>
+          <el-button size="mini" @click="resetZoom" title="重置">
+            <i class="el-icon-refresh-left"></i>
+          </el-button>
+        </el-button-group>
+      </div>
+
+      <!-- 统计信息面板（全屏时显示） -->
+      <div class="stats-panel" v-if="isFullscreen && graphInfo">
+        <div class="stat-item">
+          <i class="el-icon-connection"></i>
+          <div class="stat-content">
+            <div class="stat-value">{{ nodeCount }}</div>
+            <div class="stat-label">知识点</div>
+          </div>
+        </div>
+        <div class="stat-item">
+          <i class="el-icon-share"></i>
+          <div class="stat-content">
+            <div class="stat-value">{{ edgeCount }}</div>
+            <div class="stat-label">关系</div>
+          </div>
+        </div>
+        <div class="stat-item">
+          <i class="el-icon-zoom-in"></i>
+          <div class="stat-content">
+            <div class="stat-value">{{ Math.round(currentZoom * 100) }}%</div>
+            <div class="stat-label">缩放</div>
+          </div>
+        </div>
+      </div>
+
+      <div ref="chart" class="knowledge-graph-chart" v-loading="loading">
+        <!-- 操作提示 -->
+        <div class="operation-hint" v-if="graphInfo && !loading">
+          <i class="el-icon-info"></i>
+          <span>💡 操作提示：拖拽节点可移动 | 鼠标滚轮可缩放 | 点击节点查看详情 | 右上角可全屏查看</span>
+        </div>
+      </div>
 
       <!-- 空状态 -->
-      <div v-if="!graphInfo && !loading" class="empty-state">
+      <div v-if="!graphInfo && !loading && !isFullscreen" class="empty-state">
         <el-empty description="暂无知识图谱数据">
           <el-button type="primary" @click="handleGenerate">生成知识图谱</el-button>
         </el-empty>
@@ -43,48 +91,56 @@
     </el-card>
 
     <!-- 图例说明 -->
-    <div class="legend-bar">
-      <span class="legend-title">图例说明</span>
+    <div class="legend-bar" v-if="!isFullscreen">
+      <span class="legend-title">🔗 关系类型说明</span>
       <div class="legend-item">
         <div class="legend-edge prerequisite"></div>
-        <span>前置关系</span>
+        <span>🔵 前置关系</span>
       </div>
       <div class="legend-item">
         <div class="legend-edge similar"></div>
-        <span>相似关系</span>
+        <span>🟢 相似关系</span>
       </div>
       <div class="legend-item">
         <div class="legend-edge extension"></div>
-        <span>扩展关系</span>
+        <span>🟠 扩展关系</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-edge example"></div>
+        <span>🔴 示例关系</span>
       </div>
       <div class="legend-item">
         <div class="legend-edge related"></div>
-        <span>相关关系</span>
+        <span>🔷 相关关系</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-edge hierarchy"></div>
+        <span>⚪ 层级关系</span>
       </div>
     </div>
 
     <!-- 置信度说明 -->
-    <div class="confidence-legend">
-      <span class="legend-title">置信度说明</span>
+    <div class="confidence-legend" v-if="!isFullscreen">
+      <span class="legend-title">🎯 知识点颜色说明（按置信度区分）</span>
       <div class="confidence-desc">
         <i class="el-icon-info"></i>
-        <span>置信度表示AI对知识点识别的准确程度，数值越高表示越可靠</span>
+        <span>知识点节点颜色根据AI识别的置信度自动设置，置信度越高表示识别越准确</span>
       </div>
       <div class="confidence-levels">
         <div class="confidence-item">
           <div class="confidence-dot high"></div>
-          <span>高置信度 (≥70%)</span>
-          <span class="confidence-hint">知识点识别准确，可直接使用</span>
+          <span>🟢 高置信度 (≥70%)</span>
+          <span class="confidence-hint">识别准确，可直接使用</span>
         </div>
         <div class="confidence-item">
           <div class="confidence-dot medium"></div>
-          <span>中置信度 (40%-70%)</span>
-          <span class="confidence-hint">建议人工复核后使用</span>
+          <span>🟠 中置信度 (40%-70%)</span>
+          <span class="confidence-hint">建议人工复核</span>
         </div>
         <div class="confidence-item">
           <div class="confidence-dot low"></div>
-          <span>低置信度 (&lt;40%)</span>
-          <span class="confidence-hint">需要人工审核确认</span>
+          <span>🔴 低置信度 (&lt;40%)</span>
+          <span class="confidence-hint">需要人工审核</span>
         </div>
       </div>
     </div>
@@ -170,6 +226,7 @@ export default {
       selectedChapterId: null,
       chapterList: [],
       graphInfo: null,
+      currentGraphData: null, // 保存当前渲染的图谱数据（已解析的对象）
       nodeCount: 0,
       edgeCount: 0,
       nodeDialogVisible: false,
@@ -182,20 +239,27 @@ export default {
         nodeType: '',
         mastery: null,
         knowledgePoints: []
-      }
+      },
+      isFullscreen: false,
+      currentZoom: 1
     }
   },
   mounted() {
     this.initChart()
     this.loadChapters()
     this.loadGraph()
+    // 监听ESC键退出全屏
+    document.addEventListener('keydown', this.handleEscKey)
   },
   beforeDestroy() {
     if (this.chart) {
       this.chart.dispose()
       this.chart = null
     }
+    // 恢复body滚动
+    document.body.style.overflow = ''
     window.removeEventListener('resize', this.handleResize)
+    document.removeEventListener('keydown', this.handleEscKey)
   },
   methods: {
     initChart() {
@@ -282,6 +346,9 @@ export default {
           console.log('📊 边数量 (edges):', graphData.edges?.length || 0)
           console.log('📊 边数量 (links):', graphData.links?.length || 0)
           console.log('📊 章节ID:', graphData.chapterId)
+
+          // 保存当前图谱数据
+          this.currentGraphData = graphData
           this.renderGraph(graphData)
         } catch (e) {
           console.error('❌ 图谱数据解析失败:', e)
@@ -293,6 +360,11 @@ export default {
       })
     },
     async renderGraph(graphData) {
+      console.log('🎨 renderGraph 被调用')
+      console.log('🎨 graphData:', graphData)
+      console.log('🎨 chart 实例存在:', !!this.chart)
+      console.log('🎨 chart 容器存在:', !!this.$refs.chart)
+
       const nodes = graphData.nodes || []
       // 兼容 edges 和 links 两种字段名
       const edges = graphData.edges || graphData.links || []
@@ -326,7 +398,23 @@ export default {
         const nodeId = node.id
         const nodeType = node.nodeType || 'kp'
         const chapterIndex = node.chapterIndex || 0
-        const color = node.color || chapterColors[chapterIndex % chapterColors.length]
+        const confidence = node.confidence || 0
+
+        // 🔥 根据置信度确定颜色（仅对知识点节点）
+        let color
+        if (nodeType === 'kp' && confidence > 0) {
+          // 知识点根据置信度设置颜色
+          if (confidence >= 0.7) {
+            color = '#67C23A'  // 绿色 - 高置信度
+          } else if (confidence >= 0.4) {
+            color = '#E6A23C'  // 橙色 - 中置信度
+          } else {
+            color = '#F56C6C'  // 红色 - 低置信度
+          }
+        } else {
+          // 其他节点使用章节颜色
+          color = node.color || chapterColors[chapterIndex % chapterColors.length]
+        }
 
         // 根据节点类型设置样式
         let symbolSize = node.symbolSize || 22
@@ -354,10 +442,11 @@ export default {
           id: nodeId,
           name: nodeName,
           symbolSize: symbolSize,
+          _baseSymbolSize: symbolSize,  // 保存基础大小用于缩放
           value: node.category || chapterIndex,
           category: node.category !== undefined ? node.category : chapterIndex,
           itemStyle: {
-            color: nodeType === 'course' ? '#303133' : color,
+            color: nodeType === 'course' ? '#67C23A' : color,  // 🔥 课程节点使用绿色，其他节点根据置信度或章节
             borderColor: '#fff',
             borderWidth: nodeType === 'course' ? 4 : 2,
             shadowBlur: nodeType === 'course' ? 15 : 6,
@@ -368,9 +457,10 @@ export default {
             formatter: nodeName,
             fontSize: fontSize,
             fontWeight: fontWeight,
-            color: nodeType === 'course' ? '#fff' : '#333',
+            color: '#333',  // 🔥 所有节点文字都使用黑色
             position: labelPosition,
-            distance: 5
+            distance: 5,
+            _baseFontSize: fontSize  // 保存基础字体大小用于缩放
           },
           emphasis: {
             itemStyle: { borderWidth: 3, shadowBlur: 12 },
@@ -381,6 +471,30 @@ export default {
       })
 
       console.log('📊 边数据:', edges.length > 0 ? edges[0] : 'N/A', '边总数:', edges.length)
+
+      // 创建节点ID到颜色的映射
+      const nodeColorMap = {}
+      nodes.forEach(node => {
+        const nodeType = node.nodeType || 'kp'
+        const chapterIndex = node.chapterIndex || 0
+        const confidence = node.confidence || 0
+
+        let color
+        // 根据节点类型和置信度确定颜色
+        if (nodeType === 'course') {
+          color = '#67C23A'  // 课程节点绿色
+        } else if (nodeType === 'kp' && confidence > 0) {
+          // 知识点根据置信度
+          if (confidence >= 0.7) color = '#67C23A'
+          else if (confidence >= 0.4) color = '#E6A23C'
+          else color = '#F56C6C'
+        } else {
+          // 其他节点使用章节颜色
+          color = node.color || chapterColors[chapterIndex % chapterColors.length]
+        }
+
+        nodeColorMap[node.id] = color
+      })
 
       // 创建节点ID集合，用于验证边的有效性
       const nodeIdSet = new Set(nodes.map(n => n.id))
@@ -393,20 +507,60 @@ export default {
         return isValid
       }).map(edge => {
         const edgeType = edge.type || edge.relationType || 'RELATED'
-        // 层级边（CONTAINS/COVERS）使用灰色，知识点关系边使用蓝色
         const isHierarchyEdge = ['CONTAINS', 'COVERS'].includes(edgeType)
+        const baseWidth = isHierarchyEdge ? 5 : 4  // 🔥 更粗的线条：层级边5px，关系边4px
+
+        // 🔥 根据图谱类型确定边的颜色
+        let lineColor = '#5470c6'  // 默认深蓝色
+
+        // 判断是总图谱还是章节图谱
+        const isCourseGraph = this.selectedGraphType === 'COURSE'
+
+        if (isCourseGraph) {
+          // 🔥 总图谱：线条颜色根据连接的节点颜色变化
+          if (isHierarchyEdge) {
+            // 层级边使用目标节点（子节点）的颜色
+            lineColor = nodeColorMap[edge.target] || '#909399'
+          } else {
+            // 知识点关系边使用源节点的颜色
+            lineColor = nodeColorMap[edge.source] || nodeColorMap[edge.target] || '#73c0de'
+          }
+        } else {
+          // 🔥 章节图谱：线条颜色根据关系类型设置
+          if (isHierarchyEdge) {
+            lineColor = '#909399'  // 层级边使用灰色
+          } else {
+            // 知识点关系边根据关系类型设置颜色
+            const relationColorMap = {
+              'PREREQUISITE': '#409EFF',        // 蓝色 - 前置关系
+              'prerequisite_of': '#409EFF',
+              'SIMILAR': '#67C23A',             // 绿色 - 相似关系
+              'similar_to': '#67C23A',
+              'EXTENSION': '#E6A23C',           // 橙色 - 扩展关系
+              'extension_of': '#E6A23C',
+              'EXAMPLE': '#F56C6C',             // 红色 - 示例关系
+              'BELONGS_TO': '#909399',          // 灰色 - 从属关系
+              'derived_from': '#9a60b4',        // 紫色 - 派生关系
+              'related': '#73c0de',             // 青色 - 相关关系
+              'RELATED': '#73c0de'
+            }
+            lineColor = relationColorMap[edgeType] || '#73c0de'
+          }
+        }
+
         return {
           source: edge.source,
           target: edge.target,
           label: { show: false },
           lineStyle: {
             curveness: isHierarchyEdge ? 0 : 0.2,
-            color: isHierarchyEdge ? '#c0c4cc' : '#91cc75',
-            width: isHierarchyEdge ? 1.5 : 1,
-            opacity: isHierarchyEdge ? 0.6 : 0.4
+            color: lineColor,
+            width: baseWidth,
+            _baseWidth: baseWidth,  // 保存基础宽度用于缩放
+            opacity: isHierarchyEdge ? 0.75 : 0.65  // 🔥 提高不透明度，让线条更明显
           },
           emphasis: {
-            lineStyle: { width: 2.5, opacity: 1, color: '#409EFF' },
+            lineStyle: { width: 7, opacity: 1, color: '#ff6b6b' },  // 🔥 悬停时更粗，使用红色高亮
             label: { show: true, formatter: this.getRelationLabel(edgeType), fontSize: 11, color: '#333' }
           }
         }
@@ -518,6 +672,15 @@ export default {
       }
 
       this.chart.setOption(option, true)
+
+      // 监听缩放事件，让字体跟随缩放
+      this.chart.off('georoam')
+      this.chart.on('georoam', (params) => {
+        if (params.zoom != null) {
+          this.currentZoom = params.zoom
+          this.applyZoom()
+        }
+      })
 
       // 点击节点显示详情
       this.chart.off('click')
@@ -731,6 +894,119 @@ export default {
         'not_started': '未开始'
       }
       return textMap[status] || '未知'
+    },
+    // 全屏切换
+    toggleFullscreen() {
+      this.isFullscreen = !this.isFullscreen
+      console.log('🖥️ 全屏状态切换:', this.isFullscreen)
+
+      // 切换body滚动
+      if (this.isFullscreen) {
+        document.body.style.overflow = 'hidden'
+        console.log('✅ 进入全屏模式')
+      } else {
+        document.body.style.overflow = ''
+        console.log('❌ 退出全屏模式')
+      }
+
+      // 延迟调整图表大小，确保DOM已更新
+      this.$nextTick(() => {
+        setTimeout(() => {
+          if (!this.$refs.chart) {
+            console.error('❌ 图表容器不存在')
+            return
+          }
+
+          const container = this.$refs.chart
+          console.log('📊 开始调整图表大小...')
+          console.log('📊 容器尺寸:', container.offsetWidth, 'x', container.offsetHeight)
+
+          // 销毁旧实例，重新初始化
+          if (this.chart) {
+            console.log('🔄 销毁旧图表实例')
+            this.chart.dispose()
+            this.chart = null
+          }
+
+          // 重新初始化图表
+          console.log('🆕 创建新图表实例')
+          this.chart = echarts.init(container)
+
+          // 重新渲染图谱
+          if (this.currentGraphData) {
+            console.log('📊 重新渲染图谱，节点数:', this.currentGraphData.nodes?.length || 0)
+            this.renderGraph(this.currentGraphData)
+          } else {
+            console.error('❌ 没有图谱数据可渲染')
+          }
+        }, 200)
+      })
+    },
+    // ESC键退出全屏
+    handleEscKey(e) {
+      if (e.key === 'Escape' && this.isFullscreen) {
+        this.isFullscreen = false
+        document.body.style.overflow = ''
+        this.$nextTick(() => {
+          if (this.chart) {
+            this.chart.resize()
+          }
+        })
+      }
+    },
+    // 放大
+    zoomIn() {
+      if (!this.chart) return
+      this.currentZoom = Math.min(this.currentZoom * 1.2, 5)
+      this.applyZoom()
+    },
+    // 缩小
+    zoomOut() {
+      if (!this.chart) return
+      this.currentZoom = Math.max(this.currentZoom / 1.2, 0.2)
+      this.applyZoom()
+    },
+    // 重置缩放
+    resetZoom() {
+      if (!this.chart) return
+      this.currentZoom = 1
+      this.applyZoom()
+    },
+    // 应用缩放
+    applyZoom() {
+      if (!this.chart) return
+
+      const option = this.chart.getOption()
+      if (!option || !option.series || !option.series[0]) return
+
+      const series = option.series[0]
+      const baseNodeSize = series.data.map(node => node._baseSymbolSize || node.symbolSize)
+      const baseFontSize = series.data.map(node => node.label?._baseFontSize || node.label?.fontSize || 10)
+
+      // 更新节点大小和字体大小
+      series.data.forEach((node, index) => {
+        if (!node._baseSymbolSize) {
+          node._baseSymbolSize = node.symbolSize
+        }
+        if (!node.label._baseFontSize) {
+          node.label._baseFontSize = node.label.fontSize
+        }
+
+        node.symbolSize = node._baseSymbolSize * this.currentZoom
+        node.label.fontSize = Math.round(node.label._baseFontSize * this.currentZoom)
+      })
+
+      // 更新边的宽度
+      if (series.links) {
+        series.links.forEach(link => {
+          if (!link.lineStyle._baseWidth) {
+            link.lineStyle._baseWidth = link.lineStyle.width || 1
+          }
+          link.lineStyle.width = link.lineStyle._baseWidth * this.currentZoom
+        })
+      }
+
+      this.chart.setOption(option)
     }
   }
 }
@@ -739,6 +1015,23 @@ export default {
 <style scoped>
 .knowledge-graph-container {
   padding: 0;
+  position: relative;
+}
+
+/* 全屏模式容器 */
+.knowledge-graph-container.fullscreen-mode {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  background: #ffffff !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
 }
 
 .control-panel {
@@ -756,6 +1049,239 @@ export default {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   background: #ffffff;
   overflow: hidden;
+  position: relative;
+  transition: all 0.3s ease;
+  height: auto;
+}
+
+/* 全屏模式 */
+.fullscreen-mode .graph-card {
+  position: relative !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  max-width: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.fullscreen-mode .graph-card >>> .el-card__body {
+  padding: 0 !important;
+  height: 100% !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.fullscreen-mode .knowledge-graph-chart {
+  width: 100% !important;
+  height: 100% !important;
+  flex: 1 !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+}
+
+/* 全屏按钮 */
+.fullscreen-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: slideInRight 0.5s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.fullscreen-btn:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.fullscreen-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.fullscreen-btn i {
+  font-size: 16px;
+  transition: transform 0.3s ease;
+}
+
+.fullscreen-btn:hover i {
+  transform: rotate(90deg);
+}
+
+/* 缩放控制按钮 */
+.zoom-controls {
+  position: absolute;
+  top: 70px;
+  right: 16px;
+  z-index: 100;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+}
+
+.zoom-controls >>> .el-button-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.zoom-controls >>> .el-button {
+  margin: 0;
+  border-radius: 6px;
+  border: none;
+  background: #f5f7fa;
+  color: #606266;
+  transition: all 0.2s ease;
+}
+
+.zoom-controls >>> .el-button:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.zoom-controls >>> .el-button + .el-button {
+  margin-top: 4px;
+  margin-left: 0;
+}
+
+/* 统计信息面板 */
+.stats-panel {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 100;
+  display: flex;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.stat-item:hover i,
+.stat-item:hover .stat-value,
+.stat-item:hover .stat-label {
+  color: #ffffff;
+}
+
+.stat-item i {
+  font-size: 24px;
+  color: #667eea;
+  transition: color 0.3s ease;
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #303133;
+  line-height: 1;
+  transition: color 0.3s ease;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 2px;
+  transition: color 0.3s ease;
+}
+
+/* 操作提示 */
+.operation-hint {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  font-size: 13px;
+  color: #606266;
+  z-index: 10;
+  animation: fadeInUp 0.6s ease-out;
+  transition: all 0.3s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.operation-hint:hover {
+  background: rgba(102, 126, 234, 0.95);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+}
+
+.operation-hint i {
+  font-size: 16px;
+  color: #667eea;
+  transition: color 0.3s ease;
+}
+
+.operation-hint:hover i {
+  color: #ffffff;
 }
 
 .knowledge-graph-chart {
@@ -764,6 +1290,12 @@ export default {
   background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
   position: relative;
   border-radius: 0 0 8px 8px;
+  transition: height 0.3s ease;
+}
+
+.fullscreen-mode .knowledge-graph-chart {
+  border-radius: 0;
+  background: linear-gradient(135deg, #f0f2f5 0%, #e4e7ed 100%);
 }
 
 .empty-state {
@@ -808,19 +1340,27 @@ export default {
 }
 
 .legend-edge.prerequisite {
-  background: #409EFF;
+  background: #409EFF;  /* 蓝色 - 前置关系 */
 }
 
 .legend-edge.similar {
-  background: #67C23A;
+  background: #67C23A;  /* 绿色 - 相似关系 */
 }
 
 .legend-edge.extension {
-  background: #E6A23C;
+  background: #E6A23C;  /* 橙色 - 扩展关系 */
+}
+
+.legend-edge.example {
+  background: #F56C6C;  /* 红色 - 示例关系 */
 }
 
 .legend-edge.related {
-  background: #909399;
+  background: #73c0de;  /* 青色 - 相关关系 */
+}
+
+.legend-edge.hierarchy {
+  background: #909399;  /* 灰色 - 层级关系 */
 }
 
 /* 置信度说明样式 */

@@ -5,6 +5,9 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Arrays;
 import java.util.stream.Collectors;
 import com.ruoyi.common.utils.DateUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import com.ruoyi.common.utils.SecurityUtils;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 知识图谱Service业务层处理
@@ -45,6 +49,11 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
     private AiExtractionService aiExtractionService;
     @Autowired
     private VideoTranscriptionService videoTranscriptionService;
+
+    // 允许的关系类型（对应数据库ENUM）
+    private static final Set<String> VALID_RELATION_TYPES = new HashSet<>(Arrays.asList(
+        "prerequisite_of", "similar_to", "extension_of", "derived_from", "counterexample_of"
+    ));
     @Autowired
     private com.ruoyi.system.service.IKnowledgePointService knowledgePointService;
     @Autowired
@@ -53,6 +62,53 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
     private com.ruoyi.system.service.ISectionService sectionService;
     @Autowired
     private com.ruoyi.system.mapper.SectionKpMapper sectionKpMapper;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /**
+     * 将 sys_user 表的 user_id 映射到 user 表的 id
+     * 注意：sys_user 和 user 可能是不同的表，需要通过某种方式关联
+     */
+    private Long mapSysUserIdToUserId(Long sysUserId) {
+        try {
+            // 尝试查询 user 表中是否有相同ID的用户
+            String sql = "SELECT id FROM user WHERE id = ? LIMIT 1";
+            logger.info("查询user表是否存在ID={}", sysUserId);
+            List<Long> userIds = jdbcTemplate.queryForList(sql, Long.class, sysUserId);
+            if (userIds != null && !userIds.isEmpty()) {
+                logger.info("user表中存在ID={}", sysUserId);
+                return userIds.get(0);
+            }
+            logger.warn("user表中不存在ID={}，将使用默认用户ID", sysUserId);
+        } catch (Exception e) {
+            logger.error("查询user表ID失败", e);
+        }
+        return null;
+    }
+
+    /**
+     * 获取一个有效的默认用户ID（用于异步任务无法获取当前用户时）
+     * 注意：这里查询的是 user 表（外键约束指向的表），而不是 sys_user 表
+     */
+    private Long getDefaultCreatorId() {
+        try {
+            logger.info("开始查询user表获取默认用户ID...");
+            // 直接查询 user 表中的第一个用户（按ID排序）
+            String sql = "SELECT id FROM user ORDER BY id ASC LIMIT 1";
+            logger.info("执行SQL: {}", sql);
+            List<Long> userIds = jdbcTemplate.queryForList(sql, Long.class);
+            logger.info("查询结果: {}", userIds);
+            if (userIds != null && !userIds.isEmpty()) {
+                Long userId = userIds.get(0);
+                logger.info("从user表查询到默认用户ID: {}", userId);
+                return userId;
+            }
+            logger.warn("user表中没有找到任何用户");
+        } catch (Exception e) {
+            logger.error("查询user表默认用户ID失败", e);
+        }
+        return null;
+    }
 
     /**
      * 查询知识图谱
@@ -129,8 +185,39 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
     }
 
     @Override
-    @Async("taskExecutor")
     public void generateCourseGraph(Long courseId)
+    {
+        // 在主线程中获取用户ID，然后调用异步方法
+        Long sysUserId = null;
+        try {
+            sysUserId = SecurityUtils.getUserId();
+            logger.info("从SecurityUtils获取到sys_user ID: {}", sysUserId);
+        } catch (Exception e) {
+            logger.warn("无法获取当前用户ID：{}", e.getMessage());
+        }
+
+        // 将 sys_user ID 映射到 user 表的 ID
+        Long creatorId = null;
+        if (sysUserId != null) {
+            creatorId = mapSysUserIdToUserId(sysUserId);
+            if (creatorId == null) {
+                logger.warn("sys_user ID={} 在user表中不存在，使用默认用户ID", sysUserId);
+            }
+        }
+
+        // 如果映射失败或无法获取用户ID，使用默认用户ID
+        if (creatorId == null) {
+            logger.info("creatorId为null，开始查询默认用户ID...");
+            creatorId = getDefaultCreatorId();
+            logger.info("查询到默认用户ID: {}", creatorId);
+        }
+        logger.info("准备调用异步方法生成课程知识图谱，creatorId={}", creatorId);
+        generateCourseGraph(courseId, creatorId);
+    }
+
+    @Override
+    @Async("taskExecutor")
+    public void generateCourseGraph(Long courseId, Long creatorId)
     {
         // 最小可用实现：从课程、课件、题目读取文本，调用 AI 抽取（占位），将结果保存为 KnowledgeGraph.graphData JSON
         try {
@@ -158,10 +245,14 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
             List<Map<String,Object>> allKps = new ArrayList<>();
             List<Map<String,Object>> allRelations = new ArrayList<>();
 
+            logger.info("📹 课程 {} 共有 {} 个视频", courseId, videos.size());
             if (!videos.isEmpty()) {
                 StringBuilder allVideosText = new StringBuilder();
                 for (com.ruoyi.system.domain.Video video : videos) {
-                    allVideosText.append("=== 题目 ").append(video.getId()).append(" ===\n");
+                    logger.info("📹 处理视频 ID={}, 标题={}, 路径={}",
+                               video.getId(), video.getTitle(), video.getFilePath());
+
+                    allVideosText.append("=== 视频 ").append(video.getId()).append(" ===\n");
                     allVideosText.append("【类型】视频内容\n");
 
                     // 使用视频转录服务提取文本
@@ -171,23 +262,27 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
                         video.getDescription()
                     );
 
+                    logger.info("📹 视频 {} 提取文本长度: {} 字符", video.getId(), videoText != null ? videoText.length() : 0);
                     allVideosText.append(videoText).append("\n");
                 }
 
-                logger.info("开始批量处理 {} 个视频，总文本长度: {}", videos.size(), allVideosText.length());
+                logger.info("📹 开始批量处理 {} 个视频，总文本长度: {} 字符", videos.size(), allVideosText.length());
 
                 // 只有当文本长度足够时才调用AI
                 if (allVideosText.length() > 50) {
+                    logger.info("📹 调用AI抽取视频知识点...");
                     Map<String,Object> videoExtractResult = aiExtractionService.extractKnowledgePointsWithRelations(allVideosText.toString());
                     List<Map<String,Object>> videoKps = (List<Map<String,Object>>) videoExtractResult.get("candidates");
                     List<Map<String,Object>> videoRels = (List<Map<String,Object>>) videoExtractResult.get("relations");
                     if (videoKps != null) allKps.addAll(videoKps);
                     if (videoRels != null) allRelations.addAll(videoRels);
-                    logger.info("从视频AI抽取到 {} 个知识点，{} 条关系",
+                    logger.info("📹 从视频AI抽取到 {} 个知识点，{} 条关系",
                                videoKps != null ? videoKps.size() : 0, videoRels != null ? videoRels.size() : 0);
                 } else {
-                    logger.warn("视频文本内容太少（{}字符），跳过AI抽取", allVideosText.length());
+                    logger.warn("📹 视频文本内容太少（{}字符），跳过AI抽取", allVideosText.length());
                 }
+            } else {
+                logger.warn("📹 课程 {} 没有视频数据", courseId);
             }
 
             // 读取题目并批量抽取知识点和关系
@@ -251,17 +346,30 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
             Map<String, Long> nameToIdMap = new HashMap<>();
             for (Map<String,Object> kpData : kpMap.values()) {
                 com.ruoyi.system.domain.KnowledgePoint kp = new com.ruoyi.system.domain.KnowledgePoint();
-                kp.setTitle(kpData.getOrDefault("name", "").toString());
+                String kpName = kpData.getOrDefault("name", "").toString();
+                kp.setTitle(kpName);
                 kp.setDescription(kpData.getOrDefault("definition", "").toString());
                 kp.setCourseId(courseId);
-                try {
-                    kp.setCreatorUserId(SecurityUtils.getUserId());
-                } catch (Exception e) {
-                    kp.setCreatorUserId(1L); // 使用默认用户ID
-                    logger.warn("无法获取当前用户ID，使用默认值 1：{}", e.getMessage());
+
+                // 使用传入的 creatorId，如果为空则查询默认用户ID
+                Long finalCreatorId;
+                if (creatorId != null) {
+                    finalCreatorId = creatorId;
+                    logger.debug("使用传入的creatorId: {}", creatorId);
+                } else {
+                    finalCreatorId = getDefaultCreatorId();
+                    logger.debug("从user表查询到的creatorId: {}", finalCreatorId);
                 }
+
+                if (finalCreatorId == null) {
+                    logger.error("无法获取有效的creatorId，跳过知识点创建：{}", kpName);
+                    continue;
+                }
+
+                kp.setCreatorUserId(finalCreatorId);
                 kp.setCreateTime(DateUtils.getNowDate());
-                
+
+                logger.info("准备插入知识点：{}, creatorId={}", kpName, finalCreatorId);
                 knowledgePointService.insertKnowledgePoint(kp);
                 nameToIdMap.put(kp.getTitle(), kp.getId());
             }
@@ -454,11 +562,15 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
             kg.setGraphType("COURSE");
             kg.setGraphData(graphJson);
             kg.setStatus("active");
-            kg.setCreatorId(1L); // 设置默认创建者ID
-            try {
-                kg.setCreatorId(SecurityUtils.getUserId());
-            } catch (Exception e) {
-                logger.warn("无法获取当前用户ID，使用默认值 1：{}", e.getMessage());
+            // 使用传入的 creatorId，如果为空则查询默认用户ID
+            if (creatorId != null) {
+                kg.setCreatorId(creatorId);
+            } else {
+                Long defaultId = getDefaultCreatorId();
+                if (defaultId != null) {
+                    kg.setCreatorId(defaultId);
+                    logger.info("使用默认用户ID: {}", defaultId);
+                }
             }
             knowledgeGraphMapper.insertKnowledgeGraph(kg);
         } catch (Exception ex) {
@@ -467,10 +579,40 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
     }
 
     @Override
-    @Async("taskExecutor")
     public void generateChapterGraph(Long courseId, Long chapterId) {
+        // 在主线程中获取用户ID，然后调用异步方法
+        Long sysUserId = null;
         try {
-            logger.info("开始生成章节知识图谱：courseId={}, chapterId={}", courseId, chapterId);
+            sysUserId = SecurityUtils.getUserId();
+            logger.info("从SecurityUtils获取到sys_user ID: {}", sysUserId);
+        } catch (Exception e) {
+            logger.warn("无法获取当前用户ID：{}", e.getMessage());
+        }
+
+        // 将 sys_user ID 映射到 user 表的 ID
+        Long creatorId = null;
+        if (sysUserId != null) {
+            creatorId = mapSysUserIdToUserId(sysUserId);
+            if (creatorId == null) {
+                logger.warn("sys_user ID={} 在user表中不存在，使用默认用户ID", sysUserId);
+            }
+        }
+
+        // 如果映射失败或无法获取用户ID，使用默认用户ID
+        if (creatorId == null) {
+            logger.info("creatorId为null，开始查询默认用户ID...");
+            creatorId = getDefaultCreatorId();
+            logger.info("查询到默认用户ID: {}", creatorId);
+        }
+        logger.info("准备调用异步方法生成章节知识图谱，creatorId={}", creatorId);
+        generateChapterGraph(courseId, chapterId, creatorId);
+    }
+
+    @Override
+    @Async("taskExecutor")
+    public void generateChapterGraph(Long courseId, Long chapterId, Long creatorId) {
+        try {
+            logger.info("开始生成章节知识图谱：courseId={}, chapterId={}, creatorId={}", courseId, chapterId, creatorId);
 
             // 获取章节信息（用于显示标题）
             com.ruoyi.system.domain.Chapter chapter = chapterService.selectChapterById(chapterId);
@@ -489,12 +631,15 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
             // 【新增】1. 处理视频数据
             // 通过VideoMapper的自定义方法查询章节的视频（通过section表关联）
             java.util.List<com.ruoyi.system.domain.Video> videos = videoMapper.selectVideosByChapterId(chapterId);
-            logger.info("章节 {} (sortOrder={}) 关联的视频数量：{}", chapterId, chapterSortOrder, videos.size());
+            logger.info("📹 章节 {} (sortOrder={}) 关联的视频数量：{}", chapterId, chapterSortOrder, videos.size());
 
             if (!videos.isEmpty()) {
                 StringBuilder allVideosText = new StringBuilder();
                 for (com.ruoyi.system.domain.Video video : videos) {
-                    allVideosText.append("=== 题目 ").append(video.getId()).append(" ===\n");
+                    logger.info("📹 处理章节视频 ID={}, 标题={}, 路径={}",
+                               video.getId(), video.getTitle(), video.getFilePath());
+
+                    allVideosText.append("=== 视频 ").append(video.getId()).append(" ===\n");
                     allVideosText.append("【类型】视频内容\n");
 
                     // 使用视频转录服务提取文本
@@ -504,23 +649,27 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
                         video.getDescription()
                     );
 
+                    logger.info("📹 章节视频 {} 提取文本长度: {} 字符", video.getId(), videoText != null ? videoText.length() : 0);
                     allVideosText.append(videoText).append("\n");
                 }
 
-                logger.info("开始批量处理 {} 个视频，总文本长度: {}", videos.size(), allVideosText.length());
+                logger.info("📹 开始批量处理章节 {} 个视频，总文本长度: {} 字符", videos.size(), allVideosText.length());
 
                 // 只有当文本长度足够时才调用AI
                 if (allVideosText.length() > 50) {
+                    logger.info("📹 调用AI抽取章节视频知识点...");
                     Map<String,Object> videoExtractResult = aiExtractionService.extractKnowledgePointsWithRelations(allVideosText.toString());
                     List<Map<String,Object>> videoKps = (List<Map<String,Object>>) videoExtractResult.get("candidates");
                     List<Map<String,Object>> videoRels = (List<Map<String,Object>>) videoExtractResult.get("relations");
                     if (videoKps != null) allKps.addAll(videoKps);
                     if (videoRels != null) allRelations.addAll(videoRels);
-                    logger.info("从视频AI抽取到 {} 个知识点，{} 条关系",
+                    logger.info("📹 从章节视频AI抽取到 {} 个知识点，{} 条关系",
                                videoKps != null ? videoKps.size() : 0, videoRels != null ? videoRels.size() : 0);
                 } else {
-                    logger.warn("视频文本内容太少（{}字符），跳过AI抽取", allVideosText.length());
+                    logger.warn("📹 章节视频文本内容太少（{}字符），跳过AI抽取", allVideosText.length());
                 }
+            } else {
+                logger.warn("📹 章节 {} 没有关联的视频", chapterId);
             }
 
             // 2. 读取该章节的所有题目
@@ -601,6 +750,12 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
 
             logger.info("章节 {} 多源抽取完成：视频+题库共 {} 个知识点，{} 条关系", chapterId, allKps.size(), allRelations.size());
 
+            // 如果没有提取到任何知识点，记录日志并返回
+            if (allKps.isEmpty()) {
+                logger.warn("章节 {} 没有提取到任何知识点（可能没有视频和题目），跳过知识图谱生成", chapterId);
+                return;
+            }
+
             // 去重知识点（基于名称）
             Map<String, Map<String,Object>> uniqueKps = new LinkedHashMap<>();
             for (Map<String,Object> kp : allKps) {
@@ -643,12 +798,23 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
                     kp.setDescription(kpData.getOrDefault("definition", "").toString());
                     kp.setCourseId(courseId);
                     kp.setLevel("BASIC");
-                    try {
-                        kp.setCreatorUserId(SecurityUtils.getUserId());
-                    } catch (Exception e) {
-                        kp.setCreatorUserId(1L); // 使用默认用户ID
-                        logger.warn("无法获取当前用户ID以设置 creatorUserId，使用默认值：{}", e.getMessage());
+                    // 使用传入的 creatorId，如果为空则查询默认用户ID
+                    Long finalCreatorId;
+                    if (creatorId != null) {
+                        finalCreatorId = creatorId;
+                        logger.debug("使用传入的creatorId: {}", creatorId);
+                    } else {
+                        finalCreatorId = getDefaultCreatorId();
+                        logger.debug("从user表查询到的creatorId: {}", finalCreatorId);
                     }
+
+                    if (finalCreatorId == null) {
+                        logger.error("无法获取有效的creatorId，跳过知识点创建：{}", name);
+                        continue;
+                    }
+
+                    kp.setCreatorUserId(finalCreatorId);
+                    logger.info("准备插入知识点：{}, creatorId={}", name, finalCreatorId);
                     knowledgePointService.insertKnowledgePoint(kp);
                     nameToIdMap.put(name, kp.getId());
                     kpMap.put(name, kpData);
@@ -759,11 +925,15 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
             kg.setGraphType("CHAPTER");
             kg.setGraphData(graphJson);
             kg.setStatus("active");
-            try {
-                kg.setCreatorId(SecurityUtils.getUserId());
-            } catch (Exception e) {
-                kg.setCreatorId(1L); // 使用默认用户ID
-                logger.warn("无法获取当前用户ID以设置 creatorId，使用默认值 1：{}", e.getMessage());
+            // 使用传入的 creatorId，如果为空则查询默认用户ID
+            if (creatorId != null) {
+                kg.setCreatorId(creatorId);
+            } else {
+                Long defaultId = getDefaultCreatorId();
+                if (defaultId != null) {
+                    kg.setCreatorId(defaultId);
+                    logger.info("使用默认用户ID: {}", defaultId);
+                }
             }
             knowledgeGraphMapper.insertKnowledgeGraph(kg);
             logger.info("章节知识图谱生成完成：courseId={}, chapterId={}, sortOrder={}, title={}, graphId={}",
@@ -855,37 +1025,51 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
 
     /**
      * 映射 AI 返回的关系类型到数据库枚举值
+     * 数据库ENUM值：prerequisite_of, similar_to, extension_of, derived_from, counterexample_of
      */
     private String mapRelationType(String type) {
-        if (type == null) return "SIMILAR";
-        type = type.toLowerCase();
+        if (type == null) return "similar_to";
+        type = type.toLowerCase().trim();
 
-        // 前置关系映射 -> PREREQUISITE
-        if (type.contains("prerequisite") || type.contains("前置") || type.contains("基础")) {
-            return "PREREQUISITE";
+        // 直接匹配数据库ENUM值
+        if (VALID_RELATION_TYPES.contains(type)) {
+            return type;
         }
-        // 从属关系映射 -> BELONGS_TO
-        if (type.contains("belongs") || type.contains("从属") || type.contains("属于") ||
-            type.contains("derived") || type.contains("推导") || type.contains("衍生")) {
-            return "BELONGS_TO";
+
+        // 前置关系映射 -> prerequisite_of
+        if (type.contains("prerequisite") || type.contains("前置") || type.contains("基础") ||
+            type.contains("depends") || type.contains("依赖")) {
+            return "prerequisite_of";
         }
-        // 示例关系映射 -> EXAMPLE
-        if (type.contains("example") || type.contains("示例") || type.contains("实例")) {
-            return "EXAMPLE";
+
+        // 推导关系映射 -> derived_from
+        if (type.contains("derived") || type.contains("推导") || type.contains("衍生") ||
+            type.contains("belongs") || type.contains("从属") || type.contains("属于")) {
+            return "derived_from";
         }
-        // 扩展关系映射 -> EXTENSION
-        if (type.contains("extension") || type.contains("扩展") || type.contains("进阶")) {
-            return "EXTENSION";
+
+        // 扩展关系映射 -> extension_of
+        if (type.contains("extension") || type.contains("扩展") || type.contains("进阶") ||
+            type.contains("advanced") || type.contains("深化")) {
+            return "extension_of";
         }
-        // 相似关系映射 -> SIMILAR
+
+        // 反例关系映射 -> counterexample_of
+        if (type.contains("counterexample") || type.contains("反例") || type.contains("对比") ||
+            type.contains("counter") || type.contains("opposite")) {
+            return "counterexample_of";
+        }
+
+        // 相似关系映射 -> similar_to (默认值)
         if (type.contains("similar") || type.contains("相似") || type.contains("类似") ||
             type.contains("related") || type.contains("相关") || type.contains("uses") ||
-            type.contains("应用") || type.contains("使用")) {
-            return "SIMILAR";
+            type.contains("应用") || type.contains("使用") || type.contains("example") ||
+            type.contains("示例") || type.contains("实例")) {
+            return "similar_to";
         }
 
-        logger.warn("未识别的关系类型：{}，使用默认值 SIMILAR", type);
-        return "SIMILAR"; // 默认为相似关系
+        logger.warn("未识别的关系类型：{}，使用默认值 similar_to", type);
+        return "similar_to"; // 默认为相似关系
     }
 
     /**
@@ -905,4 +1089,5 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
             logger.warn("标记题目为已处理失败：{}", e.getMessage());
         }
     }
+
 }
