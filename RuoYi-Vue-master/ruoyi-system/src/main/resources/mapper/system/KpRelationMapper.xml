@@ -73,4 +73,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </foreach>
     </delete>
 
+    <select id="relationExists" resultType="int">
+        select count(1) from kp_relation
+        where from_kp_id = #{param1} and to_kp_id = #{param2} and relation_type = #{param3}
+    </select>
+
 </mapper>

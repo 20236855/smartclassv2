@@ -22,4 +22,9 @@ public interface KpRelationMapper
     public int deleteKpRelationById(Long id);
 
     public int deleteKpRelationByIds(Long[] ids);
+
+    /**
+     * 检查关系是否存在
+     */
+    public int relationExists(Long sourceId, Long targetId, String relationType);
 }

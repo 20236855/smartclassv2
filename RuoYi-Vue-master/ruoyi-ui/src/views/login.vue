@@ -399,7 +399,14 @@ export default {
             Cookies.remove('userType')
           }
           this.$store.dispatch("Login", this.loginForm).then(() => {
-            this.$router.push({ path: this.redirect || "/" }).catch(()=>{})
+            // 根据登录时选择的身份类型判断跳转
+            if (this.loginForm.userType === 'TEACHER') {
+              // 教师跳转到80端口
+              window.location.href = 'http://localhost:80'
+            } else {
+              // 学生留在当前系统，正常路由跳转
+              this.$router.push({ path: this.redirect || "/" }).catch(()=>{})
+            }
           }).catch(() => {
             this.loading = false
             if (this.captchaEnabled) {

@@ -49,6 +49,7 @@
             </div>
           </div>
           <div class="card-actions">
+            <el-button type="success" icon="el-icon-view" size="mini" @click="handlePreview(resource)" :disabled="!canPreview(resource.fileType)">预览</el-button>
             <el-button type="primary" icon="el-icon-download" size="mini" @click="handleDownload(resource)">下载 ({{ resource.downloadCount }})</el-button>
             <div class="admin-actions">
               <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(resource)" v-hasPermi="['system:resource:edit']"></el-button>
@@ -63,6 +64,43 @@
     </el-row>
 
     <pagination v-show="total>0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize" @pagination="getList"/>
+
+    <!-- 资源预览对话框 -->
+    <el-dialog :title="previewTitle" :visible.sync="previewOpen" :width="previewWidth" append-to-body :before-close="closePreview" class="preview-dialog">
+      <div class="preview-container" v-loading="previewLoading">
+        <!-- 图片预览 -->
+        <div v-if="previewType === 'image'" class="image-preview">
+          <el-image :src="previewUrl" fit="contain" :preview-src-list="[previewUrl]" style="max-width: 100%; max-height: 70vh;">
+            <div slot="error" class="image-error">
+              <i class="el-icon-picture-outline"></i>
+              <span>图片加载失败</span>
+            </div>
+          </el-image>
+        </div>
+        <!-- PDF预览 -->
+        <div v-else-if="previewType === 'pdf'" class="pdf-preview">
+          <iframe :src="previewUrl" width="100%" height="600px" frameborder="0"></iframe>
+        </div>
+        <!-- Office文档预览 -->
+        <div v-else-if="previewType === 'office'" class="office-preview">
+          <iframe :src="previewUrl" width="100%" height="600px" frameborder="0"></iframe>
+        </div>
+        <!-- 视频预览 -->
+        <div v-else-if="previewType === 'video'" class="video-preview">
+          <video :src="previewUrl" controls style="max-width: 100%; max-height: 70vh;"></video>
+        </div>
+        <!-- 音频预览 -->
+        <div v-else-if="previewType === 'audio'" class="audio-preview">
+          <audio :src="previewUrl" controls style="width: 100%;"></audio>
+        </div>
+        <!-- 不支持预览 -->
+        <div v-else class="unsupported-preview">
+          <i class="el-icon-document" style="font-size: 64px; color: #909399;"></i>
+          <p>该文件类型暂不支持在线预览</p>
+          <el-button type="primary" @click="handleDownload(currentPreviewResource)">下载查看</el-button>
+        </div>
+      </div>
+    </el-dialog>
 
     <!-- 添加或修改课程资源对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
@@ -94,7 +132,8 @@
 </template>
 
 <script>
-import { listResource, getResource, delResource, addResource, updateResource } from "@/api/system/resource";
+import { listResource, getResource, delResource, addResource, updateResource, getPreviewInfo } from "@/api/system/resource";
+import { recordResourceDownload } from "@/api/system/lbehavior";
 import axios from 'axios';
 import { getToken } from '@/utils/auth';
 
@@ -119,7 +158,15 @@ export default {
         name: [{ required: true, message: "资源名称不能为空", trigger: "blur" }],
         fileType: [{ required: true, message: "文件类型不能为空", trigger: "change" }],
         fileUrl: [{ required: true, message: "文件URL不能为空", trigger: "blur" }]
-      }
+      },
+      // 预览相关
+      previewOpen: false,
+      previewLoading: false,
+      previewTitle: "资源预览",
+      previewType: "",
+      previewUrl: "",
+      previewWidth: "80%",
+      currentPreviewResource: null
     };
   },
   created() {
@@ -143,8 +190,25 @@ export default {
         res.downloadCount++;
       }
 
+      // 记录资源下载行为
+      this.recordDownloadBehavior(resource);
+
       // 调用自定义下载方法
       this.downloadResource(resource);
+    },
+
+    /** 记录资源下载行为 */
+    async recordDownloadBehavior(resource) {
+      try {
+        if (!resource.courseId || !resource.id) {
+          console.log('⚠️ 缺少courseId或resourceId，跳过记录下载行为');
+          return;
+        }
+        await recordResourceDownload(resource.courseId, resource.id);
+        console.log('📝 资源下载行为已记录:', { courseId: resource.courseId, resourceId: resource.id });
+      } catch (error) {
+        console.error('❌ 记录资源下载行为失败:', error);
+      }
     },
 
     // 下载资源文件
@@ -313,6 +377,47 @@ export default {
       if (['jpg', 'jpeg', 'png', 'gif'].includes(type)) return { icon: 'el-icon-picture-outline', color: '#7E57C2' };
       if (['mp4', 'avi', 'mov'].includes(type)) return { icon: 'el-icon-video-camera', color: '#00ACC1' };
       return { icon: 'el-icon-document', color: '#546E7A' };
+    },
+    /** 判断是否可以预览 */
+    canPreview(fileType) {
+      const type = fileType ? fileType.toLowerCase() : '';
+      const previewableTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'webm', 'mp3', 'wav', 'txt', 'md', 'json'];
+      return previewableTypes.includes(type);
+    },
+    /** 处理预览事件 */
+    handlePreview(resource) {
+      this.currentPreviewResource = resource;
+      this.previewLoading = true;
+      this.previewOpen = true;
+      this.previewTitle = "预览: " + resource.name;
+
+      getPreviewInfo(resource.id).then(response => {
+        this.previewType = response.previewType;
+        this.previewUrl = response.previewUrl;
+
+        // 根据预览类型调整对话框宽度
+        if (this.previewType === 'image') {
+          this.previewWidth = '60%';
+        } else if (this.previewType === 'audio') {
+          this.previewWidth = '50%';
+        } else {
+          this.previewWidth = '90%';
+        }
+
+        this.previewLoading = false;
+      }).catch(error => {
+        console.error('获取预览信息失败:', error);
+        this.$message.error('获取预览信息失败');
+        this.previewLoading = false;
+        this.previewType = 'unsupported';
+      });
+    },
+    /** 关闭预览 */
+    closePreview() {
+      this.previewOpen = false;
+      this.previewUrl = "";
+      this.previewType = "";
+      this.currentPreviewResource = null;
     }
   }
 };
@@ -333,5 +438,51 @@ export default {
   .file-meta { font-size: 12px; color: #909399; margin-top: 5px; .divider { margin: 0 8px; } }
   .card-actions { margin-top: 15px; padding-top: 10px; border-top: 1px solid #EBEEF5; display: flex; justify-content: space-between; align-items: center; }
   .admin-actions .el-button { margin-left: 5px; padding: 7px; }
+}
+
+/* 预览对话框样式 */
+.preview-dialog {
+  ::v-deep .el-dialog__body {
+    padding: 10px 20px;
+  }
+}
+
+.preview-container {
+  min-height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.image-preview, .pdf-preview, .office-preview, .video-preview, .audio-preview {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.unsupported-preview {
+  text-align: center;
+  padding: 40px;
+  color: #909399;
+
+  p {
+    margin: 20px 0;
+    font-size: 16px;
+  }
+}
+
+.image-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  font-size: 14px;
+
+  i {
+    font-size: 48px;
+    margin-bottom: 10px;
+  }
 }
 </style>

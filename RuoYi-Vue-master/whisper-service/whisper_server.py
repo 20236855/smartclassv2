@@ -304,7 +304,7 @@ if __name__ == '__main__':
     logger.info("启动Whisper服务...")
     app.run(
         host='0.0.0.0',  # 允许外部访问
-        port=5000,       # 端口
+        port=8002,       # 端口
         debug=False,     # 生产环境设为False
         threaded=True    # 支持多线程
     )

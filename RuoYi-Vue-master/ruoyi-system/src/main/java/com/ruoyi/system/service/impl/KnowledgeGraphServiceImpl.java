@@ -49,6 +49,10 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
     private com.ruoyi.system.service.IKnowledgePointService knowledgePointService;
     @Autowired
     private com.ruoyi.system.service.IKpRelationService kpRelationService;
+    @Autowired
+    private com.ruoyi.system.service.ISectionService sectionService;
+    @Autowired
+    private com.ruoyi.system.mapper.SectionKpMapper sectionKpMapper;
 
     /**
      * 查询知识图谱
@@ -290,29 +294,137 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
             }
             logger.info("课程 {} 共保存 {} 个知识点，{} 条关系", courseId, nameToIdMap.size(), savedRelations);
 
-            // 构造 graphData（用于前端可视化）
+            // ========== 构造完整层级结构 graphData（课程→章节→小节→知识点） ==========
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             java.util.Map<String,Object> graph = new java.util.HashMap<>();
             java.util.List<java.util.Map<String,Object>> nodes = new java.util.ArrayList<>();
             java.util.List<java.util.Map<String,Object>> edges = new java.util.ArrayList<>();
+            int edgeId = 1;
 
-            // 构造节点
+            // 定义章节颜色（10种颜色循环使用）
+            String[] chapterColors = {"#5470c6", "#91cc75", "#fac858", "#ee6666", "#73c0de",
+                                       "#9a60b4", "#ea7ccc", "#3ba272", "#fc8452", "#4876FF"};
+
+            // 1. 添加课程节点（中心节点，最大）
+            String courseTitle = course != null ? course.getTitle() : "课程_" + courseId;
+            java.util.Map<String,Object> courseNode = new java.util.HashMap<>();
+            courseNode.put("id", "course_" + courseId);
+            courseNode.put("label", courseTitle);
+            courseNode.put("nodeType", "course");
+            courseNode.put("category", 0);
+            courseNode.put("symbolSize", 70);
+            nodes.add(courseNode);
+
+            // 2. 查询课程下的所有章节
+            com.ruoyi.system.domain.Chapter chapterQuery = new com.ruoyi.system.domain.Chapter();
+            chapterQuery.setCourseId(courseId);
+            List<com.ruoyi.system.domain.Chapter> chapters = chapterService.selectChapterList(chapterQuery);
+
+            // 记录小节到章节的映射（用于知识点着色）
+            Map<Long, Integer> sectionToChapterIndex = new HashMap<>();
+
+            int chapterIndex = 0;
+            for (com.ruoyi.system.domain.Chapter chapter : chapters) {
+                String chapterNodeId = "chapter_" + chapter.getId();
+                String chapterLabel = "第" + chapter.getSortOrder() + "章 " + chapter.getTitle();
+                String color = chapterColors[chapterIndex % chapterColors.length];
+
+                // 添加章节节点
+                java.util.Map<String,Object> chapterNode = new java.util.HashMap<>();
+                chapterNode.put("id", chapterNodeId);
+                chapterNode.put("label", chapterLabel);
+                chapterNode.put("nodeType", "chapter");
+                chapterNode.put("category", chapterIndex + 1);
+                chapterNode.put("chapterIndex", chapterIndex);
+                chapterNode.put("color", color);
+                chapterNode.put("symbolSize", 50);
+                nodes.add(chapterNode);
+
+                // 添加课程→章节的边
+                java.util.Map<String,Object> courseToChapterEdge = new java.util.HashMap<>();
+                courseToChapterEdge.put("id", "edge_" + edgeId++);
+                courseToChapterEdge.put("source", "course_" + courseId);
+                courseToChapterEdge.put("target", chapterNodeId);
+                courseToChapterEdge.put("type", "CONTAINS");
+                edges.add(courseToChapterEdge);
+
+                // 3. 查询章节下的所有小节
+                com.ruoyi.system.domain.Section sectionQuery = new com.ruoyi.system.domain.Section();
+                sectionQuery.setChapterId(chapter.getId());
+                List<com.ruoyi.system.domain.Section> sections = sectionService.selectSectionList(sectionQuery);
+
+                for (com.ruoyi.system.domain.Section section : sections) {
+                    String sectionNodeId = "section_" + section.getId();
+                    String sectionLabel = section.getSortOrder() + "." + section.getTitle();
+                    sectionToChapterIndex.put(section.getId(), chapterIndex);
+
+                    // 添加小节节点
+                    java.util.Map<String,Object> sectionNode = new java.util.HashMap<>();
+                    sectionNode.put("id", sectionNodeId);
+                    sectionNode.put("label", sectionLabel);
+                    sectionNode.put("nodeType", "section");
+                    sectionNode.put("category", chapterIndex + 1);
+                    sectionNode.put("chapterIndex", chapterIndex);
+                    sectionNode.put("color", color);
+                    sectionNode.put("symbolSize", 35);
+                    nodes.add(sectionNode);
+
+                    // 添加章节→小节的边
+                    java.util.Map<String,Object> chapterToSectionEdge = new java.util.HashMap<>();
+                    chapterToSectionEdge.put("id", "edge_" + edgeId++);
+                    chapterToSectionEdge.put("source", chapterNodeId);
+                    chapterToSectionEdge.put("target", sectionNodeId);
+                    chapterToSectionEdge.put("type", "CONTAINS");
+                    edges.add(chapterToSectionEdge);
+                }
+                chapterIndex++;
+            }
+
+            // 4. 添加知识点节点并关联到小节
+            // 首先查询小节-知识点关联
+            com.ruoyi.system.domain.SectionKp sectionKpQuery = new com.ruoyi.system.domain.SectionKp();
+            List<com.ruoyi.system.domain.SectionKp> sectionKpList = sectionKpMapper.selectSectionKpList(sectionKpQuery);
+            Map<Long, Long> kpToSection = new HashMap<>();
+            for (com.ruoyi.system.domain.SectionKp sk : sectionKpList) {
+                kpToSection.put(sk.getKpId(), sk.getSectionId());
+            }
+
+            // 添加知识点节点
             for (Map.Entry<String, Long> entry : nameToIdMap.entrySet()) {
                 String name = entry.getKey();
                 Long kpId = entry.getValue();
                 Map<String,Object> kpData = kpMap.get(name);
 
-                java.util.Map<String,Object> node = new java.util.HashMap<>();
-                node.put("id", "kp_" + kpId);
-                node.put("kpId", kpId);
-                node.put("label", name);
-                node.put("definition", kpData.getOrDefault("definition", ""));
-                node.put("confidence", kpData.getOrDefault("confidence", 0.0));
-                nodes.add(node);
+                // 获取所属小节和章节
+                Long sectionId = kpToSection.get(kpId);
+                int kpChapterIndex = sectionId != null && sectionToChapterIndex.containsKey(sectionId)
+                    ? sectionToChapterIndex.get(sectionId) : 0;
+                String kpColor = chapterColors[kpChapterIndex % chapterColors.length];
+
+                java.util.Map<String,Object> kpNode = new java.util.HashMap<>();
+                kpNode.put("id", "kp_" + kpId);
+                kpNode.put("kpId", kpId);
+                kpNode.put("label", name);
+                kpNode.put("nodeType", "kp");
+                kpNode.put("category", kpChapterIndex + 1);
+                kpNode.put("chapterIndex", kpChapterIndex);
+                kpNode.put("color", kpColor);
+                kpNode.put("definition", kpData.getOrDefault("definition", ""));
+                kpNode.put("symbolSize", 22);
+                nodes.add(kpNode);
+
+                // 添加小节→知识点的边
+                if (sectionId != null) {
+                    java.util.Map<String,Object> sectionToKpEdge = new java.util.HashMap<>();
+                    sectionToKpEdge.put("id", "edge_" + edgeId++);
+                    sectionToKpEdge.put("source", "section_" + sectionId);
+                    sectionToKpEdge.put("target", "kp_" + kpId);
+                    sectionToKpEdge.put("type", "COVERS");
+                    edges.add(sectionToKpEdge);
+                }
             }
 
-            // 构造边
-            int edgeId = 1;
+            // 5. 添加知识点之间的关系边
             for (Map<String,Object> rel : allRelations) {
                 String sourceName = rel.getOrDefault("source", "").toString();
                 String targetName = rel.getOrDefault("target", "").toString();
@@ -324,8 +436,7 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
                     edge.put("id", "edge_" + edgeId++);
                     edge.put("source", "kp_" + sourceId);
                     edge.put("target", "kp_" + targetId);
-                    edge.put("type", rel.getOrDefault("type", "related"));
-                    edge.put("confidence", rel.getOrDefault("confidence", 0.0));
+                    edge.put("type", rel.getOrDefault("type", "RELATED"));
                     edges.add(edge);
                 }
             }
@@ -591,11 +702,15 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
             java.util.List<java.util.Map<String,Object>> nodes = new java.util.ArrayList<>();
             java.util.List<java.util.Map<String,Object>> edges = new java.util.ArrayList<>();
 
-            // 构造节点
+            // 构造节点（包含level字段用于前端分组着色）
             for (Map.Entry<String, Long> entry : nameToIdMap.entrySet()) {
                 String name = entry.getKey();
                 Long kpId = entry.getValue();
                 Map<String,Object> kpData = kpMap.get(name);
+
+                // 查询知识点的level
+                com.ruoyi.system.domain.KnowledgePoint kp = knowledgePointService.selectKnowledgePointById(kpId);
+                String level = (kp != null && kp.getLevel() != null) ? kp.getLevel() : "BASIC";
 
                 java.util.Map<String,Object> node = new java.util.HashMap<>();
                 node.put("id", "kp_" + kpId);
@@ -603,6 +718,7 @@ public class KnowledgeGraphServiceImpl implements IKnowledgeGraphService
                 node.put("label", name);
                 node.put("definition", kpData.getOrDefault("definition", ""));
                 node.put("confidence", kpData.getOrDefault("confidence", 0.0));
+                node.put("level", level);
                 nodes.add(node);
             }
 

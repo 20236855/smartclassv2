@@ -263,4 +263,131 @@ public class CourseResourceController extends BaseController
             }
         }
     }
+
+    /**
+     * 获取资源预览信息
+     *
+     * @param id 资源ID
+     * @return 预览信息（包含预览URL和预览类型）
+     */
+    @PreAuthorize("@ss.hasPermi('system:resource:list')")
+    @GetMapping("/preview/{id}")
+    public AjaxResult getPreviewInfo(@PathVariable("id") Long id)
+    {
+        try
+        {
+            CourseResource resource = courseResourceService.selectCourseResourceById(id);
+            if (resource == null || resource.getFileUrl() == null)
+            {
+                return error("资源不存在");
+            }
+
+            String fileType = resource.getFileType() != null ? resource.getFileType().toLowerCase() : "";
+            String fileUrl = resource.getFileUrl();
+
+            // 构建完整的文件访问URL
+            String baseUrl = "http://localhost:8082";
+            String fullUrl = baseUrl + fileUrl;
+
+            AjaxResult result = AjaxResult.success();
+            result.put("resourceId", id);
+            result.put("resourceName", resource.getName());
+            result.put("fileType", fileType);
+            result.put("fileUrl", fullUrl);
+
+            // 根据文件类型确定预览方式
+            if (isImageType(fileType))
+            {
+                result.put("previewType", "image");
+                result.put("previewUrl", fullUrl);
+            }
+            else if ("pdf".equals(fileType))
+            {
+                result.put("previewType", "pdf");
+                result.put("previewUrl", fullUrl);
+            }
+            else if (isOfficeType(fileType))
+            {
+                // 使用微软在线预览服务
+                result.put("previewType", "office");
+                result.put("previewUrl", "https://view.officeapps.live.com/op/embed.aspx?src=" + java.net.URLEncoder.encode(fullUrl, "UTF-8"));
+            }
+            else if (isVideoType(fileType))
+            {
+                result.put("previewType", "video");
+                result.put("previewUrl", fullUrl);
+            }
+            else if (isAudioType(fileType))
+            {
+                result.put("previewType", "audio");
+                result.put("previewUrl", fullUrl);
+            }
+            else if (isTextType(fileType))
+            {
+                result.put("previewType", "text");
+                result.put("previewUrl", fullUrl);
+            }
+            else
+            {
+                result.put("previewType", "unsupported");
+                result.put("previewUrl", null);
+            }
+
+            return result;
+        }
+        catch (Exception e)
+        {
+            logger.error("获取预览信息失败 - ID: {}, 错误: {}", id, e.getMessage(), e);
+            return error("获取预览信息失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 判断是否为图片类型
+     */
+    private boolean isImageType(String fileType)
+    {
+        return "jpg".equals(fileType) || "jpeg".equals(fileType) ||
+               "png".equals(fileType) || "gif".equals(fileType) ||
+               "bmp".equals(fileType) || "webp".equals(fileType);
+    }
+
+    /**
+     * 判断是否为Office文档类型
+     */
+    private boolean isOfficeType(String fileType)
+    {
+        return "doc".equals(fileType) || "docx".equals(fileType) ||
+               "xls".equals(fileType) || "xlsx".equals(fileType) ||
+               "ppt".equals(fileType) || "pptx".equals(fileType);
+    }
+
+    /**
+     * 判断是否为视频类型
+     */
+    private boolean isVideoType(String fileType)
+    {
+        return "mp4".equals(fileType) || "webm".equals(fileType) ||
+               "ogg".equals(fileType) || "mov".equals(fileType);
+    }
+
+    /**
+     * 判断是否为音频类型
+     */
+    private boolean isAudioType(String fileType)
+    {
+        return "mp3".equals(fileType) || "wav".equals(fileType) ||
+               "ogg".equals(fileType) || "aac".equals(fileType);
+    }
+
+    /**
+     * 判断是否为文本类型
+     */
+    private boolean isTextType(String fileType)
+    {
+        return "txt".equals(fileType) || "md".equals(fileType) ||
+               "json".equals(fileType) || "xml".equals(fileType) ||
+               "html".equals(fileType) || "css".equals(fileType) ||
+               "js".equals(fileType);
+    }
 }

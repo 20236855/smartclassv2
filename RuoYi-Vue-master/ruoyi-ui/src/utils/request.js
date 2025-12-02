@@ -115,7 +115,13 @@ service.interceptors.response.use(res => {
     } else if (message.includes("timeout")) {
       message = "系统接口请求超时"
     } else if (message.includes("Request failed with status code")) {
-      message = "系统接口" + message.substr(message.length - 3) + "异常"
+      const statusCode = message.substr(message.length - 3)
+      // 404错误在路由初始化时可能出现，不弹出提示，只在控制台打印
+      if (statusCode === '404') {
+        console.warn('接口404: ' + (error.config ? error.config.url : ''))
+        return Promise.reject(error)
+      }
+      message = "系统接口" + statusCode + "异常"
     }
     Message({ message: message, type: 'error', duration: 5 * 1000 })
     return Promise.reject(error)

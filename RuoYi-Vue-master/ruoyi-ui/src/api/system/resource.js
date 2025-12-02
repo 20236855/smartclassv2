@@ -42,3 +42,11 @@ export function delResource(id) {
     method: 'delete'
   })
 }
+
+// 获取资源预览信息
+export function getPreviewInfo(id) {
+  return request({
+    url: '/system/resource/preview/' + id,
+    method: 'get'
+  })
+}

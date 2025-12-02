@@ -394,6 +394,7 @@ import { getSection, listSection } from "@/api/system/section";
 import { listChapter } from "@/api/system/chapter";
 import { getCommentTree, addComment } from "@/api/system/comment";
 import { findBehaviorByStudentAndVideo, upsertBehavior } from "@/api/system/behavior";
+import { recordVideoView, recordComment } from "@/api/system/lbehavior";
 
 export default {
   name: "SectionPlayer",
@@ -459,7 +460,12 @@ export default {
       lastSaveTime: 0,
       saveInterval: 10, // 每10秒保存一次
       hasStartedWatching: false,
-      learningBehaviorLoaded: false // 标记学习记录是否已加载
+      learningBehaviorLoaded: false, // 标记学习记录是否已加载
+      // 本次观看记录
+      viewSession: {
+        startTime: 0,    // 本次观看开始秒
+        isReplay: false  // 是否重复观看
+      }
     };
   },
   created() {
@@ -697,6 +703,12 @@ export default {
 
     onVideoEnded() {
       this.isPlaying = false;
+      const video = this.$refs.videoPlayer;
+
+      // 记录本次观看行为到 student_learning_behavior 表
+      if (video) {
+        this.recordVideoViewBehavior(video.currentTime);
+      }
 
       // 标记视频为已完成
       this.markVideoCompleted();
@@ -718,11 +730,16 @@ export default {
       if (video.paused) {
         video.play();
         this.isPlaying = true;
+        // 记录本次观看开始时间
+        this.viewSession.startTime = video.currentTime;
+        this.viewSession.isReplay = this.learningBehavior.watchCount > 0;
       } else {
         video.pause();
         this.isPlaying = false;
         // 记录暂停次数
         this.learningBehavior.pauseCount = (this.learningBehavior.pauseCount || 0) + 1;
+        // 记录本次观看行为到 student_learning_behavior 表
+        this.recordVideoViewBehavior(video.currentTime);
       }
     },
 
@@ -820,12 +837,12 @@ export default {
       }
 
       // 如果是 /videos/ 开头的路径，这是后端配置的静态资源路径
-      // 需要直接访问后端服务器（localhost:8080），不走前端代理
+      // 需要直接访问后端服务器（localhost:8082），不走前端代理
       if (videoUrl.startsWith('/videos/')) {
-        // 后端服务器地址（开发环境是 localhost:8080）
+        // 后端服务器地址（开发环境是 localhost:8082）
         const backendServer = process.env.NODE_ENV === 'production'
           ? window.location.origin  // 生产环境使用当前域名
-          : 'http://localhost:8080'; // 开发环境使用后端地址
+          : 'http://localhost:8082'; // 开发环境使用后端地址
         const fullUrl = backendServer + videoUrl;
         console.log('✅ Videos静态资源路径，完整URL:', fullUrl);
         return fullUrl;
@@ -986,6 +1003,8 @@ export default {
         this.$modal.msgSuccess("评论成功");
         this.newComment = '';
         this.loadComments();
+        // 记录评论行为
+        this.recordCommentBehavior();
       } catch (error) {
         console.error("发布评论失败:", error);
       }
@@ -1023,8 +1042,27 @@ export default {
         this.$modal.msgSuccess("回复成功");
         this.cancelReply();
         this.loadComments();
+        // 记录评论行为
+        this.recordCommentBehavior();
       } catch (error) {
         console.error("回复失败:", error);
+      }
+    },
+
+    /**
+     * 记录评论行为到 student_learning_behavior 表
+     */
+    async recordCommentBehavior() {
+      try {
+        if (!this.courseId || !this.sectionId) {
+          console.log('⚠️ 缺少courseId或sectionId，跳过记录评论行为');
+          return;
+        }
+        // 评论的 targetId 使用 sectionId，因为评论是针对小节的
+        await recordComment(this.courseId, this.sectionId, this.sectionId);
+        console.log('📝 评论行为已记录:', { courseId: this.courseId, sectionId: this.sectionId });
+      } catch (error) {
+        console.error('❌ 记录评论行为失败:', error);
       }
     },
 
@@ -1080,6 +1118,39 @@ export default {
       this.learningBehavior.completionRate = 100;
       this.learningBehavior.watchDuration = this.learningBehavior.videoDuration;
       await this.saveLearningBehavior();
+    },
+
+    /**
+     * 记录视频观看行为到 student_learning_behavior 表
+     * @param {Number} endTime 结束播放的秒数
+     */
+    async recordVideoViewBehavior(endTime) {
+      try {
+        if (!this.courseId || !this.sectionId) {
+          console.log('⚠️ 缺少courseId或sectionId，跳过记录视频观看行为');
+          return;
+        }
+        const startTime = this.viewSession.startTime || 0;
+        const duration = Math.max(0, endTime - startTime);
+
+        // 只有观看时长大于3秒才记录
+        if (duration < 3) {
+          console.log('⏱️ 观看时长小于3秒，跳过记录');
+          return;
+        }
+
+        await recordVideoView(
+          this.courseId,
+          this.sectionId,
+          startTime,
+          endTime,
+          duration,
+          this.viewSession.isReplay
+        );
+        console.log('📝 视频观看行为已记录:', { startTime, endTime, duration, isReplay: this.viewSession.isReplay });
+      } catch (error) {
+        console.error('❌ 记录视频观看行为失败:', error);
+      }
     },
 
     // 加载已存在的学习行为记录

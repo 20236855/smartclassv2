@@ -34,8 +34,8 @@ if errorlevel 1 (
 
 echo.
 echo [4/4] Starting Whisper service...
-echo Service URL: http://localhost:5000
-echo Health check: http://localhost:5000/health
+echo Service URL: http://localhost:8002
+echo Health check: http://localhost:8002/health
 echo.
 echo Press Ctrl+C to stop
 echo ========================================

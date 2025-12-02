@@ -22,7 +22,7 @@ import com.ruoyi.common.utils.SecurityUtils;
  * @date 2025-11-18
  */
 @RestController
-@RequestMapping("/system/behavior")
+@RequestMapping("/system/video-behavior")
 public class VideoLearningBehaviorController extends BaseController
 {
     @Autowired

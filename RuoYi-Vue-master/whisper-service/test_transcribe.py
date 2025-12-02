@@ -29,7 +29,7 @@ def test_transcribe(video_path):
     # 2. 检查Whisper服务
     print("检查Whisper服务...")
     try:
-        response = requests.get('http://localhost:5000/health', timeout=5)
+        response = requests.get('http://localhost:8002/health', timeout=5)
         if response.status_code == 200:
             print(f"✅ Whisper服务运行正常")
             data = response.json()
@@ -61,7 +61,7 @@ def test_transcribe(video_path):
             }
             
             response = requests.post(
-                'http://localhost:5000/transcribe',
+                'http://localhost:8002/transcribe',
                 files=files,
                 data=data,
                 timeout=1800  # 30分钟超时（处理长视频）

@@ -14,7 +14,7 @@ import sys
 import requests
 import os
 
-def test_whisper_service(video_path, service_url="http://localhost:5000"):
+def test_whisper_service(video_path, service_url="http://localhost:8002"):
     """
     测试Whisper服务
     """
@@ -107,7 +107,7 @@ def main():
         sys.exit(1)
     
     video_path = sys.argv[1]
-    service_url = sys.argv[2] if len(sys.argv) > 2 else "http://localhost:5000"
+    service_url = sys.argv[2] if len(sys.argv) > 2 else "http://localhost:8002"
     
     success = test_whisper_service(video_path, service_url)
     

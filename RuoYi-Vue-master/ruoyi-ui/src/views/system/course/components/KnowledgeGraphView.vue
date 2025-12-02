@@ -90,23 +90,56 @@
     </div>
 
     <!-- 节点详情对话框 -->
-    <el-dialog :title="nodeDetail.label" :visible.sync="nodeDialogVisible" width="600px" class="node-dialog">
+    <el-dialog :title="nodeDetail.label" :visible.sync="nodeDialogVisible" width="650px" class="node-dialog">
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="知识点名称">
+        <el-descriptions-item label="名称">
           <el-tag size="medium">{{ nodeDetail.label }}</el-tag>
+          <el-tag v-if="nodeDetail.nodeType" size="small" type="info" style="margin-left: 8px;">{{ nodeDetail.nodeType }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="定义">
-          {{ nodeDetail.definition || '暂无定义' }}
+        <el-descriptions-item label="描述/定义">
+          {{ nodeDetail.definition || '暂无描述' }}
         </el-descriptions-item>
-        <el-descriptions-item label="置信度">
-          <el-progress 
-            :percentage="Math.round(nodeDetail.confidence * 100)" 
+
+        <!-- AI知识点的置信度 -->
+        <el-descriptions-item label="置信度" v-if="nodeDetail.confidence > 0">
+          <el-progress
+            :percentage="Math.round(nodeDetail.confidence * 100)"
             :color="getConfidenceColor(nodeDetail.confidence)"
             :stroke-width="8">
           </el-progress>
         </el-descriptions-item>
+
+        <!-- 知识点ID -->
         <el-descriptions-item label="知识点ID" v-if="nodeDetail.kpId">
           <el-tag type="info" size="small">{{ nodeDetail.kpId }}</el-tag>
+        </el-descriptions-item>
+
+        <!-- 掌握情况（对所有知识点显示，没有记录则显示"未学习"） -->
+        <el-descriptions-item label="掌握情况" v-if="nodeDetail.kpId">
+          <div class="mastery-info">
+            <el-tag :type="getMasteryTagType(nodeDetail.mastery ? nodeDetail.mastery.masteryStatus : 'not_started')">
+              {{ getMasteryStatusText(nodeDetail.mastery ? nodeDetail.mastery.masteryStatus : 'not_started') }}
+            </el-tag>
+            <span v-if="nodeDetail.mastery && nodeDetail.mastery.totalCount > 0" style="margin-left: 12px;">
+              正确率: {{ nodeDetail.mastery.accuracy || 0 }}%
+              ({{ nodeDetail.mastery.correctCount || 0 }}/{{ nodeDetail.mastery.totalCount || 0 }})
+            </span>
+            <span v-else style="margin-left: 12px; color: #909399;">暂无学习记录</span>
+          </div>
+        </el-descriptions-item>
+
+        <!-- 小节的知识点列表 -->
+        <el-descriptions-item label="包含知识点" v-if="nodeDetail.knowledgePoints && nodeDetail.knowledgePoints.length > 0">
+          <div class="kp-list">
+            <el-tag
+              v-for="kp in nodeDetail.knowledgePoints"
+              :key="kp.id"
+              size="small"
+              type="primary"
+              style="margin: 4px;">
+              {{ kp.title }}
+            </el-tag>
+          </div>
         </el-descriptions-item>
       </el-descriptions>
     </el-dialog>
@@ -117,6 +150,8 @@
 import * as echarts from 'echarts'
 import { listGraph, extractCourseGraph, extractChapterGraph } from '@/api/system/graph'
 import { listChapter } from '@/api/system/chapter'
+import { listMastery } from '@/api/learning/mastery'
+import { getPoint } from '@/api/system/point'
 
 export default {
   name: 'KnowledgeGraphView',
@@ -138,11 +173,15 @@ export default {
       nodeCount: 0,
       edgeCount: 0,
       nodeDialogVisible: false,
+      masteryMap: {}, // kpId -> mastery data
       nodeDetail: {
         label: '',
         definition: '',
         confidence: 0,
-        kpId: null
+        kpId: null,
+        nodeType: '',
+        mastery: null,
+        knowledgePoints: []
       }
     }
   },
@@ -239,7 +278,9 @@ export default {
           const graphData = JSON.parse(graph.graphData)
           console.log('📊 图谱数据:', graphData)
           console.log('📊 节点数量:', graphData.nodes?.length || 0)
-          console.log('📊 边数量:', graphData.edges?.length || 0)
+          // 兼容 edges 和 links 两种字段名
+          console.log('📊 边数量 (edges):', graphData.edges?.length || 0)
+          console.log('📊 边数量 (links):', graphData.links?.length || 0)
           console.log('📊 章节ID:', graphData.chapterId)
           this.renderGraph(graphData)
         } catch (e) {
@@ -251,11 +292,13 @@ export default {
         this.loading = false
       })
     },
-    renderGraph(graphData) {
+    async renderGraph(graphData) {
       const nodes = graphData.nodes || []
-      const edges = graphData.edges || []
+      // 兼容 edges 和 links 两种字段名
+      const edges = graphData.edges || graphData.links || []
 
       console.log('🎨 开始渲染图谱，节点数:', nodes.length, '边数:', edges.length)
+      console.log('📊 节点示例:', nodes.length > 0 ? nodes[0] : 'N/A')
 
       this.nodeCount = nodes.length
       this.edgeCount = edges.length
@@ -266,155 +309,182 @@ export default {
         return
       }
 
+      // 批量加载所有知识点的掌握情况
+      await this.loadAllMasteryData()
+      console.log('📊 掌握情况数据:', Object.keys(this.masteryMap).length, '个知识点')
+
+      // 检测是否为层级结构数据（包含 nodeType 字段）
+      const isHierarchicalData = nodes.some(n => n.nodeType !== undefined)
+      console.log('📊 数据格式:', isHierarchicalData ? '层级结构数据（课程→章节→小节→知识点）' : '简单知识点数据')
+
+      // 定义章节颜色（与后端一致）
+      const chapterColors = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de',
+                             '#9a60b4', '#ea7ccc', '#3ba272', '#fc8452', '#4876FF']
+
       const chartNodes = nodes.map(node => {
-        const confidence = node.confidence || 0
-        const size = Math.max(40, 60 + confidence * 60)
+        const nodeName = node.name || node.label || '未命名'
+        const nodeId = node.id
+        const nodeType = node.nodeType || 'kp'
+        const chapterIndex = node.chapterIndex || 0
+        const color = node.color || chapterColors[chapterIndex % chapterColors.length]
+
+        // 根据节点类型设置样式
+        let symbolSize = node.symbolSize || 22
+        let fontSize = 11
+        let fontWeight = 'normal'
+        let labelPosition = 'right'
+
+        if (nodeType === 'course') {
+          symbolSize = 70
+          fontSize = 16
+          fontWeight = 'bold'
+          labelPosition = 'inside'
+        } else if (nodeType === 'chapter') {
+          symbolSize = 50
+          fontSize = 13
+          fontWeight = 'bold'
+          labelPosition = 'right'
+        } else if (nodeType === 'section') {
+          symbolSize = 35
+          fontSize = 11
+          labelPosition = 'right'
+        }
+
         return {
-          id: node.id,
-          name: node.label,
-          symbolSize: size,
-          value: confidence,
-          category: this.getCategoryByConfidence(confidence),
+          id: nodeId,
+          name: nodeName,
+          symbolSize: symbolSize,
+          value: node.category || chapterIndex,
+          category: node.category !== undefined ? node.category : chapterIndex,
           itemStyle: {
-            color: {
-              type: 'radial',
-              x: 0.5,
-              y: 0.5,
-              r: 0.5,
-              colorStops: [{
-                offset: 0,
-                color: this.getColorByConfidence(confidence, 0.9)
-              }, {
-                offset: 1,
-                color: this.getColorByConfidence(confidence, 1)
-              }]
-            },
-            borderColor: '#ffffff',
-            borderWidth: 3,
-            shadowBlur: 15,
-            shadowColor: this.getColorByConfidence(confidence, 0.4),
-            shadowOffsetX: 0,
-            shadowOffsetY: 4
+            color: nodeType === 'course' ? '#303133' : color,
+            borderColor: '#fff',
+            borderWidth: nodeType === 'course' ? 4 : 2,
+            shadowBlur: nodeType === 'course' ? 15 : 6,
+            shadowColor: 'rgba(0,0,0,0.15)'
           },
           label: {
             show: true,
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#ffffff',
-            textShadowColor: 'rgba(0, 0, 0, 0.5)',
-            textShadowBlur: 4,
-            textShadowOffsetX: 0,
-            textShadowOffsetY: 1
+            formatter: nodeName,
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            color: nodeType === 'course' ? '#fff' : '#333',
+            position: labelPosition,
+            distance: 5
           },
           emphasis: {
-            itemStyle: {
-              borderWidth: 4,
-              shadowBlur: 25,
-              shadowColor: this.getColorByConfidence(confidence, 0.6)
-            },
-            label: {
-              fontSize: 15,
-              fontWeight: 700
-            }
+            itemStyle: { borderWidth: 3, shadowBlur: 12 },
+            label: { fontSize: fontSize + 2, fontWeight: 'bold' }
           },
           rawData: node
         }
       })
 
-      const chartLinks = edges.map(edge => ({
-        source: edge.source,
-        target: edge.target,
-        label: {
-          show: true,
-          formatter: this.getRelationLabel(edge.type),
-          fontSize: 11,
-          fontWeight: 500,
-          color: this.getEdgeColor(edge.type),
-          padding: [2, 4]
-        },
-        lineStyle: {
-          curveness: 0.25,
-          color: this.getEdgeColor(edge.type),
-          width: 2.5,
-          shadowBlur: 8,
-          shadowColor: this.getEdgeColor(edge.type, 0.3),
-          shadowOffsetY: 2
-        },
-        emphasis: {
+      console.log('📊 边数据:', edges.length > 0 ? edges[0] : 'N/A', '边总数:', edges.length)
+
+      // 创建节点ID集合，用于验证边的有效性
+      const nodeIdSet = new Set(nodes.map(n => n.id))
+
+      const chartLinks = edges.filter(edge => {
+        const isValid = nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)
+        if (!isValid) {
+          console.warn('⚠️ 无效边:', edge.source, '->', edge.target)
+        }
+        return isValid
+      }).map(edge => {
+        const edgeType = edge.type || edge.relationType || 'RELATED'
+        // 层级边（CONTAINS/COVERS）使用灰色，知识点关系边使用蓝色
+        const isHierarchyEdge = ['CONTAINS', 'COVERS'].includes(edgeType)
+        return {
+          source: edge.source,
+          target: edge.target,
+          label: { show: false },
           lineStyle: {
-            width: 4,
-            shadowBlur: 15,
-            shadowColor: this.getEdgeColor(edge.type, 0.5)
+            curveness: isHierarchyEdge ? 0 : 0.2,
+            color: isHierarchyEdge ? '#c0c4cc' : '#91cc75',
+            width: isHierarchyEdge ? 1.5 : 1,
+            opacity: isHierarchyEdge ? 0.6 : 0.4
           },
-          label: {
-            fontSize: 12,
-            fontWeight: 600
+          emphasis: {
+            lineStyle: { width: 2.5, opacity: 1, color: '#409EFF' },
+            label: { show: true, formatter: this.getRelationLabel(edgeType), fontSize: 11, color: '#333' }
           }
         }
-      }))
+      })
 
+      console.log('📊 有效边数:', chartLinks.length)
+
+      // 动态生成章节分类（用于图例）
+      const chapterNodes = nodes.filter(n => n.nodeType === 'chapter')
       const categories = [
-        { name: '高置信度' },
-        { name: '中置信度' },
-        { name: '低置信度' }
+        { name: '课程', itemStyle: { color: '#303133' } },
+        ...chapterNodes.map((ch, idx) => ({
+          name: ch.label || ch.name || `章节${idx + 1}`,
+          itemStyle: { color: chapterColors[idx % chapterColors.length] }
+        }))
       ]
 
       const option = {
-        backgroundColor: 'transparent',
+        backgroundColor: '#fafbfc',
         title: {
-          text: this.selectedGraphType === 'COURSE' ? '📚 课程知识图谱' : '📖 章节知识图谱',
+          text: this.selectedGraphType === 'COURSE' ? '课程知识图谱' : '章节知识图谱',
           left: 'center',
-          top: 20,
-          textStyle: {
-            fontSize: 24,
-            fontWeight: 700,
-            color: '#667eea',
-            textShadowColor: 'rgba(102, 126, 234, 0.2)',
-            textShadowBlur: 10,
-            textShadowOffsetX: 0,
-            textShadowOffsetY: 2
-          }
+          top: 12,
+          textStyle: { fontSize: 18, fontWeight: 600, color: '#303133' }
+        },
+        legend: {
+          data: categories.map(c => c.name),
+          orient: 'horizontal',
+          left: 'center',
+          bottom: 10,
+          textStyle: { fontSize: 12, color: '#606266' },
+          icon: 'circle',
+          itemWidth: 12,
+          itemHeight: 12
         },
         tooltip: {
           trigger: 'item',
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          borderColor: '#667eea',
-          borderWidth: 2,
-          borderRadius: 12,
-          padding: [16, 20],
-          textStyle: {
-            color: '#333',
-            fontSize: 13
-          },
-          extraCssText: 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); backdrop-filter: blur(10px);',
+          backgroundColor: 'rgba(255, 255, 255, 0.98)',
+          borderColor: '#e4e7ed',
+          borderWidth: 1,
+          borderRadius: 6,
+          padding: [10, 14],
+          textStyle: { color: '#333', fontSize: 12 },
+          extraCssText: 'box-shadow: 0 2px 8px rgba(0,0,0,0.08);',
           formatter: (params) => {
             if (params.dataType === 'node') {
               const data = params.data.rawData
-              const confidencePercent = Math.round((data.confidence || 0) * 100)
-              const confidenceColor = data.confidence >= 0.7 ? '#67C23A' : data.confidence >= 0.4 ? '#E6A23C' : '#F56C6C'
-              return `<div style="max-width: 300px;">
-                        <div style="font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 8px;">
-                          ${data.label}
-                        </div>
-                        <div style="margin-bottom: 10px; line-height: 1.6; color: #606266;">
-                          <strong style="color: #303133;">定义：</strong>${data.definition || '暂无定义'}
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                          <strong style="color: #303133;">置信度：</strong>
-                          <span style="color: ${confidenceColor}; font-weight: 700; font-size: 15px;">${confidencePercent}%</span>
-                          <div style="flex: 1; height: 6px; background: #e4e7ed; border-radius: 3px; overflow: hidden;">
-                            <div style="width: ${confidencePercent}%; height: 100%; background: ${confidenceColor}; border-radius: 3px; transition: width 0.3s ease;"></div>
-                          </div>
-                        </div>
-                      </div>`
-            } else if (params.dataType === 'edge') {
-              const relationLabel = this.getRelationLabel(params.data.label.formatter)
-              const edgeColor = this.getEdgeColor(params.data.label.formatter)
-              return `<div style="padding: 4px 8px;">
-                        <span style="display: inline-block; width: 30px; height: 3px; background: ${edgeColor}; border-radius: 2px; margin-right: 8px; vertical-align: middle;"></span>
-                        <strong style="color: #303133;">${relationLabel}</strong>
-                      </div>`
+              const nodeName = data.name || data.label || '未命名'
+              const nodeType = data.nodeType || 'kp'
+              const definition = data.definition || ''
+              const typeLabels = { 'course': '课程', 'chapter': '章节', 'section': '小节', 'kp': '知识点' }
+              const typeLabel = typeLabels[nodeType] || '知识点'
+
+              // 知识点显示掌握情况
+              let masteryHtml = ''
+              if (nodeType === 'kp' && data.kpId) {
+                const mastery = this.masteryMap[data.kpId]
+                const masteryStatus = mastery?.masteryStatus || 'not_started'
+                const masteryLabels = { 'mastered': '已掌握', 'learning': '学习中', 'weak': '薄弱', 'not_started': '未学习' }
+                const masteryColors = { 'mastered': '#67C23A', 'learning': '#E6A23C', 'weak': '#F56C6C', 'not_started': '#909399' }
+                const masteryLabel = masteryLabels[masteryStatus] || '未学习'
+                const masteryColor = masteryColors[masteryStatus] || '#909399'
+                const accuracy = mastery?.accuracy || 0
+                masteryHtml = `<div style="margin-top: 4px;"><span style="color: ${masteryColor}; font-size: 11px; padding: 2px 6px; background: ${masteryColor}20; border-radius: 3px;">${masteryLabel}</span>`
+                if (mastery && mastery.totalCount > 0) {
+                  masteryHtml += `<span style="margin-left: 8px; color: #606266; font-size: 11px;">正确率: ${accuracy}%</span>`
+                }
+                masteryHtml += '</div>'
+              }
+
+              return `<div style="max-width: 280px;">
+                <div style="font-size: 14px; font-weight: 600; color: #303133; margin-bottom: 6px;">${nodeName}</div>
+                <div style="margin-bottom: 4px;"><span style="color: #409EFF; font-size: 11px; padding: 2px 6px; background: #409EFF20; border-radius: 3px;">${typeLabel}</span></div>
+                ${masteryHtml}
+                ${definition ? `<div style="color: #606266; line-height: 1.4; font-size: 12px; margin-top: 6px;">${definition}</div>` : ''}
+              </div>`
             }
+            return ''
           }
         },
         series: [{
@@ -427,33 +497,23 @@ export default {
           focusNodeAdjacency: true,
           draggable: true,
           symbol: 'circle',
-          label: {
-            position: 'inside',
-            formatter: '{b}',
-            fontSize: 12
-          },
+          label: { position: 'right', formatter: '{b}', fontSize: 10, color: '#333' },
           force: {
-            repulsion: 1500,
-            edgeLength: [120, 350],
-            gravity: 0.08,
-            friction: 0.5,
+            repulsion: 800,
+            edgeLength: [80, 200],
+            gravity: 0.1,
+            friction: 0.6,
             layoutAnimation: true
           },
           emphasis: {
             focus: 'adjacency',
-            scale: 1.15,
-            lineStyle: {
-              width: 5
-            },
-            itemStyle: {
-              shadowBlur: 20,
-              shadowColor: 'rgba(102, 126, 234, 0.5)'
-            }
+            scale: 1.08,
+            lineStyle: { width: 2.5 },
+            itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.15)' }
           },
           animation: true,
-          animationDuration: 1500,
-          animationEasing: 'cubicOut',
-          animationDelay: (idx) => idx * 10
+          animationDuration: 1000,
+          animationEasing: 'cubicOut'
         }]
       }
 
@@ -464,14 +524,86 @@ export default {
       this.chart.on('click', (params) => {
         if (params.dataType === 'node') {
           const data = params.data.rawData
+
+          // 判断节点类型
+          const nodeId = data.id || ''
+          let nodeType = '知识点'
+          if (nodeId.startsWith('course-')) nodeType = '课程'
+          else if (nodeId.startsWith('chapter-')) nodeType = '章节'
+          else if (nodeId.startsWith('section-')) nodeType = '小节'
+          else if (nodeId.startsWith('kp-') || nodeId.startsWith('kp_')) nodeType = '知识点'
+
+          // 提取小节中的知识点列表
+          const knowledgePoints = data.sectionData?.knowledgePoints || []
+
+          // 获取描述信息
+          let definition = data.definition || data.sectionData?.description || ''
+
           this.nodeDetail = {
-            label: data.label,
-            definition: data.definition || '暂无定义',
+            label: data.name || data.label || '未命名',
+            definition: definition,
             confidence: data.confidence || 0,
-            kpId: data.kpId
+            kpId: data.kpId,
+            nodeType: nodeType,
+            mastery: this.masteryMap[data.kpId] || null,
+            knowledgePoints: knowledgePoints
           }
+
+          // 如果是知识点且有kpId
+          if (data.kpId) {
+            // 加载掌握情况
+            if (!this.masteryMap[data.kpId]) {
+              this.loadMasteryForKp(data.kpId)
+            }
+            // 如果没有描述，从数据库加载知识点详情
+            if (!definition) {
+              this.loadKnowledgePointDetail(data.kpId)
+            }
+          }
+
           this.nodeDialogVisible = true
         }
+      })
+    },
+    // 加载知识点详情（包括描述）
+    loadKnowledgePointDetail(kpId) {
+      getPoint(kpId).then(response => {
+        if (response.data && response.data.description) {
+          this.nodeDetail.definition = response.data.description
+        }
+      }).catch(err => {
+        console.warn('加载知识点详情失败:', err)
+      })
+    },
+    // 批量加载所有知识点的掌握情况
+    async loadAllMasteryData() {
+      try {
+        const response = await listMastery({ courseId: this.courseId })
+        if (response.rows && response.rows.length > 0) {
+          // 将掌握情况按 kpId 建立映射
+          response.rows.forEach(mastery => {
+            if (mastery.kpId) {
+              this.masteryMap[mastery.kpId] = mastery
+            }
+          })
+          console.log('📊 已加载掌握情况:', response.rows.length, '条记录')
+        }
+      } catch (err) {
+        console.warn('批量加载掌握情况失败:', err)
+      }
+    },
+    // 加载知识点掌握情况（单个）
+    loadMasteryForKp(kpId) {
+      listMastery({ kpId: kpId, courseId: this.courseId }).then(response => {
+        if (response.rows && response.rows.length > 0) {
+          this.masteryMap[kpId] = response.rows[0]
+          // 更新当前显示的节点详情
+          if (this.nodeDetail.kpId === kpId) {
+            this.nodeDetail.mastery = response.rows[0]
+          }
+        }
+      }).catch(err => {
+        console.warn('加载掌握情况失败:', err)
       })
     },
     handleGenerate() {
@@ -579,6 +711,26 @@ export default {
     formatTime(time) {
       if (!time) return '未知'
       return new Date(time).toLocaleString()
+    },
+    // 掌握状态Tag类型
+    getMasteryTagType(status) {
+      const typeMap = {
+        'mastered': 'success',
+        'learning': 'warning',
+        'weak': 'danger',
+        'not_started': 'info'
+      }
+      return typeMap[status] || 'info'
+    },
+    // 掌握状态文本
+    getMasteryStatusText(status) {
+      const textMap = {
+        'mastered': '已掌握',
+        'learning': '学习中',
+        'weak': '薄弱',
+        'not_started': '未开始'
+      }
+      return textMap[status] || '未知'
     }
   }
 }
@@ -608,9 +760,10 @@ export default {
 
 .knowledge-graph-chart {
   width: 100%;
-  height: 650px;
-  background: #fafafa;
+  height: 700px;
+  background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
   position: relative;
+  border-radius: 0 0 8px 8px;
 }
 
 .empty-state {
@@ -821,5 +974,29 @@ export default {
 .control-panel >>> .el-select .el-input__inner:focus {
   border-color: #667eea;
   box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+/* 知识点列表样式 */
+.kp-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 掌握情况样式 */
+.mastery-info {
+  display: flex;
+  align-items: center;
+}
+
+/* 节点对话框样式增强 */
+.node-dialog >>> .el-descriptions-item__label {
+  width: 120px;
+  font-weight: 600;
+  color: #606266;
+}
+
+.node-dialog >>> .el-descriptions-item__content {
+  color: #303133;
 }
 </style>

@@ -56,4 +56,9 @@ public class KpRelationServiceImpl implements IKpRelationService
     {
         return kpRelationMapper.deleteKpRelationById(id);
     }
+
+    @Override
+    public boolean relationExists(Long sourceId, Long targetId, String relationType) {
+        return kpRelationMapper.relationExists(sourceId, targetId, relationType) > 0;
+    }
 }
