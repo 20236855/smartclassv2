@@ -24,9 +24,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="selectCourseResourceList" parameterType="CourseResource" resultMap="CourseResourceResult">
         <include refid="selectCourseResourceVo"/>
-        <where>  
+        <where>
             <if test="courseId != null "> and course_id = #{courseId}</if>
             <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
+            <!-- 排除视频类型的资源，视频应该在section表中 -->
+            and file_type not in ('mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'video')
         </where>
     </select>
     

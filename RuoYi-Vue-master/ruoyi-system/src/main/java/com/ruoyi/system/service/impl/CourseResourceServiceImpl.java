@@ -46,26 +46,51 @@ public class CourseResourceServiceImpl implements ICourseResourceService
 
     /**
      * 新增课程资源
-     * 
+     *
      * @param courseResource 课程资源
      * @return 结果
      */
     @Override
     public int insertCourseResource(CourseResource courseResource)
     {
+        // 验证文件类型：禁止上传视频文件到课程资源表
+        // 视频应该通过Section表的video_url字段存储
+        String fileType = courseResource.getFileType();
+        if (fileType != null) {
+            String lowerFileType = fileType.toLowerCase();
+            if (lowerFileType.equals("mp4") || lowerFileType.equals("avi") ||
+                lowerFileType.equals("mov") || lowerFileType.equals("wmv") ||
+                lowerFileType.equals("flv") || lowerFileType.equals("mkv") ||
+                lowerFileType.equals("webm") || lowerFileType.equals("video")) {
+                throw new RuntimeException("视频文件不应上传到课程资源，请通过课程章节的小节视频功能上传");
+            }
+        }
+
         courseResource.setCreateTime(DateUtils.getNowDate());
         return courseResourceMapper.insertCourseResource(courseResource);
     }
 
     /**
      * 修改课程资源
-     * 
+     *
      * @param courseResource 课程资源
      * @return 结果
      */
     @Override
     public int updateCourseResource(CourseResource courseResource)
     {
+        // 验证文件类型：禁止修改为视频文件类型
+        String fileType = courseResource.getFileType();
+        if (fileType != null) {
+            String lowerFileType = fileType.toLowerCase();
+            if (lowerFileType.equals("mp4") || lowerFileType.equals("avi") ||
+                lowerFileType.equals("mov") || lowerFileType.equals("wmv") ||
+                lowerFileType.equals("flv") || lowerFileType.equals("mkv") ||
+                lowerFileType.equals("webm") || lowerFileType.equals("video")) {
+                throw new RuntimeException("视频文件不应上传到课程资源，请通过课程章节的小节视频功能上传");
+            }
+        }
+
         courseResource.setUpdateTime(DateUtils.getNowDate());
         return courseResourceMapper.updateCourseResource(courseResource);
     }

@@ -23,12 +23,8 @@
         </el-form-item>
         <el-form-item label="课程类型" prop="courseType">
           <el-select v-model="queryParams.courseType" placeholder="请选择课程类型" clearable style="width: 150px">
-            <el-option
-              v-for="dict in dict.type.course_type"
-              :key="dict.value"
-              :label="dict.label"
-              :value="dict.value"
-            />
+            <el-option label="必修课" value="必修课" />
+            <el-option label="选修课" value="选修课" />
           </el-select>
         </el-form-item>
         <el-form-item>
