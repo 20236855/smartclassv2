@@ -83,15 +83,70 @@
         </div>
         <!-- Office文档预览 -->
         <div v-else-if="previewType === 'office'" class="office-preview">
-          <iframe :src="previewUrl" width="100%" height="600px" frameborder="0"></iframe>
+          <el-alert
+            title="本地环境无法预览 Office 文档"
+            type="warning"
+            :closable="false"
+            style="margin-bottom: 15px;">
+            <div slot="default">
+              <p style="margin: 0 0 10px 0;">
+                <i class="el-icon-info"></i>
+                Office 文档预览需要公网可访问的 URL，本地开发环境（localhost）无法使用微软在线预览服务。
+              </p>
+              <p style="margin: 0; font-weight: bold; color: #E6A23C;">
+                <i class="el-icon-download"></i>
+                建议：点击下方"下载文件"按钮，下载到本地后使用 Office 软件打开查看。
+              </p>
+            </div>
+          </el-alert>
+
+          <!-- 下载按钮 - 放在显眼位置 -->
+          <div style="text-align: center; padding: 30px 0 20px 0;">
+            <el-button
+              type="primary"
+              size="large"
+              icon="el-icon-download"
+              @click="handleDownload(currentPreviewResource)">
+              下载文件到本地查看
+            </el-button>
+            <p style="margin-top: 10px; color: #909399; font-size: 13px;">
+              下载后使用 Microsoft Word、Excel 或 PowerPoint 打开
+            </p>
+          </div>
+
+          <!-- 尝试显示预览（通常会失败） -->
+          <el-divider>或尝试在线预览（可能失败）</el-divider>
+          <div style="position: relative;">
+            <iframe :src="previewUrl" width="100%" height="500px" frameborder="0" style="border: 1px solid #ddd;"></iframe>
+            <!-- 如果iframe加载失败，显示遮罩 -->
+            <div v-if="officePreviewFailed" class="preview-error-overlay">
+              <i class="el-icon-warning-outline" style="font-size: 48px; color: #F56C6C;"></i>
+              <p style="margin-top: 15px; font-size: 16px;">在线预览失败</p>
+              <p style="color: #909399;">请使用上方的"下载文件"按钮</p>
+            </div>
+          </div>
         </div>
         <!-- 视频预览 -->
         <div v-else-if="previewType === 'video'" class="video-preview">
-          <video :src="previewUrl" controls style="max-width: 100%; max-height: 70vh;"></video>
+          <video :src="previewUrl" controls style="max-width: 100%; max-height: 70vh;">
+            您的浏览器不支持视频播放
+          </video>
         </div>
         <!-- 音频预览 -->
         <div v-else-if="previewType === 'audio'" class="audio-preview">
-          <audio :src="previewUrl" controls style="width: 100%;"></audio>
+          <audio :src="previewUrl" controls style="width: 100%;">
+            您的浏览器不支持音频播放
+          </audio>
+        </div>
+        <!-- 文本预览 -->
+        <div v-else-if="previewType === 'text'" class="text-preview">
+          <div v-if="textContent" class="text-content">
+            <pre>{{ textContent }}</pre>
+          </div>
+          <div v-else class="text-loading">
+            <i class="el-icon-loading"></i>
+            <span>正在加载文本内容...</span>
+          </div>
         </div>
         <!-- 不支持预览 -->
         <div v-else class="unsupported-preview">
@@ -166,7 +221,10 @@ export default {
       previewType: "",
       previewUrl: "",
       previewWidth: "80%",
-      currentPreviewResource: null
+      currentPreviewResource: null,
+      textContent: "",
+      officePreviewNote: "",
+      officePreviewFailed: false
     };
   },
   created() {
@@ -390,16 +448,23 @@ export default {
       this.previewLoading = true;
       this.previewOpen = true;
       this.previewTitle = "预览: " + resource.name;
+      this.textContent = "";
+      this.officePreviewNote = "";
 
       getPreviewInfo(resource.id).then(response => {
         this.previewType = response.previewType;
         this.previewUrl = response.previewUrl;
+        this.officePreviewNote = response.officePreviewNote || "";
 
         // 根据预览类型调整对话框宽度
         if (this.previewType === 'image') {
           this.previewWidth = '60%';
         } else if (this.previewType === 'audio') {
           this.previewWidth = '50%';
+        } else if (this.previewType === 'text') {
+          this.previewWidth = '70%';
+          // 加载文本内容
+          this.loadTextContent(response.previewUrl);
         } else {
           this.previewWidth = '90%';
         }
@@ -407,10 +472,27 @@ export default {
         this.previewLoading = false;
       }).catch(error => {
         console.error('获取预览信息失败:', error);
-        this.$message.error('获取预览信息失败');
+        this.$message.error('获取预览信息失败: ' + (error.message || '未知错误'));
         this.previewLoading = false;
         this.previewType = 'unsupported';
       });
+    },
+    /** 加载文本内容 */
+    loadTextContent(url) {
+      fetch(url)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('文件加载失败');
+          }
+          return response.text();
+        })
+        .then(text => {
+          this.textContent = text;
+        })
+        .catch(error => {
+          console.error('加载文本内容失败:', error);
+          this.textContent = '文本内容加载失败，请下载查看';
+        });
     },
     /** 关闭预览 */
     closePreview() {
@@ -418,6 +500,8 @@ export default {
       this.previewUrl = "";
       this.previewType = "";
       this.currentPreviewResource = null;
+      this.textContent = "";
+      this.officePreviewNote = "";
     }
   }
 };
@@ -454,11 +538,45 @@ export default {
   align-items: center;
 }
 
-.image-preview, .pdf-preview, .office-preview, .video-preview, .audio-preview {
+.image-preview, .pdf-preview, .office-preview, .video-preview, .audio-preview, .text-preview {
   width: 100%;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+}
+
+.text-preview {
+  .text-content {
+    width: 100%;
+    max-height: 600px;
+    overflow: auto;
+    background-color: #f5f7fa;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    padding: 15px;
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #303133;
+    }
+  }
+
+  .text-loading {
+    text-align: center;
+    padding: 40px;
+    color: #909399;
+
+    i {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+  }
 }
 
 .unsupported-preview {
@@ -484,5 +602,19 @@ export default {
     font-size: 48px;
     margin-bottom: 10px;
   }
+}
+
+.preview-error-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
 }
 </style>

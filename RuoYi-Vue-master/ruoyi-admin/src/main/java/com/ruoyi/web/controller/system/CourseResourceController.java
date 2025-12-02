@@ -1,4 +1,4 @@
-package com.ruoyi.web.controller.system;
+ package com.ruoyi.web.controller.system;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -268,11 +268,12 @@ public class CourseResourceController extends BaseController
      * 获取资源预览信息
      *
      * @param id 资源ID
+     * @param request HttpServletRequest用于获取服务器地址
      * @return 预览信息（包含预览URL和预览类型）
      */
     @PreAuthorize("@ss.hasPermi('system:resource:list')")
     @GetMapping("/preview/{id}")
-    public AjaxResult getPreviewInfo(@PathVariable("id") Long id)
+    public AjaxResult getPreviewInfo(@PathVariable("id") Long id, HttpServletRequest request)
     {
         try
         {
@@ -285,8 +286,22 @@ public class CourseResourceController extends BaseController
             String fileType = resource.getFileType() != null ? resource.getFileType().toLowerCase() : "";
             String fileUrl = resource.getFileUrl();
 
-            // 构建完整的文件访问URL
-            String baseUrl = "http://localhost:8082";
+            // 动态构建完整的文件访问URL
+            String scheme = request.getScheme(); // http 或 https
+            String serverName = request.getServerName(); // localhost 或域名
+            int serverPort = request.getServerPort(); // 端口号
+            String contextPath = request.getContextPath(); // 上下文路径
+
+            String baseUrl;
+            if ((scheme.equals("http") && serverPort == 80) || (scheme.equals("https") && serverPort == 443))
+            {
+                baseUrl = scheme + "://" + serverName + contextPath;
+            }
+            else
+            {
+                baseUrl = scheme + "://" + serverName + ":" + serverPort + contextPath;
+            }
+
             String fullUrl = baseUrl + fileUrl;
 
             AjaxResult result = AjaxResult.success();
@@ -308,9 +323,21 @@ public class CourseResourceController extends BaseController
             }
             else if (isOfficeType(fileType))
             {
-                // 使用微软在线预览服务
+                // 使用微软在线预览服务（仅在公网环境下可用）
+                // 本地开发环境建议下载查看
                 result.put("previewType", "office");
-                result.put("previewUrl", "https://view.officeapps.live.com/op/embed.aspx?src=" + java.net.URLEncoder.encode(fullUrl, "UTF-8"));
+                try
+                {
+                    String encodedUrl = java.net.URLEncoder.encode(fullUrl, "UTF-8");
+                    result.put("previewUrl", "https://view.officeapps.live.com/op/embed.aspx?src=" + encodedUrl);
+                    result.put("officePreviewNote", "Office文档预览需要公网可访问的URL，本地环境建议下载查看");
+                }
+                catch (Exception e)
+                {
+                    logger.warn("Office预览URL编码失败", e);
+                    result.put("previewType", "unsupported");
+                    result.put("previewUrl", null);
+                }
             }
             else if (isVideoType(fileType))
             {
