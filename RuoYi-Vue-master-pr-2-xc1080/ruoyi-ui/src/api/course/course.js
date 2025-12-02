@@ -1,0 +1,71 @@
+import request from '@/utils/request'
+
+// 查询课程列表
+export function listCourse(query) {
+  return request({
+    url: '/course/list',
+    method: 'get',
+    params: query
+  })
+}
+
+// 查询课程统计信息
+export function getCourseStats() {
+  return request({
+    url: '/course/stats',
+    method: 'get'
+  })
+}
+
+// 查询课程详细
+export function getCourse(id) {
+  return request({
+    url: '/course/' + id,
+    method: 'get'
+  })
+}
+
+// 新增课程
+export function addCourse(data) {
+  return request({
+    url: '/course',
+    method: 'post',
+    data: data
+  })
+}
+
+// 修改课程
+export function updateCourse(data) {
+  return request({
+    url: '/course',
+    method: 'put',
+    data: data
+  })
+}
+
+// 删除课程
+export function delCourse(id) {
+  return request({
+    url: '/course/' + id,
+    method: 'delete'
+  })
+}
+
+// 查询知识点错误统计
+export function getKpErrorStats(courseId, targetDate) {
+  return request({
+    url: '/course/kpErrorStats',
+    method: 'get',
+    params: { courseId, targetDate }
+  })
+}
+
+// AI生成教学计划
+export function generateTeachingPlan(data) {
+  return request({
+    url: '/course/generateTeachingPlan',
+    method: 'post',
+    data: data,
+    timeout: 60000  // 60秒超时，AI生成需要较长时间
+  })
+}
