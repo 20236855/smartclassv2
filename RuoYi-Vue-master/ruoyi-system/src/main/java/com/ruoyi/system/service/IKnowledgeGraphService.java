@@ -66,9 +66,24 @@ public interface IKnowledgeGraphService
     public void generateCourseGraph(Long courseId);
 
     /**
+     * 为指定课程生成知识图谱（带创建者ID，用于异步调用）
+     * @param courseId 课程ID
+     * @param creatorId 创建者用户ID
+     */
+    public void generateCourseGraph(Long courseId, Long creatorId);
+
+    /**
      * 为指定章节生成知识图谱（异步）
      * @param courseId 课程ID
      * @param chapterId 章节ID
      */
     public void generateChapterGraph(Long courseId, Long chapterId);
+
+    /**
+     * 为指定章节生成知识图谱（带创建者ID，用于异步调用）
+     * @param courseId 课程ID
+     * @param chapterId 章节ID
+     * @param creatorId 创建者用户ID
+     */
+    public void generateChapterGraph(Long courseId, Long chapterId, Long creatorId);
 }

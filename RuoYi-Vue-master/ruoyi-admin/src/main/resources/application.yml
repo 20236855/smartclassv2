@@ -6,7 +6,7 @@ ruoyi:
   version: 1.0.0
   # 版权年份
   copyrightYear: 2025
-  # 文件路径 
+  # 文件路径 示例（ Windows配置D:/ruoyi/uploadPath，Linux配置 /home/ruoyi/uploadPath）
   profile: C:/ruoyi/uploadPath
   # 获取ip地址开关
   addressEnabled: false
@@ -16,7 +16,7 @@ ruoyi:
 # 开发环境配置
 server:
   # 服务器的HTTP端口，默认为8080
-  port: 8082
+  port: 8080
   servlet:
     # 应用的访问路径
     context-path: /
@@ -141,6 +141,16 @@ xss:
   excludes: /system/notice
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
+
+# 微调模型API配置
+finetuned:
+  # 个性化推荐模型
+  recommendation:
+    url: "https://u811610-8a58-f821b323.westb.seetacloud.com:8443/recommendation_generate"
+  # 知识图谱生成模型
+  kg:
+    url: "https://u811610-8a58-f821b323.westb.seetacloud.com:8443/kg_generate"
+
 
 # 通义千问API配置（原配置保留）
 tongyi:
