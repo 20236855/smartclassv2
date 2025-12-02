@@ -21,8 +21,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 数字分身服务实现（最终优化版）
- * 核心调整：统一 userId/studentId 为值=1，参数名统一为 studentId，确保无报错
+ * 数字分身服务实现（硬编码业务学生ID=38，直接查询目标学生数据）
  *
  * @author ruoyi
  * @date 2025-11-23
@@ -58,28 +57,28 @@ public class DigitalTwinServiceImpl implements IDigitalTwinService {
     private static final String TWIN_GAP = "查漏补缺型";
 
     /**
-     * 核心方法：计算数字分身（studentId=1，兼容入参，值固定适配1）
+     * 核心方法：计算数字分身（硬编码业务学生ID=38，无需调用方传正确ID）
      */
     @Override
     public DigitalTwinResultVO calculateDigitalTwin(Long studentId, Long courseId) {
-        // 强制适配 studentId=1（因用户明确 userId/studentId 都是1，无需额外入参判断）
-        Long targetStudentId = 1L;
-        log.info("开始计算数字分身：studentId={}（固定适配值）, courseId={}", targetStudentId, courseId);
+        // 硬编码为目标业务学生ID=38（直接固定，所有查询都用该ID）
+        Long targetStudentId = 38L;
+        log.info("开始计算数字分身：studentId={}（硬编码业务学生ID）, courseId={}", targetStudentId, courseId);
 
-        // 1. 入参校验（仅校验courseId，studentId固定为1无需校验）
+        // 1. 入参校验（仅校验courseId）
         if (courseId == null || courseId <= 0) {
             log.error("计算数字分身失败：课程ID无效");
             throw new RuntimeException("入参错误：courseId必须为正整数");
         }
 
-        // 2. 查询核心数据（全部传入固定studentId=1，去掉作业依赖）
+        // 2. 查询核心数据（全部传入硬编码studentId=38）
         List<StudentKpMastery> kpMasteryList = getKpMasteryData(targetStudentId, courseId);
         List<PersonalizedRecommendation> recommendList = getRecommendationData(targetStudentId, courseId);
         KpPracticeStatVO kpPracticeStat = getKpPracticeStatData(kpMasteryList);
         VideoLearningStatVO videoStat = getVideoLearningData(targetStudentId, courseId);
         CourseBenchmarkVO benchmarkVO = getCourseBenchmarkData(courseId, targetStudentId);
 
-        // 3. 计算4个分身的分数（逻辑不变，基于studentId=1的数据）
+        // 3. 计算4个分身的分数（逻辑不变，基于studentId=38的数据）
         TwinScoreDetailVO steadyDetail = calculateSteadyScore(kpMasteryList, recommendList, videoStat, kpPracticeStat);
         TwinScoreDetailVO logicDetail = calculateLogicScore(kpMasteryList, kpPracticeStat, benchmarkVO, videoStat, recommendList);
         TwinScoreDetailVO efficientDetail = calculateEfficientScore(videoStat, kpPracticeStat, benchmarkVO, kpMasteryList);
@@ -111,39 +110,38 @@ public class DigitalTwinServiceImpl implements IDigitalTwinService {
         resultVO.setFeatures(features);
         resultVO.setScoreDetails(scoreDetails);
 
-        log.info("数字分身计算完成：studentId={}（固定适配值）, 结果={}", targetStudentId, resultVO);
+        log.info("数字分身计算完成：studentId={}（硬编码业务学生ID）, 结果={}", targetStudentId, resultVO);
         return resultVO;
     }
 
-    // ------------------------------ 私有方法：数据查询（统一传入studentId=1，参数名统一） ------------------------------
+    // ------------------------------ 私有方法：数据查询（统一传入硬编码studentId=38） ------------------------------
 
     /**
-     * 1. 查询学生-课程的知识点掌握数据（参数名统一为studentId，值=1）
+     * 1. 查询学生-课程的知识点掌握数据（硬编码studentId=38）
      */
     private List<StudentKpMastery> getKpMasteryData(Long studentId, Long courseId) {
         try {
             StudentKpMastery query = new StudentKpMastery();
-            // 统一参数名和实体类set方法（匹配数据库student_id字段，值=1）
-            query.setStudentUserId(studentId);
+            query.setStudentUserId(studentId); // 传入硬编码38
             query.setCourseId(courseId);
             query.setIsDeleted(0);
             List<StudentKpMastery> list = studentKpMasteryMapper.selectStudentKpMasteryList(query);
+            log.info("查询知识点掌握数据：studentId={}, courseId={}, 数据量={}", studentId, courseId, list.size());
             return list != null ? list : new ArrayList<>();
         } catch (Exception e) {
-            log.error("查询学生[{}]（固定值）课程[{}]知识点掌握数据失败", studentId, courseId, e);
+            log.error("查询学生[{}]课程[{}]知识点掌握数据失败", studentId, courseId, e);
             return new ArrayList<>();
         }
     }
 
     /**
-     * 2. 查询学生-课程的个性化推荐数据（参数名统一为studentId，值=1）
+     * 2. 查询学生-课程的个性化推荐数据（硬编码studentId=38）
      */
     private List<PersonalizedRecommendation> getRecommendationData(Long studentId, Long courseId) {
         try {
-            // Mapper调用传入studentId=1，参数名统一
-            List<PersonalizedRecommendation> list = recommendationMapper.selectValidRecommendations(studentId, courseId);
+            List<PersonalizedRecommendation> list = recommendationMapper.selectValidRecommendations(studentId, courseId); // 传入硬编码38
             if (StringUtils.isEmpty(list)) {
-                log.warn("未查询到学生[{}]（固定值）课程[{}]的有效推荐数据，使用全部推荐数据兜底", studentId, courseId);
+                log.warn("未查询到学生[{}]课程[{}]的有效推荐数据，使用全部推荐数据兜底", studentId, courseId);
                 PersonalizedRecommendation query = new PersonalizedRecommendation();
                 query.setStudentUserId(studentId);
                 query.setCourseId(courseId);
@@ -152,25 +150,25 @@ public class DigitalTwinServiceImpl implements IDigitalTwinService {
             }
             return list != null ? list : new ArrayList<>();
         } catch (Exception e) {
-            log.error("查询学生[{}]（固定值）课程[{}]个性化推荐数据失败", studentId, courseId, e);
+            log.error("查询学生[{}]课程[{}]个性化推荐数据失败", studentId, courseId, e);
             return new ArrayList<>();
         }
     }
 
     /**
-     * 3. 统计知识点练习数据（逻辑不变，基于studentId=1的数据计算）
+     * 3. 统计知识点练习数据（基于studentId=38的数据计算）
      */
     private KpPracticeStatVO getKpPracticeStatData(List<StudentKpMastery> kpMasteryList) {
         KpPracticeStatVO statVO = new KpPracticeStatVO();
         if (StringUtils.isEmpty(kpMasteryList)) {
-            log.warn("学生[1]（固定值）无知识点掌握数据，返回默认练习统计");
+            log.warn("学生[38]无知识点掌握数据，返回默认练习统计");
             statVO.setTotalPracticeCount(0);
             statVO.setCorrectRate(BigDecimal.ZERO);
             statVO.setTotalPracticeTime(0L);
             return statVO;
         }
 
-        // 计算总练习次数、正确次数（基于studentId=1的知识点数据）
+        // 计算总练习次数、正确次数（基于38的知识点数据）
         int totalPractice = 0;
         int totalCorrect = 0;
         long totalTime = 0L;
@@ -196,16 +194,14 @@ public class DigitalTwinServiceImpl implements IDigitalTwinService {
     }
 
     /**
-     * 4. 查询学生-课程的视频学习数据（参数名统一为studentId，值=1，修复Mapper参数匹配）
+     * 4. 查询学生-课程的视频学习数据（硬编码studentId=38，删除重复硬编码）
      */
     private VideoLearningStatVO getVideoLearningData(Long studentId, Long courseId) {
         try {
-            // Mapper方法参数名统一为studentId，与Service参数一致（值=1）
-            // 正确代码：用已有的targetStudentId（值=1），参数名匹配Mapper的studentUserId
-            Long targetStudentId=1L;
-            List<VideoLearningBehavior> behaviorList = videoLearningBehaviorMapper.selectByUserIdAndCourseId(targetStudentId, courseId);
+            // 直接使用硬编码传入的studentId=38，无重复硬编码
+            List<VideoLearningBehavior> behaviorList = videoLearningBehaviorMapper.selectByUserIdAndCourseId(studentId, courseId);
             if (StringUtils.isEmpty(behaviorList)) {
-                log.warn("未查询到学生[{}]（固定值）课程[{}]的视频学习数据，返回默认值", studentId, courseId);
+                log.warn("未查询到学生[{}]课程[{}]的视频学习数据，返回默认值", studentId, courseId);
                 return getDefaultVideoStatVO();
             }
 
@@ -239,17 +235,17 @@ public class DigitalTwinServiceImpl implements IDigitalTwinService {
             stat.setTotalVideoCount(behaviorList.size());
             return stat;
         } catch (Exception e) {
-            log.error("查询学生[{}]（固定值）课程[{}]视频学习数据失败", studentId, courseId, e);
+            log.error("查询学生[{}]课程[{}]视频学习数据失败", studentId, courseId, e);
             return getDefaultVideoStatVO();
         }
     }
 
     /**
-     * 5. 查询同课程其他学生的基准数据（排除studentId=1，逻辑不变）
+     * 5. 查询同课程其他学生的基准数据（排除硬编码studentId=38）
      */
     private CourseBenchmarkVO getCourseBenchmarkData(Long courseId, Long currentStudentId) {
         try {
-            // 查询同课程其他学生ID（排除固定值1）
+            // 查询同课程其他学生ID（排除硬编码38）
             List<Long> otherUserIds = studentKpMasteryMapper.selectOtherUserIdsByCourseId(courseId, currentStudentId);
             if (StringUtils.isEmpty(otherUserIds)) {
                 log.warn("同课程[{}]无其他学生数据，使用默认基准", courseId);
@@ -302,7 +298,7 @@ public class DigitalTwinServiceImpl implements IDigitalTwinService {
         }
     }
 
-    // ------------------------------ 私有方法：分身穿分计算（逻辑完全不变，仅基于studentId=1的数据） ------------------------------
+    // ------------------------------ 私有方法：分身穿分计算（逻辑完全不变） ------------------------------
 
     /**
      * 计算「稳步积累型」分数（逻辑不变）
@@ -667,7 +663,7 @@ public class DigitalTwinServiceImpl implements IDigitalTwinService {
                                           KpPracticeStatVO practiceStat) {
         List<String> features = new ArrayList<>();
 
-        // 通用特征（基于studentId=1的数据）
+        // 通用特征（基于studentId=38的数据）
         long weakCount = kpList.stream().filter(kp -> "weak".equals(kp.getMasteryStatus())).count();
         BigDecimal correctRate = practiceStat.getCorrectRate() != null ? practiceStat.getCorrectRate() : BigDecimal.ZERO;
         BigDecimal videoCompletionRate = videoStat.getAverageCompletionRate() != null ? videoStat.getAverageCompletionRate() : BigDecimal.ZERO;

@@ -105,13 +105,13 @@
                   </template>
 
                   <div class="batch-content">
-                    <el-card 
-                      v-for="(item, index) in batch.items" 
-                      :key="item.id"
-                      class="recommend-card"
-                      shadow="hover"
-                      :body-style="{ padding: '0' }" 
-                    >
+                    <el-card v-for="(item, index) in batch.items" 
+                        :key="item.id"
+                        class="recommend-card"
+                        shadow="hover"
+                        :body-style="{ padding: '0' }"
+                        :class="{ 'summary-card': item.isSummary }" 
+                      >
                       <div class="card-header">
                         <div class="header-left">
                           <span class="index-badge">{{ index + 1 }}</span>
@@ -123,6 +123,7 @@
                       </div>
                       
                       <div class="card-body">
+                        <div v-if="item.isSummary" class="summary-content-inner" v-html="cleanAndFormatContent(item.recommendReason)"></div>
                         <!-- 结构化显示推荐内容 -->
                         <div class="structured-content">
                           <div class="content-row" v-if="parseRecommendField(item.recommendReason, '知识点ID')">
@@ -563,35 +564,50 @@ export default {
 
     // ========== AI推荐相关方法 ==========
     loadRecommendData() {
-      this.startLoadingProcess()
-      this.statusTags = []
-      this.recommendBatches = []
-      this.recommendResult = null
+    this.startLoadingProcess()
+    this.statusTags = []
+    this.recommendBatches = []
+    this.recommendResult = null
 
-      getRecommendResult({
-        studentUserId: this.studentId,
-        courseId: Number(this.courseId)
-      }).then(response => {
-        setTimeout(() => {
-          if (response && response.data) {
-            this.recommendResult = response.data
-            this.handleRecommendItemList(response.data.recommendItemList || [])
-            this.extractTagsFromRecommendations(response.data.recommendItemList || [])
+    getRecommendResult({
+      studentUserId: this.studentId,
+      courseId: Number(this.courseId)
+    }).then(response => {
+      if (response && response.data) {
+        this.recommendResult = response.data
+        let allItemList = response.data.recommendItemList || []
+        console.log('完整推荐列表:', allItemList)
 
-            if (this.recommendBatches.length > 0) {
-              this.activeBatchName = this.recommendBatches[0].batchId
-            }
-          } else {
-            this.recommendResult = { avatarStatus: 'error', recommendContent: '后端返回数据格式异常' }
+        // 关键1：给总结项打标记（isSummary: true），不单独过滤，融入普通推荐项
+        allItemList = allItemList.map(item => {
+          // 判断是否为总结项（按关键词，可根据后端实际调整）
+          const isSummary = item.recommendReason && (item.recommendReason.includes('总结建议') || item.recommendReason.includes('整体总结'))
+          return {
+            ...item,
+            isSummary, // 新增标记：区分总结项和普通项
+            status: isSummary ? 'completed' : item.status // 前端强制总结项为completed（可选，后端已存可省略）
           }
-          this.stopLoadingProcess()
-        }, 1000)
-      }).catch(error => {
-        this.recommendResult = { avatarStatus: 'error', recommendContent: '加载失败：' + (error.msg || error.message || '网络异常') }
-        this.stopLoadingProcess()
-      })
-    },
+        })
 
+        // 关键2：批次分组（包含总结项，一起分组，不遗漏任何项）
+        this.handleRecommendItemList(allItemList)
+        // 提取所有标签（包含总结项的关联知识点）
+        this.extractTagsFromRecommendations(allItemList)
+
+        // 激活第一个批次（总结项和普通项一起显示在第一个批次）
+        if (this.recommendBatches.length > 0) {
+          this.activeBatchName = this.recommendBatches[0].batchId
+          console.log('默认激活批次:', this.activeBatchName)
+        }
+      } else {
+        this.recommendResult = { avatarStatus: 'error', recommendContent: '后端返回数据格式异常' }
+      }
+      this.stopLoadingProcess()
+    }).catch(error => {
+      this.recommendResult = { avatarStatus: 'error', recommendContent: '加载失败：' + (error.msg || error.message || '网络异常') }
+      this.stopLoadingProcess()
+    })
+  },
     startLoadingProcess() {
       this.recommendLoading = true
       this.loadingStep = 1
@@ -655,11 +671,13 @@ export default {
       return timeStr.substring(0, 16).replace('T', ' ')
     },
 
-    extractRecommendAction(reason, type) {
-      if (!reason) return this.getRecommendActionText(type)
-      const match = reason.match(/^(.{0,20}?)[:：]/)
-      return match ? match[1] : this.getRecommendActionText(type)
-    },
+    extractRecommendAction(item, type) {
+    if (item.isSummary) {
+      return '学习总结建议' // 总结项标题固定，不显示普通推荐动作
+    }
+    const actionText = this.getRecommendActionText(type)
+    return item.recommendReason ? `${actionText}（${item.recommendReason.split('：')[0] || '详情如下'}）` : actionText
+  },
 
     cleanAndFormatContent(content) {
       if (!content) return ''
@@ -1527,6 +1545,26 @@ export default {
     font-size: 12px;
     padding: 6px;
   }
+  .recommend-card.summary-card {
+  background: #f8f9fa; /* 淡色背景，不刺眼 */
+  border: 1px solid #e6f4ff; /* 浅蓝色边框，呼应主题色 */
+  margin-bottom: 16px; /* 和普通卡片间距一致 */
+}
+/* 总结项内容样式 */
+.summary-content-inner {
+  padding: 16px;
+  color: #606266;
+  line-height: 1.8;
+  font-size: 14px;
+}
+/* 隐藏总结项的索引和状态标签，保持布局对齐 */
+.summary-card .header-left {
+  align-items: center;
+}
+.summary-card .action-title {
+  color: #409EFF; /* 总结标题用主题色，突出但不突兀 */
+  font-weight: 500;
+}
 }
 </style>
 

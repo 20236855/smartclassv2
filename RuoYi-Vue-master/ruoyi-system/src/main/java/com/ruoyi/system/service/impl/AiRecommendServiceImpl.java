@@ -13,6 +13,7 @@ import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.system.domain.Assignment;
 import com.ruoyi.system.domain.KnowledgePoint;
 import com.ruoyi.system.domain.PersonalizedRecommendation;
+import com.ruoyi.system.domain.User;
 import com.ruoyi.system.domain.vo.AiRecommendResultVo;
 import com.ruoyi.system.domain.vo.KpResourceVo;
 import com.ruoyi.system.domain.vo.PersonalizedRecommendItemVo;
@@ -25,6 +26,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import com.ruoyi.system.mapper.UserMapper;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -51,6 +53,10 @@ public class AiRecommendServiceImpl implements IAiRecommendService {
     private AssignmentMapper assignmentMapper;
     @Autowired
     private KnowledgePointMapper knowledgePointMapper;
+    @Autowired
+    private UserMapper userMapper;
+    @Autowired
+    private VideoLearningBehaviorMapper videoLearningBehaviorMapper;
     // 通义千问配置
     @Value("${tongyi.qianwen.model:qwen-turbo}")
     private String aiModelVersion;
@@ -188,19 +194,23 @@ public class AiRecommendServiceImpl implements IAiRecommendService {
         }
 
         input.append("\n【推荐规则说明】\n")
-                .append("===== 核心原则：必须严格按以下规则+样板生成，任何违规均视为无效推荐 =====\n")
+                .append("===== 核心原则：必须严格按以下规则+样板生成，强制输出结果，任何违规/无输出均视为无效 =====\n")
                 .append("1. 学习优先级：掌握状态weak > learning > mastered > unlearned；同状态下准确率越低越优先，每个知识点仅推荐1次（禁止重复）\n")
-                .append("2. 必含字段：每个知识点必须包含「知识点ID+名称」「推荐动作」「视频位置」「重点关注内容」「对应错题」「执行建议」，缺一项即无效\n")
-                .append("3. 数据来源：所有字段必须来自提供的【学生学习状态数据】【知识点-学习资源关联数据】【作业题目-知识点关联数据】，禁止编造、遗漏\n")
-                .append("   - 对应错题：仅推荐当前知识点ID在【作业题目-知识点关联数据】中明确关联的题目序号，且该题目必须是学生的错题（来自【学生学习状态数据】）；无则写“无”，禁止刻意省略或添加无关联题目！\n")
-                .append("   - 视频位置：从【知识点-学习资源关联数据】中提取「【xx章节】xx小节」，禁止写“无”（除非无章节信息）\n")
-                .append("   - 重点关注内容：必须包含「【xx章节】xx小节+核心考点」，禁止无意义表述\n")
-                .append("4. 格式要求：严格按以下样板的结构、符号、顺序生成，逐字模仿（包括顿号、破折号、括号格式）\n")
-                .append("5. 禁止内容：\n")
-                .append("   - 禁止###、##等层级符号，禁止后端字段类型（String/Integer）、状态（pending）、模型名（qwen-turbo）等垃圾数据\n")
-                .append("   - 关联知识点&目标ID：仅保留数字+英文逗号，紧跟执行建议后（格式：“关联知识点：XXX 目标ID：XXX”）\n")
-                .append("   - 末尾标记：【类型：xxx】【目标ID：xxx】【关联知识点：xxx】（仅数字+英文逗号）\n")
-                .append("\n【输出样板（必须完全模仿，不能变更任何格式）】\n")
+                .append("2. 输出强制要求：无论数据完整度如何，必须至少输出5条推荐（不足时从unlearned状态补充），禁止无结果返回\n")
+                .append("3. 必含字段：每个知识点必须包含「知识点ID+名称」「推荐动作」「视频位置」「重点关注内容」「对应错题」「执行建议」，缺一项即无效；无对应数据时统一填“无”（视频位置无章节信息时填“【未知章节】未知小节”）\n")
+                .append("4. 数据来源：所有字段优先取自提供的【学生学习状态数据】【知识点-学习资源关联数据】【作业题目-知识点关联数据】，无数据时按规则补“无”，禁止编造有效数据、刻意遗漏必含字段\n")
+                .append("   - 对应错题：仅推荐当前知识点ID明确关联的学生错题（题目序号+作业信息），无则写“无”，禁止添加无关联题目\n")
+                .append("   - 视频位置：有资源数据则提取「【xx章节】xx小节」，无则填“【未知章节】未知小节”，禁止空值\n")
+                .append("   - 重点关注内容：有资源数据则填「【xx章节】xx小节+核心考点」，无则填「【未知章节】未知小节+知识点核心概念」，禁止无意义表述\n")
+                .append("5. 格式要求：严格按以下样板的结构、符号、顺序生成，逐字模仿（包括顿号、破折号、括号、换行格式），不得增减字段顺序、修改符号样式\n")
+                .append("6. 禁止内容：\n")
+                .append("   - 禁止###、##等层级符号，禁止后端字段类型（String/Integer）、状态（pending）、模型名（qwen-turbo）等无关数据\n")
+                .append("   - 关联知识点&目标ID：仅保留数字+英文逗号，紧跟执行建议后（格式：“关联知识点：XXX 目标ID：XXX”），无则填“关联知识点：无 目标ID：无”\n")
+                .append("   - 末尾标记：【类型：xxx】【目标ID：xxx】【关联知识点：xxx】（仅数字+英文逗号，无则填“无”），类型优先取resource/video，无则填“resource”\n")
+                .append("7. 薄弱点优先规则：必须优先推荐「学生学习状态为weak/准确率<60%」的知识点，且这些知识点必须来自「作业题目-知识点关联数据」中的错题关联知识点，禁止推荐无错题关联的知识点（unlearned状态仅在weak知识点不足2条时补充）；\n" +
+                        "8. 错题校验规则：推荐的“对应错题”必须是「学生学习状态数据」中标记的答错题目，且题目ID必须存在于「作业题目-知识点关联数据」中，无则填“无”，禁止编造错题；\n" +
+                        "9. 知识点限制：推荐的知识点ID必须来自输入数据中的「学生学习状态数据」「作业题目-知识点关联数据」，禁止添加输入数据中没有的知识点ID。\n")
+                .append("\n【输出样板（必须完全模仿，不能变更任何格式、顺序、符号）】\n")
                 .append("1、知识点ID=4005（等价无穷小）\n")
                 .append("- 推荐动作：复习等价无穷小替换技巧，提升解题准确率\n")
                 .append("- 视频位置：【1.极限】等价无穷小\n")
@@ -208,114 +218,185 @@ public class AiRecommendServiceImpl implements IAiRecommendService {
                 .append("- 对应错题：作业《第二章 函数综合测试》（ID：4004）第5题、第8题、第10题\n")
                 .append("- 执行建议：加强对等价无穷小的应用方法，尤其是结合极限计算 关联知识点：4005,4010 目标ID：4004,4006\n")
                 .append("【类型：resource】【目标ID：4004,4006】【关联知识点：4005,4010】\n")
-                .append("\n3、知识点ID=4032（反函数的图像对称性）\n")
+                .append("\n2、知识点ID=4032（反函数的图像对称性）\n")
                 .append("- 推荐动作：观看视频，理解反函数与原函数图像的对称关系\n")
-                .append("- 视频位置：【2.函数】函数的应用\n")
-                .append("- 重点关注内容：【2.函数】函数的应用 反函数的图像对称性原理\n")
+                .append("- 视频位置：【1.3反函数】反函数的图像对称性\n")
+                .append("- 重点关注内容：【1.3反函数】反函数的原理 反函数的图像对称性原理\n")
                 .append("- 对应错题：无\n")
-                .append("- 执行建议：通过视频学习对称性质，配合例题加深理解 关联知识点：4032,4005 目标ID：4004,4015\n")
-                .append("【类型：video】【目标ID：4004,4015】【关联知识点：4032,4005】\n")
+                .append("- 执行建议：通过视频学习对称性质，配合例题加深理解 关联知识点：无 目标ID：无\n")
+                .append("【类型：video】【目标ID：无】【关联知识点：无】\n")
+                .append("\n3、知识点ID=4010（极限的唯一性）\n")
+                .append("- 推荐动作：巩固极限唯一性定理，强化解题应用能力\n")
+                .append("- 视频位置：【1.极限】极限的性质\n")
+                .append("- 重点关注内容：【1.极限】极限的性质 极限唯一性定理的推导与应用\n")
+                .append("- 对应错题：无\n")
+                .append("- 执行建议：结合基础例题练习，掌握定理适用场景 关联知识点：4010,4005 目标ID：4008 无\n")
+                .append("【类型：resource】【目标ID：4008】【关联知识点：4010,4005】\n")
                 .append("\n【总结建议样板】\n")
                 .append("总结建议：\n")
-                .append("针对“等价无穷小（4005）”“反函数的图像对称性（4032）”等薄弱知识点，建议优先观看视频掌握核心概念，再通过对应错题和习题强化训练；“极限的唯一性（4010）”需重点巩固解题技巧，提升准确率。\n")
-                .append("\n===== 要求：生成结果必须和样板格式100%一致，否则视为无效！ =====\n");
+                .append("针对“等价无穷小（4005）”“反函数的图像对称性（4032）”等薄弱知识点，建议优先观看视频掌握核心概念，再通过对应错题和习题强化训练；“极限的唯一性（4010）”需重点巩固解题技巧，提升准确率；无对应错题的知识点可通过基础例题加深理解，确保学习效果。\n")
+                .append("\n===== 强制要求：必须生成至少5条推荐+总结建议，一章至少一个推荐内容，格式与样板100%一致，缺字段/无输出/格式错误均视为无效！ =====\n");
         return input.toString();
     }
 
     @Override
-    public AiRecommendResultVo getRecommendResult(Long studentUserId, Long courseId) {
+// 原参数名studentUserId容易混淆，建议重命名为sysUserId（明确是sys_user表的ID）
+    public AiRecommendResultVo getRecommendResult(Long sysUserId, Long courseId) {
         AiRecommendResultVo resultVo = new AiRecommendResultVo();
         try {
-            // 关键日志1：验证基础数据查询情况
-            // 1. 查询题目关联数据
-            List<QuestionKpRelationVo> questionRelationList = getQuestionKpRelationList(studentUserId, courseId);
-            log.info("查询到课程{}的作业-知识点-题目关联数据总数：{}", courseId, questionRelationList.size());
-            if (!CollectionUtils.isEmpty(questionRelationList)) {
-                log.info("关联数据前3条示例：{}", JSON.toJSONString(questionRelationList.subList(0, Math.min(3, questionRelationList.size()))));
-            } else {
-                log.error("警告：课程{}未查询到任何作业-知识点-题目关联数据，无法生成错题！", courseId);
-            }
-
-            // 3. 查询学生学习状态（用于复用或日志）
-            List<StudentLearnStatusVo> learnStatusList = studentKpMasteryMapper.selectStudentLearnStatus(studentUserId, courseId);
-            log.info("查询到学生{}在课程{}的学习状态数据总数：{}", studentUserId, courseId, learnStatusList.size());
-            // 打印学习状态中的错题字段，看是否本身就为空
-            learnStatusList.forEach(status -> {
-                if (status != null && StringUtils.isNotBlank(status.getWrongQuestionNo()) && !"无".equals(status.getWrongQuestionNo())) {
-                    log.info("知识点ID：{}，答错题目字段原值：{}", status.getKpId(), status.getWrongQuestionNo());
-                }
-            });
-            // 4. 学习资源
-            List<KpResourceVo> resourceList = sectionKpMapper.selectKpResourceByCourseId(courseId);
-            // 修正后（直接用当前方法里已有的参数）：
-            Map<String, String> kpNameMap = buildKpIdToNameMap(studentUserId, courseId, learnStatusList, resourceList);
-
-
-            // --- 分支逻辑开始 ---
-            // 第一步：检查数据库缓存
-            List<PersonalizedRecommendation> existingRecs = recommendationMapper.selectValidRecommendations(studentUserId, courseId);
-            if (CollectionUtils.isNotEmpty(existingRecs)) {
-                log.info("数据库中存在{}条有效推荐，直接返回", existingRecs.size());
-                // 修复：传入learnStatusList参数
-                String existingRecContent = assembleExistingRecommendations(existingRecs, questionRelationList, kpNameMap, learnStatusList);
-                resultVo.setRecommendContent(existingRecContent);
-                resultVo.setAvatarStatus("completed");
-
-                // 修复：转换ItemVo时传入learnStatusList
-                List<PersonalizedRecommendItemVo> itemVoList = existingRecs.stream()
-                        .map(rec -> convertToItemVo(rec, questionRelationList, kpNameMap, learnStatusList))
-                        .collect(Collectors.toList());
-                resultVo.setRecommendItemList(itemVoList);
+            // 1. 关键步骤：通过sys_user_id查询业务用户表（user）的真实ID（外键要求的ID）
+            User businessUser = userMapper.selectUserBySysUserId(sysUserId);
+            if (businessUser == null || businessUser.getId() == null) {
+                log.error("未查询到系统用户ID={}对应的业务用户（user表）记录，无法生成推荐", sysUserId);
+                resultVo.setRecommendContent("推荐失败：用户信息不存在");
+                resultVo.setAvatarStatus("error");
                 return resultVo;
             }
+            Long businessUserId = businessUser.getId(); // 这才是要存入数据库的student_user_id（如38）
+            log.info("系统用户ID={} 映射到业务用户ID={}", sysUserId, businessUserId);
 
-            // 第二步：调用大模型
-            log.info("数据库无有效推荐，调用大模型生成");
-            // 使用重载方法，传入所有数据，确保日志和Prompt生成逻辑一致
-            String modelInput = generateModelInput(studentUserId, courseId, learnStatusList, questionRelationList, resourceList);
+            // 2. 后续所有数据库操作，都用 businessUserId 替代原来的 sysUserId
+            // 2.1 查询题目关联数据（学生答题的作业-知识点-题目关联）
+            List<QuestionKpRelationVo> questionRelationList = getQuestionKpRelationList(businessUserId, courseId);
+            log.info("查询到课程{}的作业-知识点-题目关联数据总数：{}", courseId, questionRelationList.size());
+            if (CollectionUtils.isEmpty(questionRelationList)) {
+                log.warn("课程{}未查询到作业-知识点-题目关联数据，无法生成错题推荐", courseId);
+            }
+
+            // 2.2 查询学生学习状态（薄弱知识点、准确率等）
+            List<StudentLearnStatusVo> learnStatusList = studentKpMasteryMapper.selectStudentLearnStatus(businessUserId, courseId);
+            log.info("查询到业务用户{}在课程{}的学习状态数据总数：{}", businessUserId, courseId, learnStatusList.size());
+
+            // 2.3 查询知识点学习资源（视频、章节等）
+            List<KpResourceVo> resourceList = sectionKpMapper.selectKpResourceByCourseId(courseId);
+            Map<String, String> kpNameMap = buildKpIdToNameMap(businessUserId, courseId, learnStatusList, resourceList);
+
+            // 3. 检查数据库是否有有效推荐（优先用缓存，避免重复调用AI）
+            List<PersonalizedRecommendation> existingRecs = recommendationMapper.selectValidRecommendations(businessUserId, courseId);
+            if (CollectionUtils.isNotEmpty(existingRecs)) {
+                log.info("数据库中存在{}条有效推荐，检查是否需要更新", existingRecs.size());
+
+                // ---------------- 可选优化：判断用户是否有新行为（后面详细说）----------------
+                boolean needGenerateNew = checkIfNeedNewRecommendation(businessUserId, courseId, existingRecs);
+                if (!needGenerateNew) {
+                    // 无新行为，直接返回现有推荐
+                    String existingRecContent = assembleExistingRecommendations(existingRecs, questionRelationList, kpNameMap, learnStatusList);
+                    resultVo.setRecommendContent(existingRecContent);
+                    resultVo.setAvatarStatus("completed");
+                    List<PersonalizedRecommendItemVo> itemVoList = existingRecs.stream()
+                            .map(rec -> convertToItemVo(rec, questionRelationList, kpNameMap, learnStatusList))
+                            .collect(Collectors.toList());
+                    resultVo.setRecommendItemList(itemVoList);
+                    return resultVo;
+                } else {
+                    log.info("用户有新的学习行为，忽略现有推荐，生成新推荐");
+                }
+            }
+
+            // 4. 数据库无有效推荐，或用户有新行为 → 调用大模型生成新推荐
+            log.info("调用大模型生成个性化推荐，业务用户ID={}，课程ID={}", businessUserId, courseId);
+            String modelInput = generateModelInput(businessUserId, courseId, learnStatusList, questionRelationList, resourceList);
             String recommendContent = callTongyiQianwenByApiKey(modelInput);
 
             resultVo.setRecommendContent(recommendContent);
             resultVo.setAvatarStatus("completed");
             resultVo.setModelInput(modelInput);
 
-            // 第三步：解析结果并入库
-            // 修复：传入learnStatusList参数
-            List<PersonalizedRecommendation> recommendationList = parseRecommendContent(studentUserId, courseId, recommendContent, questionRelationList, learnStatusList);
+            // 5. 解析AI结果并入库（关键：传入businessUserId）
+            List<PersonalizedRecommendation> recommendationList = parseRecommendContent(businessUserId, courseId, recommendContent, questionRelationList, learnStatusList);
             if (CollectionUtils.isNotEmpty(recommendationList)) {
+                // 去重（避免重复推荐同一知识点组合）
                 List<PersonalizedRecommendation> uniqueRecList = filterDuplicateRecommendations(recommendationList);
                 if (CollectionUtils.isNotEmpty(uniqueRecList)) {
+                    // 生成新的batchId（每次新推荐都是唯一批次，UUID确保不重复）
                     String batchId = UUID.randomUUID().toString().replace("-", "");
-                    uniqueRecList.forEach(rec -> rec.setBatchId(batchId));
+                    uniqueRecList.forEach(rec -> {
+                        rec.setBatchId(batchId); // 每个推荐项绑定同一批次ID
+                        rec.setStudentUserId(businessUserId); // 确保存入的是业务用户ID
+                        // 补充必要字段（避免数据库字段为空）
+                        rec.setStatus("pending");
+                        rec.setExpireTime(LocalDateTime.now().plusDays(7)); // 7天过期
+                        rec.setIsDeleted(0);
+                        rec.setCreateTime(LocalDateTime.now());
+                        rec.setUpdateTime(LocalDateTime.now());
+                    });
+                    // 批量插入数据库（此时外键约束会通过，因为businessUserId在user表存在）
                     recommendationMapper.insertPersonalizedRecommendationBatch(uniqueRecList);
-                    log.info("推荐入库成功：{}条", uniqueRecList.size());
+                    log.info("新推荐入库成功：{}条，批次ID={}", uniqueRecList.size(), batchId);
 
-                    // 修复：转换ItemVo时传入learnStatusList
+                    // 转换为VO返回给前端
                     List<PersonalizedRecommendItemVo> itemVoList = uniqueRecList.stream()
                             .map(rec -> convertToItemVo(rec, questionRelationList, kpNameMap, learnStatusList))
                             .collect(Collectors.toList());
                     resultVo.setRecommendItemList(itemVoList);
                 } else {
                     resultVo.setRecommendItemList(new ArrayList<>());
+                    log.warn("推荐去重后无有效数据");
+                    // 去重后无数据，触发兜底入库
+                    doFallbackSave(recommendContent, businessUserId, courseId);
                 }
             } else {
                 resultVo.setRecommendItemList(new ArrayList<>());
+                log.warn("解析AI结果后无有效推荐，执行兜底入库");
+                // 解析失败，触发兜底入库（核心修改：保存AI生成的完整文本）
+                doFallbackSave(recommendContent, businessUserId, courseId);
             }
 
         } catch (NoApiKeyException e) {
-            log.error("大模型认证失败", e);
-            resultVo.setRecommendContent("推荐失败：API-Key无效");
+            log.error("大模型API-Key无效", e);
+            resultVo.setRecommendContent("推荐失败：认证无效");
             resultVo.setAvatarStatus("error");
-            resultVo.setRecommendItemList(new ArrayList<>());
         } catch (Exception e) {
             log.error("个性化推荐整体失败", e);
             resultVo.setRecommendContent("推荐失败：" + e.getMessage());
             resultVo.setAvatarStatus("error");
-            resultVo.setRecommendItemList(new ArrayList<>());
         }
         return resultVo;
     }
 
+    // ---------------- 新增：兜底入库方法（解析失败时保存AI完整文本）----------------
+    private void doFallbackSave(String recommendContent, Long businessUserId, Long courseId) {
+        try {
+            PersonalizedRecommendation fallbackRec = new PersonalizedRecommendation();
+            fallbackRec.setStudentUserId(businessUserId);
+            fallbackRec.setCourseId(courseId);
+
+            // 核心：复用枚举中已有的'resource'作为兜底类型（符合数据库约束）
+            fallbackRec.setRecommendType("resource");
+
+            fallbackRec.setRecommendReason(recommendContent); // 保存完整AI推荐结果
+            fallbackRec.setRelatedKpIds(""); // 无关联知识点，设为空字符串（符合非空）
+            fallbackRec.setTargetId(0L); // 无目标ID，设为0L（符合BIGINT非空）
+            fallbackRec.setStatus("pending");
+            fallbackRec.setPriority(3); // 保持和正常推荐一致的优先级
+            fallbackRec.setAiModelVersion(aiModelVersion); // 补充AI模型版本
+            fallbackRec.setBatchId(UUID.randomUUID().toString().replace("-", ""));
+            fallbackRec.setExpireTime(LocalDateTime.now().plus(7, ChronoUnit.DAYS));
+            fallbackRec.setIsDeleted(0);
+            fallbackRec.setCreateTime(LocalDateTime.now());
+            fallbackRec.setUpdateTime(LocalDateTime.now());
+
+            recommendationMapper.insertPersonalizedRecommendation(fallbackRec);
+            log.info("兜底入库成功：推荐类型=resource（复用枚举值），目标ID=0L，业务用户ID={}", businessUserId);
+        } catch (Exception e) {
+            log.error("兜底入库失败（已使用合法枚举值）", e);
+        }
+    }
+
+    // ---------------- 新增：从AI推荐文本中提取知识点ID（避免手动填写）----------------
+    private String extractKpIdsFromContent(String recommendContent) {
+        if (StringUtils.isEmpty(recommendContent)) {
+            return "无";
+        }
+        // 正则匹配“知识点ID=数字”的格式（如“知识点ID=60030”）
+        Pattern pattern = Pattern.compile("知识点ID=(\\d+)");
+        Matcher matcher = pattern.matcher(recommendContent);
+        Set<String> kpIdSet = new HashSet<>(); // 用Set去重
+        while (matcher.find()) {
+            kpIdSet.add(matcher.group(1)); // 提取数字部分
+        }
+        return kpIdSet.isEmpty() ? "无" : StringUtils.join(kpIdSet, ",");
+    }
     /**
      * 构建知识点ID→名称映射（全量查询，缓存复用）
      */
@@ -416,43 +497,45 @@ public class AiRecommendServiceImpl implements IAiRecommendService {
     }
 
     // 修复：新增learnStatusList参数
-    private List<PersonalizedRecommendation> parseRecommendContent(Long studentUserId, Long courseId, String recommendContent,
+    private List<PersonalizedRecommendation> parseRecommendContent(Long businessUserId, Long courseId, String recommendContent,
                                                                    List<QuestionKpRelationVo> questionRelationList,
                                                                    List<StudentLearnStatusVo> learnStatusList) {
         List<PersonalizedRecommendation> recommendationList = new ArrayList<>();
+        // 核心修改1：调整正则，group(2)支持中文“无”（\\u4e00-\\u9fa5是中文Unicode范围）
         Pattern pattern = Pattern.compile(
-                "【类型：([\\w,]+)】【目标ID：([\\d.,-]+)】【关联知识点：([\\d,]+)】(.*?)(?=\\s*【类型：|$)",
+                "【类型：([\\w,]+)】【目标ID：([\\d.,-\\u4e00-\\u9fa5]+)】【关联知识点：([\\d,]+)】(.*?)(?=\\s*【类型：|\\s*$)",
                 Pattern.DOTALL
         );
         Matcher matcher = pattern.matcher(recommendContent);
 
+        log.info("开始解析AI推荐内容，匹配正则表达式");
         while (matcher.find()) {
+            // 解析AI返回的字段（原有逻辑不变，新增日志）
             String typeStr = matcher.group(1);
             String targetIds = matcher.group(2);
             String relatedKps = matcher.group(3);
             String reason = matcher.group(4).trim();
 
+            log.debug("匹配到推荐条目：类型={}, 目标ID={}, 关联知识点={}", typeStr, targetIds, relatedKps);
+
+            // 过滤无效数据（原有逻辑不变，补充relatedKps非空校验）
             if (StringUtils.isBlank(typeStr) || StringUtils.isBlank(targetIds) || StringUtils.isBlank(relatedKps) || StringUtils.isBlank(reason)) {
+                log.warn("过滤无效推荐条目（存在空字段）：类型={}, 目标ID={}, 关联知识点={}", typeStr, targetIds, relatedKps);
                 continue;
             }
 
-            String recommendType = typeStr.split(",")[0].trim();
+            // 解析推荐类型（新增默认值处理）
+            String[] typeArr = typeStr.split(",");
+            String recommendType = typeArr.length > 0 ? typeArr[0].trim() : "resource";
             List<String> validTypes = Arrays.asList("video", "exercise", "resource", "kp_review");
-            if (!validTypes.contains(recommendType)) continue;
+            if (!validTypes.contains(recommendType)) {
+                log.warn("过滤无效推荐类型：{}，有效类型={}", recommendType, validTypes);
+                continue;
+            }
 
-            String[] kpIdsArray = relatedKps.split(",");
-            Arrays.sort(kpIdsArray);
-            String sortedKpIds = String.join(",", kpIdsArray);
-
-            String firstTargetId = targetIds.split(",")[0].trim().replace(".", "").replace("-", "");
-            if (!firstTargetId.matches("\\d+")) continue;
-            Long targetId = Long.parseLong(firstTargetId);
-
-            // 修复：传入learnStatusList参数，执行精准错题筛选
-            String filteredReason = filterIrrelevantWrongQuestions(studentUserId, reason, sortedKpIds, questionRelationList, learnStatusList);
-
+            // 构建推荐对象
             PersonalizedRecommendation recommendation = new PersonalizedRecommendation();
-            recommendation.setStudentUserId(studentUserId);
+            recommendation.setStudentUserId(businessUserId);
             recommendation.setCourseId(courseId);
             recommendation.setStatus("pending");
             recommendation.setPriority(3);
@@ -460,17 +543,63 @@ public class AiRecommendServiceImpl implements IAiRecommendService {
             recommendation.setExpireTime(LocalDateTime.now().plus(7, ChronoUnit.DAYS));
             recommendation.setIsDeleted(0);
             recommendation.setRecommendType(recommendType);
-            recommendation.setTargetId(targetId);
-            recommendation.setRelatedKpIds(sortedKpIds);
+            recommendation.setRelatedKpIds(relatedKps); // 已做非空校验
+
+            // 核心修改2：解析目标ID，处理“无”的情况
+            String firstTargetId = targetIds.split(",")[0].trim()
+                    .replace(".", "")
+                    .replace("-", "")
+                    .replace("无", ""); // 把“无”替换为空字符串
+            if (StringUtils.isNotBlank(firstTargetId) && firstTargetId.matches("\\d+")) {
+                recommendation.setTargetId(Long.parseLong(firstTargetId));
+                log.debug("目标ID解析成功：{}", firstTargetId);
+            } else {
+                recommendation.setTargetId(0L); // 无有效目标ID时设为0L（满足非空约束）
+                log.debug("目标ID无效或为“无”，设为默认值0L");
+            }
+
+            // 筛选无效错题（原有逻辑不变）
+            String filteredReason = filterIrrelevantWrongQuestions(businessUserId, reason, relatedKps, questionRelationList, learnStatusList);
             recommendation.setRecommendReason(filteredReason.replaceAll("---", "").replaceAll("\\n+", "\n").trim());
             recommendation.setCreateTime(LocalDateTime.now());
             recommendation.setUpdateTime(LocalDateTime.now());
 
             recommendationList.add(recommendation);
+            log.debug("推荐条目添加成功：{}", recommendation);
         }
+
+        log.info("推荐内容解析完成，有效条目数：{}", recommendationList.size());
         return recommendationList;
     }
+    private boolean checkIfNeedNewRecommendation(Long businessUserId, Long courseId, List<PersonalizedRecommendation> existingRecs) {
+        // 1. 获取现有推荐的最新创建时间（取最新的一条，避免旧推荐影响）
+        LocalDateTime latestRecCreateTime = existingRecs.stream()
+                .map(PersonalizedRecommendation::getCreateTime)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(LocalDateTime.MIN); // 无创建时间则视为需要新推荐
 
+        // 2. 查询用户在该课程下的最新学习行为时间（判断是否有新动作）
+        // 2.1 最新答题时间（student_answer表：提交作业）
+        LocalDateTime latestAnswerTime = studentAnswerMapper.selectLatestSubmitTimeByStudentAndCourse(businessUserId, courseId);
+        // 2.2 最新视频学习时间（video_learning_behavior表：观看视频）
+        LocalDateTime latestVideoTime = videoLearningBehaviorMapper.selectLatestUpdateTimeByStudentAndCourse(businessUserId, courseId);
+
+        // 3. 取所有学习行为的最新时间
+        LocalDateTime latestLearnTime = LocalDateTime.MIN;
+        if (latestAnswerTime != null && latestAnswerTime.isAfter(latestLearnTime)) {
+            latestLearnTime = latestAnswerTime;
+        }
+        if (latestVideoTime != null && latestVideoTime.isAfter(latestLearnTime)) {
+            latestLearnTime = latestVideoTime;
+        }
+
+        // 4. 核心判断：如果最新学习行为时间 > 现有推荐的创建时间 → 需要生成新推荐
+        boolean needNew = latestLearnTime.isAfter(latestRecCreateTime);
+        log.info("现有推荐最新创建时间：{}，用户最新学习行为时间：{}，是否需要新推荐：{}",
+                latestRecCreateTime, latestLearnTime, needNew);
+        return needNew;
+    }
     /**
      * 核心修正：双重验证筛选错题（1.是学生错题；2.真实关联目标知识点）
      */

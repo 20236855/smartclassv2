@@ -35,7 +35,7 @@ export default {
   },
   data() {
     return {
-      title: 'Smart Class',
+      title: '智慧课堂系统',
       logo: logoImg
     }
   }

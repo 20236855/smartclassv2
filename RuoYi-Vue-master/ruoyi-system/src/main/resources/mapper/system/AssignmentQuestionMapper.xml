@@ -84,11 +84,13 @@
         <foreach item="id" collection="array" open="(" separator="," close=")"> #{id} </foreach>
     </delete>
 
+    <!-- 保持 ResultMap 不变（已补充 questionId 映射） -->
     <resultMap type="com.ruoyi.system.domain.vo.QuestionKpRelationVo" id="QuestionKpRelationResultMap">
         <result property="assignmentId" column="assignment_id"/>
+        <result property="questionId" column="question_id"/> <!-- 题目ID -->
         <result property="questionSequence" column="question_sequence"/>
-        <result property="kpIds" column="kp_ids"/>
-        <result property="kpTitles" column="kp_titles"/>
+        <result property="kpIds" column="kp_ids"/> <!-- 对应 question.knowledge_point -->
+        <result property="kpTitles" column="kp_titles"/> <!-- 可选：知识点名称 -->
     </resultMap>
 
     <select id="selectQuestionKpRelation" parameterType="java.util.Map" resultMap="QuestionKpRelationResultMap">
@@ -140,42 +142,37 @@
     </select>
 
     <!-- 核心修改：替换该方法（100%贴合真实表结构+你的XML格式） -->
-    <!-- 终极版：完全贴合 assignment_question 真实表结构，无任何假设字段 -->
     <select id="selectQuestionKpRelationByAssignmentIdsAndCourse" parameterType="java.util.Map" resultMap="QuestionKpRelationResultMap">
         SELECT
-        aq.assignment_id AS assignment_id,  -- 真实字段：assignment_question.assignment_id
-        aq.question_id AS question_id,      -- 真实字段：assignment_question.question_id
-        aq.sequence AS question_sequence,   -- 真实字段：assignment_question.sequence
-        -- 聚合知识点ID（来自 assignment_kp.kp_id，真实字段）
-        GROUP_CONCAT(DISTINCT ak.kp_id ORDER BY ak.kp_id SEPARATOR ',') AS kp_ids,
-        -- 聚合知识点名称（来自 knowledge_point.title，真实字段）
-        GROUP_CONCAT(DISTINCT kp.title ORDER BY ak.kp_id SEPARATOR ',') AS kp_titles
+        aq.assignment_id AS assignment_id,        -- 作业ID
+        aq.question_id AS question_id,            -- 题目ID
+        aq.sequence AS question_sequence,         -- 题目序号
+        q.knowledge_point AS kp_ids,              -- 核心：直接取题目自身的知识点（无冗余）
+        -- 可选：拼接知识点名称（需要关联 knowledge_point 表，精准匹配题目知识点）
+        GROUP_CONCAT(DISTINCT kp.title SEPARATOR ',') AS kp_titles
         FROM assignment_question aq
-        -- 关联 assignment 表：获取 course_id（作业属于课程，真实关联）
-        LEFT JOIN assignment a
+        -- 关联 question 表：获取题目自身的知识点（核心关联）
+        JOIN question q
+        ON aq.question_id = q.id
+        AND q.is_deleted = 0
+        AND q.knowledge_point IS NOT NULL -- 过滤无知识点的题目
+        -- 关联 assignment 表：过滤课程ID（确保课程匹配）
+        JOIN assignment a
         ON aq.assignment_id = a.id
-        AND a.is_deleted = 0  -- 作业未删除（真实字段）
-        -- 关联 assignment_kp 表：双字段精准匹配（真实字段+真实关联）
-        LEFT JOIN assignment_kp ak
-        ON aq.assignment_id = ak.assignment_id  -- 作业ID匹配
-        AND aq.sequence = ak.sequence          -- 题目序号匹配
-        AND ak.is_required = 1                  -- 真实字段：有效关联
-        -- 关联 knowledge_point 表：补充知识点名称（真实表+真实字段）
+        AND a.is_deleted = 0
+        -- 可选：关联 knowledge_point 表，获取知识点名称（不影响筛选，仅优化显示）
         LEFT JOIN knowledge_point kp
-        ON ak.kp_id = kp.id
-        AND kp.is_deleted = 0                  -- 真实字段：知识点未删除
-        -- 筛选条件：仅用真实存在的字段
+        ON FIND_IN_SET(kp.id, q.knowledge_point) -- 精准匹配题目知识点ID
+        AND kp.is_deleted = 0
         WHERE
-        a.course_id = #{courseId}              -- 从 assignment 表取 course_id（核心修正）
+        a.course_id = #{courseId}                  -- 课程ID筛选
         AND aq.assignment_id IN
         <foreach collection="assignmentIds" item="assId" open="(" close=")" separator=",">
             #{assId}
         </foreach>
-        AND aq.is_deleted = 0                  -- 真实字段：题目未删除
-        -- 分组字段：均为 assignment_question 真实字段，避免分组错误
-        GROUP BY aq.assignment_id, aq.question_id, aq.sequence
-        -- 排序字段：真实字段，保持顺序
-        ORDER BY aq.assignment_id ASC, aq.sequence ASC
+        AND aq.is_deleted = 0                      -- 过滤已删除题目
+        GROUP BY aq.assignment_id, aq.question_id, aq.sequence, q.knowledge_point -- 按题目+知识点分组
+        ORDER BY aq.assignment_id ASC, aq.sequence ASC;
     </select>
 
 </mapper>

@@ -40,6 +40,17 @@
                   AND a.course_id = #{courseId}
             );
     </select>
+    <select id="selectLatestSubmitTimeByStudentAndCourse" resultType="java.time.LocalDateTime">
+        SELECT MAX(a.answer_time)
+        FROM student_answer a
+                 -- 关联作业表：通过assignment_id找到对应的作业，再通过作业的course_id过滤课程
+                 JOIN assignment asgn ON a.assignment_id = asgn.id
+        WHERE
+            a.student_user_id = #{studentUserId}  -- 学生ID（业务用户ID）
+          AND asgn.course_id = #{courseId}      -- 课程ID（从作业表过滤）
+          AND a.is_deleted = 0                  -- 未删除的答题记录
+          AND asgn.is_deleted = 0               -- 未删除的作业
+    </select>
     <select id="selectStudentWrongQuestions" parameterType="java.lang.Long" resultType="java.util.Map">
         SELECT
             sa.assignment_id AS assignmentId,

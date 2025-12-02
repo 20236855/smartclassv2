@@ -4,6 +4,7 @@ import com.ruoyi.system.domain.StudentAnswer;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -29,4 +30,8 @@ public interface StudentAnswerMapper {
             @Param("studentUserId") Long studentUserId,
             @Param("courseId") Long courseId);
     List<Map<String, Object>> selectStudentWrongQuestions(@Param("studentUserId") Long studentUserId);
+    /**
+     * 查询学生在某课程下的最新答题提交时间
+     */
+    LocalDateTime selectLatestSubmitTimeByStudentAndCourse(@Param("studentUserId") Long studentUserId, @Param("courseId") Long courseId);
 }
