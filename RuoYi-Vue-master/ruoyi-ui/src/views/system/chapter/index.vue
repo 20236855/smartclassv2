@@ -270,11 +270,11 @@
                             <el-button
                               :type="isTaskSubmitted(task) ? 'success' : (isTaskExpired(task) ? 'info' : 'primary')"
                               size="small"
-                              :disabled="isTaskExpired(task) && !isTaskSubmitted(task)"
+                              :disabled="isTaskButtonDisabled(task)"
                               plain
                             >
                               {{ getTaskButtonText(task) }}
-                              <i :class="isTaskSubmitted(task) ? 'el-icon-refresh' : 'el-icon-arrow-right'"></i>
+                              <i :class="isTaskSubmitted(task) ? (isExamSubmitted(task) ? 'el-icon-check' : 'el-icon-refresh') : 'el-icon-arrow-right'"></i>
                             </el-button>
                           </div>
                         </div>
@@ -890,13 +890,42 @@ export default {
     // 获取按钮文字
     getTaskButtonText(task) {
       if (this.isTaskSubmitted(task)) {
+        // 考试已提交，显示"已完成"
+        if (task.type === 'exam') {
+          return '已完成';
+        }
+        // 作业可以重新提交
         return task.mode === 'question' ? '重新答题' : '重新提交';
       }
       return task.mode === 'question' ? '开始答题' : '提交作业';
     },
 
+    // 判断是否是已提交的考试
+    isExamSubmitted(task) {
+      return task.type === 'exam' && this.isTaskSubmitted(task);
+    },
+
+    // 判断按钮是否禁用
+    isTaskButtonDisabled(task) {
+      // 考试已提交，禁用按钮
+      if (this.isExamSubmitted(task)) {
+        return true;
+      }
+      // 已截止且未提交，禁用按钮
+      if (this.isTaskExpired(task) && !this.isTaskSubmitted(task)) {
+        return true;
+      }
+      return false;
+    },
+
     // 开始任务
     startTask(task) {
+      // 考试已提交，不允许重新作答
+      if (this.isExamSubmitted(task)) {
+        this.$modal.msgWarning('考试只能提交一次，不允许重新作答');
+        return;
+      }
+
       if (this.isTaskExpired(task) && !this.isTaskSubmitted(task)) {
         this.$modal.msgWarning('任务已截止');
         return;

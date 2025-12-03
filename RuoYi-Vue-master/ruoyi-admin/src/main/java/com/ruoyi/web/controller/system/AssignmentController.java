@@ -163,7 +163,11 @@ public class AssignmentController extends BaseController
             Date now = new Date();
 
             if (!existingSubmissions.isEmpty()) {
-                // 更新已有提交记录
+                // 如果是考试类型，不允许重复提交
+                if ("exam".equals(assignment.getType())) {
+                    return error("考试只能提交一次，不允许重复作答");
+                }
+                // 更新已有提交记录（作业可以重新提交）
                 Long submissionId = ((Number) existingSubmissions.get(0).get("id")).longValue();
                 String updateSql = "UPDATE assignment_submission SET status = 1, submit_time = ?, content = ?, update_time = ? WHERE id = ?";
                 String content = submitData.get("content") != null ? submitData.get("content").toString() : "";

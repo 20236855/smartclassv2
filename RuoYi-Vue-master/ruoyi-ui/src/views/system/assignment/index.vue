@@ -232,12 +232,12 @@
               <el-button
                 type="primary"
                 size="small"
-                :disabled="isExpired(assignment)"
+                :disabled="isExpired(assignment) || isExamSubmitted(assignment)"
                 @click="openSubmitDialog(assignment)"
                 class="submit-btn"
               >
-                <i :class="assignment.mode === 'question' ? 'el-icon-edit' : (isSubmitted(assignment) ? 'el-icon-refresh' : 'el-icon-upload')"></i>
-                {{ assignment.mode === 'question' ? '开始答题' : (isSubmitted(assignment) ? '重新提交' : '提交作业') }}
+                <i :class="isExamSubmitted(assignment) ? 'el-icon-check' : (assignment.mode === 'question' ? 'el-icon-edit' : (isSubmitted(assignment) ? 'el-icon-refresh' : 'el-icon-upload'))"></i>
+                {{ isExamSubmitted(assignment) ? '已完成' : (assignment.mode === 'question' ? '开始答题' : (isSubmitted(assignment) ? '重新提交' : '提交作业')) }}
               </el-button>
             </div>
           </div>
@@ -300,10 +300,10 @@
               <el-button
                 type="primary"
                 size="small"
-                :disabled="isExpired(assignment)"
+                :disabled="isExpired(assignment) || isExamSubmitted(assignment)"
                 @click="openSubmitDialog(assignment)"
               >
-                {{ assignment.mode === 'question' ? '开始答题' : (isSubmitted(assignment) ? '重新提交' : '提交作业') }}
+                {{ isExamSubmitted(assignment) ? '已完成' : (assignment.mode === 'question' ? '开始答题' : (isSubmitted(assignment) ? '重新提交' : '提交作业')) }}
               </el-button>
             </div>
           </el-card>
@@ -379,9 +379,9 @@
             <el-button
               size="mini"
               type="primary"
-              :disabled="isExpired(scope.row)"
+              :disabled="isExpired(scope.row) || isExamSubmitted(scope.row)"
               @click="openSubmitDialog(scope.row)"
-            >{{ scope.row.mode === 'question' ? '开始答题' : (isSubmitted(scope.row) ? '重新提交' : '提交作业') }}</el-button>
+            >{{ isExamSubmitted(scope.row) ? '已完成' : (scope.row.mode === 'question' ? '开始答题' : (isSubmitted(scope.row) ? '重新提交' : '提交作业')) }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -984,6 +984,11 @@ export default {
       if (!row || !row.id) {
         return
       }
+      // 考试已提交，不允许重新作答
+      if (this.isExamSubmitted(row)) {
+        this.$modal.msgWarning('考试只能提交一次，不允许重新作答')
+        return
+      }
       this.currentAssignment = row
       this.submitForm = {
         files: "",
@@ -1060,6 +1065,10 @@ export default {
     // 学生端：判断作业是否已提交（仅前端状态）
     isSubmitted(row) {
       return row && row.id && !!this.submittedAssignmentMap[row.id]
+    },
+    // 判断是否是已提交的考试（考试只能提交一次）
+    isExamSubmitted(row) {
+      return row && row.type === 'exam' && this.isSubmitted(row)
     },
     // 学生端：判断作业是否已截止
     isExpired(row) {
