@@ -276,6 +276,16 @@
                               {{ getTaskButtonText(task) }}
                               <i :class="isTaskSubmitted(task) ? (isExamSubmitted(task) ? 'el-icon-check' : 'el-icon-refresh') : 'el-icon-arrow-right'"></i>
                             </el-button>
+                            <!-- 预览按钮 -->
+                            <el-button
+                              v-if="isTaskSubmitted(task)"
+                              type="warning"
+                              size="small"
+                              plain
+                              @click.stop="viewSubmission(task)"
+                            >
+                              <i class="el-icon-view"></i> 预览
+                            </el-button>
                           </div>
                         </div>
                       </div>
@@ -403,49 +413,23 @@
         <div v-else-if="previewType === 'pdf'" class="pdf-preview">
           <iframe :src="previewUrl" width="100%" height="600px" frameborder="0"></iframe>
         </div>
-        <!-- Office文档预览 -->
-        <div v-else-if="previewType === 'office'" class="office-preview">
-          <el-alert
-            title="本地环境无法预览 Office 文档"
-            type="warning"
-            :closable="false"
-            style="margin-bottom: 15px;">
-            <div slot="default">
-              <p style="margin: 0 0 10px 0;">
-                <i class="el-icon-info"></i>
-                Office 文档预览需要公网可访问的 URL，本地开发环境（localhost）无法使用微软在线预览服务。
-              </p>
-              <p style="margin: 0; font-weight: bold; color: #E6A23C;">
-                <i class="el-icon-download"></i>
-                建议：点击下方"下载文件"按钮，下载到本地后使用 Office 软件打开查看。
-              </p>
+        <!-- Office文档预览（Word/Excel/PPT统一处理） -->
+        <div v-else-if="previewType === 'word' || previewType === 'excel' || previewType === 'ppt' || previewType === 'office'" class="office-preview">
+          <div class="office-download-box">
+            <div class="office-icon">
+              <i :class="previewType === 'word' ? 'el-icon-document' : (previewType === 'excel' ? 'el-icon-s-grid' : 'el-icon-data-board')"
+                 :style="{fontSize: '64px', color: previewType === 'word' ? '#409EFF' : (previewType === 'excel' ? '#67C23A' : '#E6A23C')}"></i>
             </div>
-          </el-alert>
-
-          <!-- 下载按钮 - 放在显眼位置 -->
-          <div style="text-align: center; padding: 30px 0 20px 0;">
-            <el-button
-              type="primary"
-              size="large"
-              icon="el-icon-download"
-              @click="handleDownload(currentPreviewResource)">
+            <h3 style="margin: 20px 0 10px; color: #303133;">{{ currentPreviewResource ? currentPreviewResource.name : 'Office 文档' }}</h3>
+            <p style="color: #909399; margin-bottom: 20px;">
+              Office 文档暂不支持在线预览，请下载后使用本地软件打开
+            </p>
+            <el-button type="primary" size="large" icon="el-icon-download" @click="handleDownload(currentPreviewResource)">
               下载文件到本地查看
             </el-button>
-            <p style="margin-top: 10px; color: #909399; font-size: 13px;">
-              下载后使用 Microsoft Word、Excel 或 PowerPoint 打开
+            <p style="margin-top: 15px; color: #C0C4CC; font-size: 12px;">
+              支持 Microsoft Word、Excel、PowerPoint 或 WPS Office 打开
             </p>
-          </div>
-
-          <!-- 尝试显示预览（通常会失败） -->
-          <el-divider>或尝试在线预览（可能失败）</el-divider>
-          <div style="position: relative;">
-            <iframe :src="previewUrl" width="100%" height="500px" frameborder="0" style="border: 1px solid #ddd;"></iframe>
-            <!-- 如果iframe加载失败，显示遮罩 -->
-            <div v-if="officePreviewFailed" class="preview-error-overlay">
-              <i class="el-icon-warning-outline" style="font-size: 48px; color: #F56C6C;"></i>
-              <p style="margin-top: 15px; font-size: 16px;">在线预览失败</p>
-              <p style="color: #909399;">请使用上方的"下载文件"按钮</p>
-            </div>
           </div>
         </div>
         <!-- 视频预览 -->
@@ -478,6 +462,189 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 查看提交对话框 -->
+    <el-dialog
+      title="查看提交内容"
+      :visible.sync="viewSubmissionOpen"
+      :width="inlinePreviewFile ? '900px' : '700px'"
+      append-to-body
+      class="submission-dialog"
+    >
+      <div v-loading="viewSubmissionLoading" class="submission-content">
+        <template v-if="currentSubmission && currentViewTask">
+          <!-- 作业信息 -->
+          <div class="submission-info">
+            <h3>{{ currentViewTask.title }}</h3>
+            <div class="info-tags">
+              <el-tag size="small" :type="currentViewTask.type === 'exam' ? 'danger' : 'primary'">
+                {{ currentViewTask.type === 'exam' ? '考试' : '作业' }}
+              </el-tag>
+              <el-tag size="small" type="info">
+                {{ currentViewTask.mode === 'question' ? '答题型' : '上传型' }}
+              </el-tag>
+              <el-tag size="small" :type="getSubmissionStatusType(currentSubmission.status)">
+                {{ getSubmissionStatusText(currentSubmission.status) }}
+              </el-tag>
+            </div>
+          </div>
+
+          <!-- 提交时间和得分 -->
+          <el-descriptions :column="2" border size="small" class="submission-meta">
+            <el-descriptions-item label="提交时间">
+              {{ parseTime(currentSubmission.submitTime) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="得分">
+              <span v-if="currentSubmission.score != null" class="score-text">
+                {{ currentSubmission.score }} 分
+              </span>
+              <span v-else class="pending-text">待批改</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="批改时间" v-if="currentSubmission.gradeTime">
+              {{ parseTime(currentSubmission.gradeTime) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="批改反馈" :span="2" v-if="currentSubmission.feedback">
+              {{ currentSubmission.feedback }}
+            </el-descriptions-item>
+          </el-descriptions>
+
+          <!-- 上传型：显示提交的文件 -->
+          <div v-if="(currentViewTask.mode === 'upload' || currentViewTask.mode === 'file') && currentSubmission.filePath" class="submission-files">
+            <h4><i class="el-icon-folder-opened"></i> 提交的文件</h4>
+            <div class="file-list">
+              <div v-for="(file, index) in parseFilePaths(currentSubmission.filePath)" :key="index" class="file-item">
+                <div class="file-info">
+                  <i :class="getFileIcon(file)"></i>
+                  <span class="file-name">{{ getFileName(file) }}</span>
+                </div>
+                <div class="file-actions">
+                  <el-button type="primary" size="small" @click="showInlinePreview(file)" v-if="canPreviewFile(file)">
+                    <i class="el-icon-view"></i> 预览
+                  </el-button>
+                  <el-button type="info" size="small" @click="showInlinePreview(file)" v-else disabled>
+                    <i class="el-icon-view"></i> 不支持预览
+                  </el-button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 内嵌预览区域 -->
+            <div v-if="inlinePreviewFile" class="inline-preview-area">
+              <div class="inline-preview-header">
+                <span><i class="el-icon-view"></i> 预览: {{ getFileName(inlinePreviewFile) }}</span>
+                <el-button type="text" size="small" @click="closeInlinePreview">
+                  <i class="el-icon-close"></i> 关闭预览
+                </el-button>
+              </div>
+              <div class="inline-preview-content">
+                <!-- 图片预览 -->
+                <el-image
+                  v-if="inlinePreviewType === 'image'"
+                  :src="inlinePreviewUrl"
+                  fit="contain"
+                  :preview-src-list="[inlinePreviewUrl]"
+                  style="max-width: 100%; max-height: 500px;"
+                >
+                  <div slot="error" class="image-error">
+                    <i class="el-icon-picture-outline"></i>
+                    <span>图片加载失败</span>
+                  </div>
+                </el-image>
+                <!-- PDF预览 -->
+                <iframe
+                  v-else-if="inlinePreviewType === 'pdf'"
+                  :src="inlinePreviewUrl"
+                  width="100%"
+                  height="500px"
+                  frameborder="0"
+                ></iframe>
+                <!-- 视频预览 -->
+                <video
+                  v-else-if="inlinePreviewType === 'video'"
+                  :src="inlinePreviewUrl"
+                  controls
+                  style="max-width: 100%; max-height: 500px;"
+                >
+                  您的浏览器不支持视频播放
+                </video>
+                <!-- 音频预览 -->
+                <audio
+                  v-else-if="inlinePreviewType === 'audio'"
+                  :src="inlinePreviewUrl"
+                  controls
+                  style="width: 100%;"
+                >
+                  您的浏览器不支持音频播放
+                </audio>
+                <!-- 文本预览 -->
+                <pre v-else-if="inlinePreviewType === 'text'" class="text-preview-content">{{ inlinePreviewText }}</pre>
+                <!-- Office文档预览 -->
+                <div v-else-if="inlinePreviewType === 'office'" class="office-preview-tip">
+                  <el-alert title="Office文档需要下载后查看" type="info" :closable="false">
+                    <template slot="title">
+                      <p>浏览器暂不支持直接预览 Office 文档</p>
+                      <el-button type="primary" size="small" @click="downloadSubmissionFile(inlinePreviewFile)" style="margin-top: 10px;">
+                        <i class="el-icon-download"></i> 下载文件查看
+                      </el-button>
+                    </template>
+                  </el-alert>
+                </div>
+              </div>
+            </div>
+
+            <!-- 备注 -->
+            <div v-if="currentSubmission.content" class="submission-remark">
+              <h4><i class="el-icon-edit-outline"></i> 备注</h4>
+              <p>{{ currentSubmission.content }}</p>
+            </div>
+          </div>
+
+          <!-- 答题型：显示答题内容 -->
+          <div v-if="currentViewTask.mode === 'question'" class="submission-answers">
+            <h4><i class="el-icon-document"></i> 答题内容</h4>
+
+            <!-- 成功解析的答案列表 -->
+            <div v-if="parsedAnswers && parsedAnswers.length > 0" class="answers-list">
+              <div
+                v-for="(item, index) in parsedAnswers"
+                :key="index"
+                class="answer-item-card"
+              >
+                <!-- 题目头部 -->
+                <div class="answer-item-header">
+                  <span class="question-number">第 {{ index + 1 }} 题</span>
+                  <el-tag v-if="item.question" size="mini" :type="getQuestionTypeColor(item.question.questionType)">
+                    {{ getQuestionTypeName(item.question.questionType) }}
+                  </el-tag>
+                  <span v-if="item.question" class="question-score">{{ item.question.score }} 分</span>
+                </div>
+
+                <!-- 题目内容 -->
+                <div class="answer-item-content">
+                  <div class="question-title-text">
+                    <strong>题目：</strong>{{ item.question ? item.question.questionTitle : '题目信息缺失' }}
+                  </div>
+
+                  <!-- 你的答案 -->
+                  <div class="answer-row">
+                    <span class="answer-label">你的答案：</span>
+                    <span class="answer-value user-answer">{{ formatAnswer(item.answer) || '未作答' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 完全没有内容 -->
+            <el-empty v-else description="暂无答题记录" :image-size="80"></el-empty>
+          </div>
+        </template>
+
+        <el-empty v-else-if="!viewSubmissionLoading" description="暂无提交记录"></el-empty>
+      </div>
+      <div slot="footer">
+        <el-button @click="viewSubmissionOpen = false">关闭</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -487,7 +654,7 @@ import { getCourse } from "@/api/system/course";
 import { listChapter } from "@/api/system/chapter";
 import { listSection } from "@/api/system/section";
 import { listResource, getPreviewInfo } from "@/api/system/resource";
-import { listAssignment, getAssignmentQuestions, getMySubmissions, uploadAssignment } from "@/api/system/assignment";
+import { listAssignment, getAssignmentQuestions, getMySubmissions, uploadAssignment, getSubmissionDetail } from "@/api/system/assignment";
 import { getQuestion } from "@/api/system/question";
 import { recordResourceDownload } from "@/api/system/lbehavior";
 import axios from 'axios';
@@ -558,8 +725,58 @@ export default {
       currentPreviewResource: null,
       textContent: "",
       officePreviewNote: "",
-      officePreviewFailed: false
+      officePreviewFailed: false,
+
+      // 查看提交对话框
+      viewSubmissionOpen: false,
+      viewSubmissionLoading: false,
+      currentSubmission: null,
+      currentViewTask: null,
+      currentSubmissionQuestions: [], // 存储当前提交对应的题目信息
+
+      // 内嵌预览
+      inlinePreviewFile: null,
+      inlinePreviewType: '',
+      inlinePreviewUrl: '',
+      inlinePreviewText: '',
+
+      // Office 文档预览
+      officeLoading: false,
+      officeLoadError: false,
+      excelSheets: [],
+      currentSheetIndex: 0,
+      excelHtml: ''
     };
+  },
+  computed: {
+    // 解析后的答案列表
+    parsedAnswers() {
+      console.log('=== parsedAnswers 计算属性被调用 ===');
+      console.log('currentSubmission:', this.currentSubmission);
+
+      if (!this.currentSubmission) {
+        console.log('currentSubmission 为空，返回空数组');
+        return [];
+      }
+
+      // 尝试多个可能的字段名
+      const content = this.currentSubmission.content
+        || this.currentSubmission.answerContent
+        || this.currentSubmission.answer_content
+        || this.currentSubmission.answers;
+
+      console.log('提取的 content:', content);
+      console.log('content 类型:', typeof content);
+
+      if (!content) {
+        console.log('content 为空，返回空数组');
+        return [];
+      }
+
+      const result = this.parseAnswerContent(content);
+      console.log('parsedAnswers 最终返回:', result);
+      return result;
+    }
   },
   created() {
     this.courseId = this.$route.params && this.$route.params.courseId;
@@ -699,7 +916,9 @@ export default {
             this.submittedMap[sub.assignmentId] = {
               status: sub.status,
               score: sub.score,
-              submitTime: sub.submitTime
+              submitTime: sub.submitTime,
+              filePath: sub.filePath || sub.file_path || '',
+              content: sub.content || ''
             };
           });
           console.log('📝 提交记录Map:', this.submittedMap);
@@ -975,11 +1194,13 @@ export default {
       uploadAssignment(assignmentId, {
         files: this.studentSubmitForm.files,
         remark: this.studentSubmitForm.remark
-      }).then(response => {
+      }).then(() => {
         // 更新本地状态
         this.$set(this.submittedMap, assignmentId, {
           status: 1,
-          submitTime: new Date().toISOString()
+          submitTime: new Date().toISOString(),
+          filePath: this.studentSubmitForm.files,
+          content: this.studentSubmitForm.remark
         });
         this.$modal.msgSuccess("提交成功！");
         this.submitting = false;
@@ -1119,11 +1340,29 @@ export default {
       this.previewTitle = "预览: " + resource.name;
       this.textContent = "";
       this.officePreviewNote = "";
+      this.officeLoading = false;
+      this.officeLoadError = false;
+      this.excelSheets = [];
+      this.excelHtml = '';
+      this.currentSheetIndex = 0;
 
       getPreviewInfo(resource.id).then(response => {
-        this.previewType = response.previewType;
+        let previewType = response.previewType;
         this.previewUrl = response.previewUrl;
         this.officePreviewNote = response.officePreviewNote || "";
+
+        // 细分 office 类型
+        if (previewType === 'office') {
+          const ext = (resource.fileType || '').toLowerCase();
+          if (['doc', 'docx'].includes(ext)) {
+            previewType = 'word';
+          } else if (['xls', 'xlsx'].includes(ext)) {
+            previewType = 'excel';
+          } else if (['ppt', 'pptx'].includes(ext)) {
+            previewType = 'ppt';
+          }
+        }
+        this.previewType = previewType;
 
         // 根据预览类型调整对话框宽度
         if (this.previewType === 'image') {
@@ -1132,8 +1371,10 @@ export default {
           this.previewWidth = '50%';
         } else if (this.previewType === 'text') {
           this.previewWidth = '70%';
-          // 加载文本内容
           this.loadTextContent(response.previewUrl);
+        } else if (this.previewType === 'word' || this.previewType === 'excel') {
+          this.previewWidth = '90%';
+          this.loadOfficeDocument(response.previewUrl, this.previewType);
         } else {
           this.previewWidth = '90%';
         }
@@ -1145,6 +1386,85 @@ export default {
         this.previewLoading = false;
         this.previewType = 'unsupported';
       });
+    },
+
+    /** 加载 Office 文档 */
+    async loadOfficeDocument(url, type) {
+      this.officeLoading = true;
+      this.officeLoadError = false;
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('文件加载失败');
+        const arrayBuffer = await response.arrayBuffer();
+
+        if (type === 'word') {
+          await this.renderWord(arrayBuffer);
+        } else if (type === 'excel') {
+          this.renderExcel(arrayBuffer);
+        }
+      } catch (error) {
+        console.error('加载Office文档失败:', error);
+        this.officeLoadError = true;
+      } finally {
+        this.officeLoading = false;
+      }
+    },
+
+    /** 渲染 Word 文档 */
+    async renderWord(arrayBuffer) {
+      try {
+        const docxPreview = await import(/* webpackChunkName: "docx-preview" */ 'docx-preview');
+        await this.$nextTick();
+        const container = this.$refs.wordPreviewContainer;
+        if (container) {
+          container.innerHTML = '';
+          await docxPreview.renderAsync(arrayBuffer, container, null, {
+            className: 'docx-preview',
+            inWrapper: true,
+            ignoreWidth: false,
+            ignoreHeight: false,
+            ignoreFonts: false,
+            breakPages: true,
+            useBase64URL: true
+          });
+        }
+      } catch (error) {
+        console.error('docx-preview 库加载失败:', error);
+        this.officeLoadError = true;
+      }
+    },
+
+    /** 渲染 Excel 文档 */
+    async renderExcel(arrayBuffer) {
+      try {
+        const XLSX = await import('xlsx');
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        this.excelSheets = workbook.SheetNames.map(name => ({
+          name,
+          data: workbook.Sheets[name]
+        }));
+        this.xlsxLib = XLSX; // 保存引用供后续使用
+        this.currentSheetIndex = 0;
+        this.renderCurrentSheet();
+      } catch (error) {
+        console.error('xlsx 库加载失败:', error);
+        this.officeLoadError = true;
+      }
+    },
+
+    /** 渲染当前 Excel 工作表 */
+    renderCurrentSheet() {
+      if (this.excelSheets.length > 0 && this.xlsxLib) {
+        const sheet = this.excelSheets[this.currentSheetIndex];
+        this.excelHtml = this.xlsxLib.utils.sheet_to_html(sheet.data, { editable: false });
+      }
+    },
+
+    /** 切换 Excel 工作表 */
+    switchSheet(index) {
+      this.currentSheetIndex = index;
+      this.renderCurrentSheet();
     },
     /** 加载文本内容 */
     loadTextContent(url) {
@@ -1171,6 +1491,433 @@ export default {
       this.currentPreviewResource = null;
       this.textContent = "";
       this.officePreviewNote = "";
+    },
+
+    /** 查看提交内容 */
+    async viewSubmission(task) {
+      this.currentViewTask = task;
+      this.currentSubmission = null;
+      this.currentSubmissionQuestions = [];
+      this.viewSubmissionOpen = true;
+      this.viewSubmissionLoading = true;
+      // 重置内嵌预览
+      this.closeInlinePreview();
+
+      try {
+        // 获取提交详情
+        const response = await getSubmissionDetail(task.id);
+        const data = response.data || {};
+
+        // 兼容不同格式的字段名（驼峰和下划线）
+        this.currentSubmission = {
+          ...data,
+          filePath: data.filePath || data.file_path || '',
+          submitTime: data.submitTime || data.submit_time,
+          gradeTime: data.gradeTime || data.grade_time
+        };
+
+        // 如果是答题型任务，获取题目信息
+        if (task.mode === 'question') {
+          try {
+            const questionsResponse = await getAssignmentQuestions(task.id);
+            const rawQuestions = questionsResponse.data || [];
+            this.currentSubmissionQuestions = rawQuestions.map(q => ({
+              questionId: q.question_id || q.questionId,
+              questionTitle: q.question_title || q.questionTitle,
+              questionType: q.question_type || q.questionType,
+              score: q.score,
+              options: q.options,
+              difficulty: q.difficulty,
+              correctAnswer: q.correct_answer || q.correctAnswer,
+              explanation: q.explanation
+            }));
+          } catch (error) {
+            console.error('获取题目信息失败:', error);
+          }
+        }
+
+        this.viewSubmissionLoading = false;
+      } catch (error) {
+        console.error('获取提交详情失败:', error);
+        this.$modal.msgError('获取提交详情失败');
+        this.viewSubmissionLoading = false;
+      }
+    },
+
+    /** 获取任务提交的文件路径 */
+    getTaskSubmissionFilePath(task) {
+      if (!task || !task.id) return null;
+      const submission = this.submittedMap[task.id];
+      if (!submission) return null;
+      return submission.filePath || submission.file_path || null;
+    },
+
+    /** 直接下载任务提交的文件 */
+    downloadTaskSubmission(task) {
+      const filePath = this.getTaskSubmissionFilePath(task);
+      if (filePath) {
+        const files = this.parseFilePaths(filePath);
+        if (files.length === 1) {
+          this.downloadSubmissionFile(files[0]);
+        } else if (files.length > 1) {
+          // 多个文件，打开查看提交对话框
+          this.viewSubmission(task);
+        }
+      } else {
+        this.$modal.msgWarning('没有可下载的文件');
+      }
+    },
+
+    /** 获取提交状态文字 */
+    getSubmissionStatusText(status) {
+      const statusMap = {
+        0: '未提交',
+        1: '已提交',
+        2: '已批改',
+        3: '已退回'
+      };
+      return statusMap[status] || '未知';
+    },
+
+    /** 获取提交状态标签类型 */
+    getSubmissionStatusType(status) {
+      const typeMap = {
+        0: 'info',
+        1: 'warning',
+        2: 'success',
+        3: 'danger'
+      };
+      return typeMap[status] || 'info';
+    },
+
+    /** 解析文件路径（多文件用逗号分隔） */
+    parseFilePaths(filePath) {
+      if (!filePath) return [];
+      return filePath.split(',').filter(p => p.trim());
+    },
+
+    /** 获取文件名 */
+    getFileName(filePath) {
+      if (!filePath) return '';
+      const parts = filePath.split('/');
+      return parts[parts.length - 1];
+    },
+
+    /** 获取文件图标 */
+    getFileIcon(filePath) {
+      const ext = filePath.split('.').pop().toLowerCase();
+      const iconMap = {
+        'pdf': 'el-icon-document',
+        'doc': 'el-icon-document',
+        'docx': 'el-icon-document',
+        'xls': 'el-icon-s-grid',
+        'xlsx': 'el-icon-s-grid',
+        'ppt': 'el-icon-data-board',
+        'pptx': 'el-icon-data-board',
+        'jpg': 'el-icon-picture',
+        'jpeg': 'el-icon-picture',
+        'png': 'el-icon-picture',
+        'gif': 'el-icon-picture',
+        'mp4': 'el-icon-video-camera',
+        'mp3': 'el-icon-headset',
+        'zip': 'el-icon-files',
+        'rar': 'el-icon-files',
+        'txt': 'el-icon-notebook-2'
+      };
+      return iconMap[ext] || 'el-icon-document';
+    },
+
+    /** 判断文件是否可预览 */
+    canPreviewFile(filePath) {
+      const ext = filePath.split('.').pop().toLowerCase();
+      const previewableExts = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'webm', 'mp3', 'wav', 'txt', 'md', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+      return previewableExts.includes(ext);
+    },
+
+    /** 显示内嵌预览 */
+    showInlinePreview(filePath) {
+      const ext = filePath.split('.').pop().toLowerCase();
+      const fullUrl = this.buildFileUrl(filePath);
+      console.log('内嵌预览 - 文件路径:', filePath);
+      console.log('内嵌预览 - 完整URL:', fullUrl);
+      console.log('内嵌预览 - 扩展名:', ext);
+
+      this.inlinePreviewFile = filePath;
+      this.inlinePreviewUrl = fullUrl;
+      this.inlinePreviewText = '';
+
+      // 判断文件类型
+      if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+        this.inlinePreviewType = 'image';
+      } else if (ext === 'pdf') {
+        this.inlinePreviewType = 'pdf';
+      } else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+        this.inlinePreviewType = 'video';
+      } else if (['mp3', 'wav', 'ogg', 'aac'].includes(ext)) {
+        this.inlinePreviewType = 'audio';
+      } else if (['txt', 'md', 'json', 'xml', 'html', 'css', 'js'].includes(ext)) {
+        this.inlinePreviewType = 'text';
+        // 加载文本内容
+        fetch(fullUrl)
+          .then(response => response.text())
+          .then(text => {
+            this.inlinePreviewText = text;
+          })
+          .catch(() => {
+            this.inlinePreviewText = '文本内容加载失败';
+          });
+      } else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
+        this.inlinePreviewType = 'office';
+      } else {
+        this.inlinePreviewType = 'unsupported';
+      }
+    },
+
+    /** 关闭内嵌预览 */
+    closeInlinePreview() {
+      this.inlinePreviewFile = null;
+      this.inlinePreviewType = '';
+      this.inlinePreviewUrl = '';
+      this.inlinePreviewText = '';
+    },
+
+    /** 构建完整的文件URL */
+    buildFileUrl(filePath) {
+      if (!filePath) return '';
+      // 如果已经是完整URL，直接返回
+      if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+        return filePath;
+      }
+      // 若依的静态资源访问前缀是 /profile
+      // 如果路径不是以 /profile 开头，需要添加
+      let path = filePath;
+      if (!path.startsWith('/profile') && !path.startsWith('profile')) {
+        path = '/profile' + (path.startsWith('/') ? '' : '/') + path;
+      }
+      return this.backendHost + path;
+    },
+
+    /** 预览提交的文件 */
+    previewSubmissionFile(filePath) {
+      const fullUrl = this.buildFileUrl(filePath);
+      console.log('预览文件URL:', fullUrl);
+      console.log('原始文件路径:', filePath);
+      const ext = filePath.split('.').pop().toLowerCase();
+      console.log('文件扩展名:', ext);
+
+      // 重置预览状态
+      this.previewLoading = false;
+      this.textContent = '';
+      this.officePreviewFailed = false;
+
+      // 图片
+      if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+        this.previewType = 'image';
+        this.previewUrl = fullUrl;
+        this.previewTitle = '图片预览';
+        this.previewWidth = '60%';
+        this.previewOpen = true;
+        return;
+      }
+      // PDF
+      if (ext === 'pdf') {
+        this.previewType = 'pdf';
+        this.previewUrl = fullUrl;
+        this.previewTitle = 'PDF预览';
+        this.previewWidth = '90%';
+        this.previewOpen = true;
+        return;
+      }
+      // Office 文档
+      if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
+        this.previewType = 'office';
+        this.previewUrl = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(fullUrl);
+        this.previewTitle = 'Office 文档预览';
+        this.previewWidth = '90%';
+        this.officePreviewNote = '如果预览失败，请下载文件后查看';
+        this.previewOpen = true;
+        return;
+      }
+      // 视频
+      if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+        this.previewType = 'video';
+        this.previewUrl = fullUrl;
+        this.previewTitle = '视频预览';
+        this.previewWidth = '80%';
+        this.previewOpen = true;
+        return;
+      }
+      // 音频
+      if (['mp3', 'wav', 'ogg', 'aac'].includes(ext)) {
+        this.previewType = 'audio';
+        this.previewUrl = fullUrl;
+        this.previewTitle = '音频预览';
+        this.previewWidth = '50%';
+        this.previewOpen = true;
+        return;
+      }
+      // 文本
+      if (['txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'java', 'py', 'c', 'cpp', 'h'].includes(ext)) {
+        this.previewType = 'text';
+        this.previewUrl = fullUrl;
+        this.previewTitle = '文本预览';
+        this.previewWidth = '70%';
+        this.loadTextContent(fullUrl);
+        this.previewOpen = true;
+        return;
+      }
+      // 其他文件：直接在新窗口打开尝试预览
+      this.$confirm('该文件类型不支持在线预览，是否直接打开/下载？', '提示', {
+        confirmButtonText: '打开',
+        cancelButtonText: '取消',
+        type: 'info'
+      }).then(() => {
+        window.open(fullUrl, '_blank');
+      }).catch(() => {});
+    },
+
+    /** 下载提交的文件 */
+    downloadSubmissionFile(filePath) {
+      const fullUrl = this.buildFileUrl(filePath);
+      console.log('下载文件URL:', fullUrl);
+      const link = document.createElement('a');
+      link.href = fullUrl;
+      link.download = this.getFileName(filePath);
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    },
+
+    /** 解析答案内容 */
+    parseAnswerContent(content) {
+      if (!content) {
+        return [];
+      }
+
+      try {
+        let answers = [];
+
+        if (typeof content === 'string') {
+          let trimmedContent = content.trim();
+          if (!trimmedContent) {
+            return [];
+          }
+
+          // 移除可能的 BOM 字符
+          if (trimmedContent.charCodeAt(0) === 0xFEFF) {
+            trimmedContent = trimmedContent.slice(1);
+          }
+
+          console.log('开始解析答题内容:', trimmedContent);
+
+          // 检查是否是特殊格式（如：80299:A,80332:11,80337:111 或 80299:A;80332:11;80337:111）
+          if (!trimmedContent.startsWith('[') && !trimmedContent.startsWith('{')) {
+            // 解析格式：questionId:answer,questionId:answer,... 或 questionId:answer;questionId:answer;...
+            // 先尝试用分号分割，如果只有一个元素，再尝试用逗号分割
+            let pairs = trimmedContent.split(';');
+            if (pairs.length === 1) {
+              pairs = trimmedContent.split(',');
+            }
+            console.log('分割后的答案对:', pairs);
+
+            answers = pairs.map(pair => {
+              const [questionId, answer] = pair.split(':');
+              const parsed = {
+                questionId: parseInt(questionId.trim()),
+                answer: answer ? answer.trim() : ''
+              };
+              console.log('解析答案对:', pair, '=>', parsed);
+              return parsed;
+            }).filter(item => item.questionId && item.answer);
+
+            console.log('过滤后的答案数组:', answers);
+          } else {
+            // JSON 格式
+            const firstBracket = trimmedContent.indexOf('[');
+            const lastBracket = trimmedContent.lastIndexOf(']');
+
+            if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+              trimmedContent = trimmedContent.substring(firstBracket, lastBracket + 1);
+            }
+
+            answers = JSON.parse(trimmedContent);
+          }
+        } else if (Array.isArray(content)) {
+          answers = content;
+        } else if (typeof content === 'object') {
+          answers = [content];
+        } else {
+          return [];
+        }
+
+        // 确保 answers 是数组
+        if (!Array.isArray(answers)) {
+          return [];
+        }
+
+        console.log('题目列表:', this.currentSubmissionQuestions);
+
+        // 将答案与题目信息关联
+        const result = answers.map((answerItem) => {
+          const questionId = answerItem.questionId || answerItem.question_id;
+          const question = this.currentSubmissionQuestions.find(q => q.questionId === questionId);
+
+          console.log(`匹配题目 ID ${questionId}:`, question ? '找到' : '未找到', question);
+
+          return {
+            questionId: questionId,
+            answer: answerItem.answer,
+            score: answerItem.score,
+            question: question || null
+          };
+        });
+
+        console.log('最终结果:', result);
+        return result;
+      } catch (error) {
+        console.error('解析答案内容失败:', error.message, error);
+        return [];
+      }
+    },
+
+    /** 格式化答案显示 */
+    formatAnswer(answer) {
+      if (!answer) return '';
+      if (typeof answer === 'string') {
+        // 判断题特殊处理
+        if (answer === 'A') return '正确';
+        if (answer === 'B') return '错误';
+        return answer;
+      }
+      if (Array.isArray(answer)) {
+        return answer.join(', ');
+      }
+      return String(answer);
+    },
+
+    /** 获取题目类型名称 */
+    getQuestionTypeName(type) {
+      const typeMap = {
+        'single': '单选题',
+        'multiple': '多选题',
+        'true_false': '判断题',
+        'short': '简答题',
+        'code': '编程题'
+      };
+      return typeMap[type] || '未知类型';
+    },
+
+    /** 获取题目类型颜色 */
+    getQuestionTypeColor(type) {
+      const colorMap = {
+        'single': 'primary',
+        'multiple': 'success',
+        'true_false': 'warning',
+        'short': 'info',
+        'code': 'danger'
+      };
+      return colorMap[type] || 'info';
     }
   }
 };
@@ -2058,19 +2805,23 @@ export default {
     }
 
     .task-footer {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+
       .el-button {
-        width: 100%;
+        flex: 1;
+        min-width: 80px;
         border-radius: 8px;
         font-weight: 500;
         transition: all 0.3s;
 
         i {
-          margin-left: 4px;
-          transition: transform 0.3s;
+          margin-right: 4px;
         }
 
-        &:hover i {
-          transform: translateX(3px);
+        &:hover {
+          transform: translateY(-2px);
         }
       }
     }
@@ -2250,6 +3001,182 @@ export default {
   align-items: center;
 }
 
+.office-preview {
+  .office-download-box {
+    text-align: center;
+    padding: 60px 40px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
+    border-radius: 12px;
+    border: 2px dashed #dcdfe6;
+    max-width: 500px;
+    margin: 0 auto;
+
+    .office-icon {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+  }
+}
+
+/* Word 预览样式 */
+.word-preview {
+  width: 100%;
+
+  .office-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: #f5f7fa;
+    border-bottom: 1px solid #e4e7ed;
+    border-radius: 4px 4px 0 0;
+
+    span {
+      font-weight: 500;
+      color: #303133;
+
+      i {
+        margin-right: 8px;
+        color: #409EFF;
+      }
+    }
+  }
+
+  .word-preview-container {
+    width: 100%;
+    min-height: 400px;
+    max-height: 70vh;
+    overflow: auto;
+    background: #fff;
+    border: 1px solid #e4e7ed;
+    border-top: none;
+    padding: 20px;
+
+    ::v-deep .docx-preview {
+      max-width: 100%;
+    }
+
+    .office-load-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      color: #909399;
+
+      i {
+        font-size: 48px;
+        color: #F56C6C;
+        margin-bottom: 15px;
+      }
+
+      p {
+        margin-bottom: 15px;
+      }
+    }
+  }
+}
+
+/* Excel 预览样式 */
+.excel-preview {
+  width: 100%;
+
+  .office-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: #f5f7fa;
+    border-bottom: 1px solid #e4e7ed;
+    border-radius: 4px 4px 0 0;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    span {
+      font-weight: 500;
+      color: #303133;
+
+      i {
+        margin-right: 8px;
+        color: #67C23A;
+      }
+    }
+
+    .excel-sheet-tabs {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+  }
+
+  .excel-preview-container {
+    width: 100%;
+    min-height: 400px;
+    max-height: 70vh;
+    overflow: auto;
+    background: #fff;
+    border: 1px solid #e4e7ed;
+    border-top: none;
+
+    .office-load-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      color: #909399;
+
+      i {
+        font-size: 48px;
+        color: #F56C6C;
+        margin-bottom: 15px;
+      }
+
+      p {
+        margin-bottom: 15px;
+      }
+    }
+
+    .excel-table-wrapper {
+      padding: 10px;
+
+      ::v-deep table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+
+        td, th {
+          border: 1px solid #e4e7ed;
+          padding: 8px 12px;
+          text-align: left;
+          white-space: nowrap;
+        }
+
+        th {
+          background: #f5f7fa;
+          font-weight: 600;
+          color: #303133;
+        }
+
+        tr:nth-child(even) {
+          background: #fafafa;
+        }
+
+        tr:hover {
+          background: #f0f9ff;
+        }
+      }
+    }
+  }
+}
+
 .text-preview {
   .text-content {
     width: 100%;
@@ -2306,5 +3233,351 @@ export default {
   align-items: center;
   justify-content: center;
   z-index: 10;
+}
+
+/* ==================== 查看提交对话框样式 ==================== */
+.submission-dialog {
+  ::v-deep .el-dialog__header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 16px 20px;
+    border-radius: 4px 4px 0 0;
+
+    .el-dialog__title {
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .el-dialog__headerbtn .el-dialog__close {
+      color: #fff;
+    }
+  }
+}
+
+.submission-content {
+  min-height: 200px;
+
+  .submission-info {
+    margin-bottom: 20px;
+
+    h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #303133;
+      margin: 0 0 12px 0;
+    }
+
+    .info-tags {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  .submission-meta {
+    margin-bottom: 20px;
+
+    .score-text {
+      font-weight: 600;
+      color: #67C23A;
+      font-size: 16px;
+    }
+
+    .pending-text {
+      color: #909399;
+    }
+  }
+
+  .submission-files {
+    h4 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #303133;
+      margin: 0 0 12px 0;
+
+      i {
+        margin-right: 6px;
+      }
+    }
+
+    .file-list {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: #fff;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border: 1px solid #ebeef5;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .file-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        i {
+          font-size: 20px;
+          color: #409EFF;
+        }
+
+        .file-name {
+          font-size: 14px;
+          color: #303133;
+          word-break: break-all;
+        }
+      }
+
+      .file-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+    }
+
+    .submission-remark {
+      margin-top: 16px;
+
+      h4 {
+        margin-bottom: 8px;
+      }
+
+      p {
+        background: #f8f9fa;
+        padding: 12px;
+        border-radius: 6px;
+        color: #606266;
+        margin: 0;
+        line-height: 1.6;
+      }
+    }
+
+    .inline-preview-area {
+      margin-top: 16px;
+      border: 1px solid #e4e7ed;
+      border-radius: 8px;
+      overflow: hidden;
+
+      .inline-preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #fff;
+
+        span {
+          font-weight: 500;
+
+          i {
+            margin-right: 6px;
+          }
+        }
+
+        .el-button--text {
+          color: #fff;
+          padding: 0;
+
+          &:hover {
+            color: rgba(255, 255, 255, 0.8);
+          }
+        }
+      }
+
+      .inline-preview-content {
+        padding: 16px;
+        background: #fafafa;
+        min-height: 200px;
+        max-height: 500px;
+        overflow: auto;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+
+        .el-image {
+          max-width: 100%;
+        }
+
+        iframe {
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+
+        video {
+          max-width: 100%;
+          border-radius: 4px;
+        }
+
+        audio {
+          width: 100%;
+        }
+
+        .text-preview-content {
+          width: 100%;
+          margin: 0;
+          padding: 16px;
+          background: #fff;
+          border: 1px solid #e4e7ed;
+          border-radius: 4px;
+          white-space: pre-wrap;
+          word-break: break-all;
+          font-family: 'Consolas', 'Monaco', monospace;
+          font-size: 13px;
+          line-height: 1.6;
+          color: #303133;
+          max-height: 400px;
+          overflow: auto;
+        }
+
+        .office-preview-tip {
+          width: 100%;
+          text-align: center;
+          padding: 40px 20px;
+        }
+
+        .image-error {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 40px;
+          color: #909399;
+
+          i {
+            font-size: 48px;
+            margin-bottom: 10px;
+          }
+        }
+      }
+    }
+  }
+
+  .submission-answers {
+    h4 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #303133;
+      margin: 0 0 12px 0;
+
+      i {
+        margin-right: 6px;
+      }
+    }
+
+    .answers-list {
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .answer-item-card {
+      background: #fff;
+      border: 1px solid #e4e7ed;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      transition: all 0.3s;
+
+      &:hover {
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+      }
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .answer-item-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #ebeef5;
+
+        .question-number {
+          font-size: 15px;
+          font-weight: 600;
+          color: #409eff;
+        }
+
+        .question-score {
+          margin-left: auto;
+          color: #f56c6c;
+          font-weight: 600;
+          font-size: 14px;
+        }
+      }
+
+      .answer-item-content {
+        .question-title-text {
+          font-size: 14px;
+          color: #303133;
+          line-height: 1.8;
+          margin-bottom: 12px;
+
+          strong {
+            color: #606266;
+          }
+        }
+
+        .question-options-display {
+          background: #f8f9fa;
+          border-radius: 6px;
+          padding: 12px;
+          margin-bottom: 12px;
+
+          .option-item {
+            padding: 6px 0;
+            font-size: 14px;
+            color: #606266;
+            line-height: 1.6;
+
+            .option-label {
+              font-weight: 600;
+              color: #409eff;
+              margin-right: 8px;
+            }
+
+            .option-text {
+              color: #303133;
+            }
+          }
+        }
+
+        .answer-row {
+          display: flex;
+          align-items: baseline;
+          margin-bottom: 10px;
+          font-size: 14px;
+
+          .answer-label {
+            font-weight: 600;
+            color: #606266;
+            min-width: 80px;
+            flex-shrink: 0;
+          }
+
+          .answer-value {
+            flex: 1;
+            padding: 4px 12px;
+            border-radius: 4px;
+
+            &.user-answer {
+              background: #e8f4ff;
+              color: #409eff;
+              font-weight: 500;
+            }
+          }
+        }
+      }
+    }
+
+  }
 }
 </style>

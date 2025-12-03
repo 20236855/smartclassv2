@@ -239,6 +239,15 @@
                 <i :class="isExamSubmitted(assignment) ? 'el-icon-check' : (assignment.mode === 'question' ? 'el-icon-edit' : (isSubmitted(assignment) ? 'el-icon-refresh' : 'el-icon-upload'))"></i>
                 {{ isExamSubmitted(assignment) ? '已完成' : (assignment.mode === 'question' ? '开始答题' : (isSubmitted(assignment) ? '重新提交' : '提交作业')) }}
               </el-button>
+              <el-button
+                v-if="isSubmitted(assignment)"
+                type="info"
+                size="small"
+                plain
+                @click="viewSubmission(assignment)"
+              >
+                <i class="el-icon-view"></i> 查看提交
+              </el-button>
             </div>
           </div>
         </el-col>
@@ -304,6 +313,15 @@
                 @click="openSubmitDialog(assignment)"
               >
                 {{ isExamSubmitted(assignment) ? '已完成' : (assignment.mode === 'question' ? '开始答题' : (isSubmitted(assignment) ? '重新提交' : '提交作业')) }}
+              </el-button>
+              <el-button
+                v-if="isSubmitted(assignment)"
+                type="info"
+                size="small"
+                plain
+                @click="viewSubmission(assignment)"
+              >
+                <i class="el-icon-view"></i> 查看
               </el-button>
             </div>
           </el-card>
@@ -374,7 +392,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="180">
+        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="240">
           <template slot-scope="scope">
             <el-button
               size="mini"
@@ -382,6 +400,13 @@
               :disabled="isExpired(scope.row) || isExamSubmitted(scope.row)"
               @click="openSubmitDialog(scope.row)"
             >{{ isExamSubmitted(scope.row) ? '已完成' : (scope.row.mode === 'question' ? '开始答题' : (isSubmitted(scope.row) ? '重新提交' : '提交作业')) }}</el-button>
+            <el-button
+              v-if="isSubmitted(scope.row)"
+              size="mini"
+              type="info"
+              plain
+              @click="viewSubmission(scope.row)"
+            >查看提交</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -671,11 +696,98 @@
         <el-button @click="cancel">取 消</el-button>
       </div>
     </el-dialog>
+
+    <!-- 查看提交对话框 -->
+    <el-dialog
+      title="查看提交内容"
+      :visible.sync="viewSubmissionOpen"
+      width="700px"
+      append-to-body
+      class="submission-view-dialog"
+    >
+      <div v-loading="viewSubmissionLoading" class="submission-content">
+        <template v-if="currentSubmission && currentViewAssignment">
+          <!-- 作业信息 -->
+          <div class="submission-info">
+            <h3>{{ currentViewAssignment.title }}</h3>
+            <div class="info-tags">
+              <el-tag size="small" :type="currentViewAssignment.type === 'exam' ? 'danger' : 'primary'">
+                {{ currentViewAssignment.type === 'exam' ? '考试' : '作业' }}
+              </el-tag>
+              <el-tag size="small" type="info">
+                {{ currentViewAssignment.mode === 'question' ? '答题型' : '上传型' }}
+              </el-tag>
+              <el-tag size="small" :type="getSubmissionStatusType(currentSubmission.status)">
+                {{ getSubmissionStatusText(currentSubmission.status) }}
+              </el-tag>
+            </div>
+          </div>
+
+          <!-- 提交时间和得分 -->
+          <el-descriptions :column="2" border size="small" class="submission-meta">
+            <el-descriptions-item label="提交时间">
+              {{ parseTime(currentSubmission.submitTime) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="得分">
+              <span v-if="currentSubmission.score != null" class="score-text">
+                {{ currentSubmission.score }} 分
+              </span>
+              <span v-else class="pending-text">待批改</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="批改时间" v-if="currentSubmission.gradeTime">
+              {{ parseTime(currentSubmission.gradeTime) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="批改反馈" :span="2" v-if="currentSubmission.feedback">
+              {{ currentSubmission.feedback }}
+            </el-descriptions-item>
+          </el-descriptions>
+
+          <!-- 上传型：显示提交的文件 -->
+          <div v-if="(currentViewAssignment.mode === 'upload' || currentViewAssignment.mode === 'file') && currentSubmission.filePath" class="submission-files">
+            <h4><i class="el-icon-folder-opened"></i> 提交的文件</h4>
+            <div class="file-list">
+              <div v-for="(file, index) in parseFilePaths(currentSubmission.filePath)" :key="index" class="file-item">
+                <div class="file-info">
+                  <i :class="getFileIcon(file)"></i>
+                  <span class="file-name">{{ getFileName(file) }}</span>
+                </div>
+                <div class="file-actions">
+                  <el-button type="text" size="small" @click="previewSubmissionFile(file)" v-if="canPreviewFile(file)">
+                    <i class="el-icon-view"></i> 预览
+                  </el-button>
+                  <el-button type="text" size="small" @click="downloadSubmissionFile(file)">
+                    <i class="el-icon-download"></i> 下载
+                  </el-button>
+                </div>
+              </div>
+            </div>
+            <!-- 备注 -->
+            <div v-if="currentSubmission.content" class="submission-remark">
+              <h4><i class="el-icon-edit-outline"></i> 备注</h4>
+              <p>{{ currentSubmission.content }}</p>
+            </div>
+          </div>
+
+          <!-- 答题型：显示答题内容 -->
+          <div v-if="currentViewAssignment.mode === 'question' && currentSubmission.content" class="submission-answers">
+            <h4><i class="el-icon-document"></i> 答题内容</h4>
+            <div class="answers-content">
+              <pre>{{ currentSubmission.content }}</pre>
+            </div>
+          </div>
+        </template>
+
+        <el-empty v-else-if="!viewSubmissionLoading" description="暂无提交记录"></el-empty>
+      </div>
+      <div slot="footer">
+        <el-button @click="viewSubmissionOpen = false">关闭</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { listAssignment, getAssignment, delAssignment, addAssignment, updateAssignment, getAssignmentQuestions, submitAssignment, uploadAssignment, getMySubmissions } from "@/api/system/assignment"
+import { listAssignment, getAssignment, delAssignment, addAssignment, updateAssignment, getAssignmentQuestions, submitAssignment, uploadAssignment, getMySubmissions, getSubmissionDetail } from "@/api/system/assignment"
 
 export default {
   name: "Assignment",
@@ -767,7 +879,13 @@ export default {
         isDeleted: [
           { required: true, message: "是否删除不能为空", trigger: "blur" }
         ],
-      }
+      },
+      // 查看提交对话框
+      viewSubmissionOpen: false,
+      viewSubmissionLoading: false,
+      currentSubmission: null,
+      currentViewAssignment: null,
+      backendHost: process.env.VUE_APP_BASE_API
     }
   },
   computed: {
@@ -1241,6 +1359,133 @@ export default {
         'code': '请输入代码...'
       }
       return placeholderMap[type] || '请输入答案...'
+    },
+
+    /** 查看提交内容 */
+    viewSubmission(assignment) {
+      this.currentViewAssignment = assignment
+      this.currentSubmission = null
+      this.viewSubmissionOpen = true
+      this.viewSubmissionLoading = true
+
+      getSubmissionDetail(assignment.id).then(response => {
+        const data = response.data || {}
+        // 兼容不同格式的字段名（驼峰和下划线）
+        this.currentSubmission = {
+          ...data,
+          filePath: data.filePath || data.file_path || '',
+          submitTime: data.submitTime || data.submit_time,
+          gradeTime: data.gradeTime || data.grade_time
+        }
+        console.log('提交详情:', this.currentSubmission)
+        this.viewSubmissionLoading = false
+      }).catch(error => {
+        console.error('获取提交详情失败:', error)
+        this.$modal.msgError('获取提交详情失败')
+        this.viewSubmissionLoading = false
+      })
+    },
+
+    /** 获取提交状态文字 */
+    getSubmissionStatusText(status) {
+      const statusMap = {
+        0: '未提交',
+        1: '已提交',
+        2: '已批改',
+        3: '已退回'
+      }
+      return statusMap[status] || '未知'
+    },
+
+    /** 获取提交状态标签类型 */
+    getSubmissionStatusType(status) {
+      const typeMap = {
+        0: 'info',
+        1: 'warning',
+        2: 'success',
+        3: 'danger'
+      }
+      return typeMap[status] || 'info'
+    },
+
+    /** 解析文件路径（多文件用逗号分隔） */
+    parseFilePaths(filePath) {
+      if (!filePath) return []
+      return filePath.split(',').filter(p => p.trim())
+    },
+
+    /** 获取文件名 */
+    getFileName(filePath) {
+      if (!filePath) return ''
+      const parts = filePath.split('/')
+      return parts[parts.length - 1]
+    },
+
+    /** 获取文件图标 */
+    getFileIcon(filePath) {
+      const ext = filePath.split('.').pop().toLowerCase()
+      const iconMap = {
+        'pdf': 'el-icon-document',
+        'doc': 'el-icon-document',
+        'docx': 'el-icon-document',
+        'xls': 'el-icon-s-grid',
+        'xlsx': 'el-icon-s-grid',
+        'ppt': 'el-icon-data-board',
+        'pptx': 'el-icon-data-board',
+        'jpg': 'el-icon-picture',
+        'jpeg': 'el-icon-picture',
+        'png': 'el-icon-picture',
+        'gif': 'el-icon-picture',
+        'mp4': 'el-icon-video-camera',
+        'mp3': 'el-icon-headset',
+        'zip': 'el-icon-files',
+        'rar': 'el-icon-files',
+        'txt': 'el-icon-notebook-2'
+      }
+      return iconMap[ext] || 'el-icon-document'
+    },
+
+    /** 判断文件是否可预览 */
+    canPreviewFile(filePath) {
+      const ext = filePath.split('.').pop().toLowerCase()
+      const previewableExts = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'webm', 'mp3', 'wav', 'txt', 'md']
+      return previewableExts.includes(ext)
+    },
+
+    /** 构建完整的文件URL */
+    buildFileUrl(filePath) {
+      if (!filePath) return ''
+      // 如果已经是完整URL，直接返回
+      if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+        return filePath
+      }
+      // 若依的静态资源访问前缀是 /profile
+      // 如果路径不是以 /profile 开头，需要添加
+      let path = filePath
+      if (!path.startsWith('/profile') && !path.startsWith('profile')) {
+        path = '/profile' + (path.startsWith('/') ? '' : '/') + path
+      }
+      return this.backendHost + path
+    },
+
+    /** 预览提交的文件 */
+    previewSubmissionFile(filePath) {
+      const fullUrl = this.buildFileUrl(filePath)
+      console.log('预览文件URL:', fullUrl)
+      window.open(fullUrl, '_blank')
+    },
+
+    /** 下载提交的文件 */
+    downloadSubmissionFile(filePath) {
+      const fullUrl = this.buildFileUrl(filePath)
+      console.log('下载文件URL:', fullUrl)
+      const link = document.createElement('a')
+      link.href = fullUrl
+      link.download = this.getFileName(filePath)
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     }
   }
 }
@@ -2005,5 +2250,128 @@ export default {
   .no-questions {
     padding: 40px 0;
     text-align: center;
+  }
+
+  /* ==================== 查看提交对话框样式 ==================== */
+  .submission-content {
+    min-height: 200px;
+  }
+
+  .submission-content .submission-info {
+    margin-bottom: 20px;
+  }
+
+  .submission-content .submission-info h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #303133;
+    margin: 0 0 12px 0;
+  }
+
+  .submission-content .info-tags {
+    display: flex;
+    gap: 8px;
+  }
+
+  .submission-content .submission-meta {
+    margin-bottom: 20px;
+  }
+
+  .submission-content .score-text {
+    font-weight: 600;
+    color: #67C23A;
+    font-size: 16px;
+  }
+
+  .submission-content .pending-text {
+    color: #909399;
+  }
+
+  .submission-content .submission-files h4,
+  .submission-content .submission-answers h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #303133;
+    margin: 0 0 12px 0;
+  }
+
+  .submission-content .submission-files h4 i,
+  .submission-content .submission-answers h4 i {
+    margin-right: 6px;
+  }
+
+  .submission-content .file-list {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .submission-content .file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: #fff;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    border: 1px solid #ebeef5;
+  }
+
+  .submission-content .file-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .submission-content .file-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .submission-content .file-info i {
+    font-size: 20px;
+    color: #409EFF;
+  }
+
+  .submission-content .file-name {
+    font-size: 14px;
+    color: #303133;
+    word-break: break-all;
+  }
+
+  .submission-content .file-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .submission-content .submission-remark {
+    margin-top: 16px;
+  }
+
+  .submission-content .submission-remark p {
+    background: #f8f9fa;
+    padding: 12px;
+    border-radius: 6px;
+    color: #606266;
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  .submission-content .answers-content {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 16px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .submission-content .answers-content pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: inherit;
+    font-size: 14px;
+    color: #303133;
+    line-height: 1.8;
   }
 </style>

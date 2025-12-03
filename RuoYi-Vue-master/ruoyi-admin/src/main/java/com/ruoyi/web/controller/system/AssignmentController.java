@@ -276,13 +276,41 @@ public class AssignmentController extends BaseController
         }
 
         try {
-            String sql = "SELECT assignment_id as assignmentId, status, score, submit_time as submitTime " +
+            String sql = "SELECT assignment_id as assignmentId, status, score, submit_time as submitTime, " +
+                    "file_path as filePath, content " +
                     "FROM assignment_submission WHERE student_user_id = ? AND is_deleted = 0";
             List<Map<String, Object>> submissions = jdbcTemplate.queryForList(sql, studentUserId);
             return success(submissions);
         } catch (Exception e) {
             logger.error("获取提交记录失败: studentUserId={}", studentUserId, e);
             return success(new java.util.ArrayList<>());
+        }
+    }
+
+    /**
+     * 获取当前学生某个作业的提交详情
+     */
+    @PreAuthorize("@ss.hasPermi('system:assignment:list')")
+    @GetMapping("/{id}/submission")
+    public AjaxResult getSubmissionDetail(@PathVariable("id") Long assignmentId)
+    {
+        Long studentUserId = getStudentUserId();
+        if (studentUserId == null) {
+            return error("用户信息不存在");
+        }
+
+        try {
+            String sql = "SELECT id, assignment_id as assignmentId, status, score, feedback, " +
+                    "submit_time as submitTime, grade_time as gradeTime, content, file_path as filePath " +
+                    "FROM assignment_submission WHERE assignment_id = ? AND student_user_id = ? AND is_deleted = 0";
+            List<Map<String, Object>> submissions = jdbcTemplate.queryForList(sql, assignmentId, studentUserId);
+            if (submissions.isEmpty()) {
+                return error("未找到提交记录");
+            }
+            return success(submissions.get(0));
+        } catch (Exception e) {
+            logger.error("获取提交详情失败: assignmentId={}, studentUserId={}", assignmentId, studentUserId, e);
+            return error("获取提交详情失败");
         }
     }
 }
