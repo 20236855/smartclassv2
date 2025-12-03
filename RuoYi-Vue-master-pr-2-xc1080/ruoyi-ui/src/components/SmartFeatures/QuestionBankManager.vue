@@ -225,8 +225,15 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="章节ID" required>
-              <el-input v-model="formData.chapterId" placeholder="请输入章节ID" />
+            <el-form-item label="章节" required>
+              <el-select v-model="formData.chapterId" placeholder="选择章节" style="width: 100%">
+                <el-option 
+                  v-for="chapter in chapters" 
+                  :key="chapter.id" 
+                  :label="chapter.title" 
+                  :value="chapter.id" 
+                />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -439,6 +446,7 @@ import {
   getKnowledgePoints,
   getKnowledgePointStats
 } from '@/api/smart/question'
+import { listChapterByCourse } from '@/api/course/chapter'
 
 export default {
   name: 'QuestionBankManager',
@@ -497,6 +505,9 @@ export default {
       // 知识点列表
       knowledgePoints: [],
       
+      // 章节列表
+      chapters: [],
+      
       // 导入文本
       importJsonText: '',
       
@@ -507,12 +518,14 @@ export default {
   mounted() {
     this.loadQuestions()
     this.loadKnowledgePoints()
+    this.loadChapters()
   },
   watch: {
     courseId(newVal) {
       if (newVal) {
         this.loadQuestions()
         this.loadKnowledgePoints()
+        this.loadChapters()
       }
     }
   },
@@ -584,6 +597,31 @@ export default {
       } catch (error) {
         console.error('[题库] 获取知识点列表失败:', error)
         this.knowledgePoints = []
+      }
+    },
+    
+    /** 加载章节列表 */
+    async loadChapters() {
+      if (!this.courseId) {
+        console.warn('[题库] 缺少 courseId，无法加载章节')
+        return
+      }
+      
+      try {
+        console.log('[题库] 开始加载章节，课程ID:', this.courseId)
+        const res = await listChapterByCourse(this.courseId)
+        console.log('[题库] 章节API响应:', res)
+        
+        if (res.code === 200) {
+          this.chapters = res.data || []
+          console.log('[题库] 章节加载成功，数量:', this.chapters.length)
+        } else {
+          console.error('[题库] 章节API返回错误:', res.msg)
+          this.chapters = []
+        }
+      } catch (error) {
+        console.error('[题库] 获取章节列表失败:', error)
+        this.chapters = []
       }
     },
     
@@ -673,7 +711,7 @@ export default {
         return
       }
       if (!this.formData.chapterId) {
-        this.$message.warning('请输入章节ID')
+        this.$message.warning('请选择章节')
         return
       }
       if (!this.formData.knowledgePoint) {
@@ -689,28 +727,34 @@ export default {
           difficulty: Number(this.formData.difficulty),
           chapterId: Number(this.formData.chapterId)
         }
+        
+        console.log('[题库] 提交题目数据:', data)
 
         if (this.isEdit) {
           const res = await updateQuestion(this.formData.id, data)
+          console.log('[题库] 更新题目响应:', res)
           if (res.code === 200) {
             this.$message.success('更新成功')
             this.dialogVisible = false
             this.loadQuestions()
           } else {
-            this.$message.error(res.message || '更新失败')
+            this.$message.error(res.message || res.msg || '更新失败')
           }
         } else {
           const res = await createQuestion(data)
+          console.log('[题库] 创建题目响应:', res)
           if (res.code === 200) {
             this.$message.success(`创建成功，题目 ID: ${res.data}`)
             this.dialogVisible = false
             this.loadQuestions()
           } else {
-            this.$message.error(res.message || '创建失败')
+            this.$message.error(res.message || res.msg || '创建失败')
           }
         }
       } catch (error) {
-        this.$message.error('操作失败')
+        console.error('[题库] 提交题目失败:', error)
+        console.error('[题库] 错误详情:', error.response || error.message || error)
+        this.$message.error('操作失败: ' + (error.message || error.msg || '未知错误'))
       } finally {
         this.submitting = false
       }

@@ -307,6 +307,66 @@
       </div>
     </el-dialog>
 
+    <!-- 学生学情分析弹框 -->
+    <el-dialog
+      title="学生学情分析"
+      :visible.sync="studentAnalysisDialogVisible"
+      width="90%"
+      top="5vh"
+      :close-on-click-modal="false"
+      @close="handleStudentAnalysisClose"
+    >
+      <div class="student-analysis-dialog-content">
+        <!-- 学生信息 -->
+        <div class="student-info-header">
+          <div class="student-avatar">
+            <i class="el-icon-user-solid"></i>
+          </div>
+          <div class="student-details">
+            <h3>{{ selectedStudent.name }}</h3>
+            <p>学号：{{ selectedStudent.id }}</p>
+          </div>
+        </div>
+
+        <!-- 课程选择 -->
+        <div class="course-select-section">
+          <el-alert
+            v-if="!selectedStudentCourseId"
+            title="请选择该学生所选的课程以查看学情分析"
+            type="info"
+            :closable="false"
+            show-icon
+          >
+          </el-alert>
+          <el-select
+            v-model="selectedStudentCourseId"
+            placeholder="请选择课程"
+            style="width: 300px; margin-top: 15px;"
+            filterable
+          >
+            <el-option
+              v-for="course in studentCourseList"
+              :key="course.id"
+              :label="course.title"
+              :value="course.id"
+            >
+              <span style="float: left">{{ course.title }}</span>
+              <span style="float: right; color: #8492a6; font-size: 13px">{{ course.status }}</span>
+            </el-option>
+          </el-select>
+        </div>
+
+        <!-- 学情分析内容 -->
+        <div v-if="selectedStudentCourseId" class="student-analysis-content">
+          <student-analysis-tab 
+            :course-id="selectedStudentCourseId"
+            :student-id="selectedStudent.id"
+            :key="selectedStudentCourseId + '-' + selectedStudent.id"
+          />
+        </div>
+      </div>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -315,9 +375,15 @@ import { listCourse, getCourseStats, getCourse, addCourse, updateCourse, delCour
 import { generateCourseDescription } from "@/api/course/generation";
 import { getToken } from "@/utils/auth";
 import * as echarts from 'echarts';
+import StudentAnalysisTab from "@/views/course/components/StudentAnalysisTab.vue";
+import request from '@/utils/request';
+import * as sectionApi from '@/api/course/section';
 
 export default {
   name: "Course",
+  components: {
+    StudentAnalysisTab
+  },
   data() {
     return {
       // ECharts 实例
@@ -350,6 +416,12 @@ export default {
       viewMode: 'card',
       // 对话框显示
       dialogVisible: false,
+      // 学生学情分析弹框
+      studentAnalysisDialogVisible: false,
+      selectedStudent: { id: null, name: '' },
+      selectedStudentCourseId: null,
+      studentCourseList: [],
+      allStudentEnrollments: [], // 存储所有学生的选课信息
       // AI生成状态
       aiGenerating: false,
       // 表单数据
@@ -409,7 +481,10 @@ export default {
       // 总条数
       total: 0,
       // 加载状态
-      loading: false
+      loading: false,
+      // 燃尽图数据
+      burndownDataLoading: false,
+      realBurndownData: null
     };
   },
   created() {
@@ -419,7 +494,7 @@ export default {
   mounted() {
     this.$nextTick(() => {
       this.initChart();
-      this.initBurndownChart();
+      this.loadRealBurndownData(); // 加载真实燃尽图数据
       this.initErrorKpChart();
     });
   },
@@ -705,6 +780,22 @@ export default {
       
       const option = {
         color: ['#e54035'],
+        tooltip: {
+          trigger: 'item',
+          formatter: function(params) {
+            if (params.data.studentName) {
+              return `<strong>${params.data.studentName}</strong><br/>学号：${params.data.studentId || '未知'}`;
+            }
+            return '学生信息';
+          },
+          backgroundColor: 'rgba(50, 50, 50, 0.9)',
+          borderColor: '#333',
+          borderWidth: 1,
+          textStyle: {
+            color: '#fff',
+            fontSize: 13
+          }
+        },
         xAxis: {
           type: 'value',
           axisLine: { show: false },
@@ -789,16 +880,36 @@ export default {
       
       this.chartInstance.setOption(option);
       
-      // 动态更新 - 使用学生历史数据
+      // 添加点击事件
+      this.chartInstance.on('click', (params) => {
+        if (params.componentType === 'series' && params.seriesName === 'trees') {
+          this.handleTreeClick(params);
+        }
+      });
+      
+      // 动态更新 - 使用学生历史数据，只播放一次到终点
       let currentIndex = 0;
+      const totalFrames = this.studentCountHistory.length;
+      
       this.chartTimer = setInterval(() => {
         if (this.studentCountHistory.length === 0) return;
         
-        currentIndex = (currentIndex + 1) % this.studentCountHistory.length;
+        currentIndex++;
+        
+        // 到达终点后停止动画
+        if (currentIndex >= totalFrames) {
+          clearInterval(this.chartTimer);
+          this.chartTimer = null;
+          this.isPlaying = false;
+          console.log('动画播放完成，停止在终点');
+          return;
+        }
+        
         const historyData = this.studentCountHistory[currentIndex];
         const studentCount = historyData.count;
         const studentJoinDays = historyData.studentJoinDays || [];
         const studentGpas = historyData.studentGpas || [];
+        const studentEnrollments = historyData.studentEnrollments || [];
         
         // 更新时间轴数据
         this.currentDate = historyData.date;
@@ -809,7 +920,7 @@ export default {
         this.chartInstance.setOption({
           series: [
             {
-              data: this.makeTreeGridData(studentCount, studentJoinDays, studentGpas)
+              data: this.makeTreeGridData(studentCount, studentJoinDays, studentGpas, studentEnrollments)
             }
           ]
         });
@@ -835,11 +946,12 @@ export default {
       // 更新图表
       if (this.chartInstance) {
         const studentJoinDays = historyData.studentJoinDays || [];
+        const studentEnrollments = historyData.studentEnrollments || [];
         
         this.chartInstance.setOption({
           series: [
             {
-              data: this.makeTreeGridData(studentCount, studentJoinDays, studentGpas)
+              data: this.makeTreeGridData(studentCount, studentJoinDays, studentGpas, studentEnrollments)
             }
           ]
         });
@@ -942,7 +1054,7 @@ export default {
       }, 800);
     },
     /** 生成网格坐标,从中心向周边扩散 */
-    makeTreeGridData(treeCount, studentJoinDays = [], studentGpas = []) {
+    makeTreeGridData(treeCount, studentJoinDays = [], studentGpas = [], studentEnrollments = []) {
       const seriesData = [];
       const gridSize = 40; // 网格间距
       
@@ -973,6 +1085,7 @@ export default {
         const [gridX, gridY] = positions[i];
         const joinDays = studentJoinDays[i] || 0;
         const gpa = studentGpas[i] || 0;
+        const enrollment = studentEnrollments[i] || {};
         
         // Y轴偶数行时,X轴偏移半个网格,形成交错效果
         const xOffset = (gridY % 2 === 0) ? 0 : gridSize * 0.5;
@@ -980,7 +1093,9 @@ export default {
         seriesData.push({
           value: [gridX * gridSize + xOffset, gridY * gridSize],
           joinDays: joinDays,
-          gpa: gpa
+          gpa: gpa,
+          studentId: enrollment.studentUserId,
+          studentName: enrollment.studentName || `学生${enrollment.studentUserId}`
         });
       }
       
@@ -1140,29 +1255,42 @@ export default {
           return submitDate < nextDate; // 小于第二天零点，即当天或之前
         });
         
+        // 按学生ID去重，避免一个学生选多门课时重复显示
+        const uniqueStudentsMap = new Map();
+        studentsUntilNow.forEach(e => {
+          if (!uniqueStudentsMap.has(e.studentUserId)) {
+            uniqueStudentsMap.set(e.studentUserId, e);
+          }
+        });
+        const uniqueStudents = Array.from(uniqueStudentsMap.values());
+        
         // 保存每个学生的加入日期和GPA（用于计算树的大小和颜色）
-        const studentJoinDays = studentsUntilNow.map(e => {
+        const studentJoinDays = uniqueStudents.map(e => {
           const joinDate = new Date(e.submitTime);
           joinDate.setHours(0, 0, 0, 0);
           return Math.floor((currentDate - joinDate) / (1000 * 60 * 60 * 24));
         });
         
-        const studentGpas = studentsUntilNow.map(e => e.studentGpa || 0);
+        const studentGpas = uniqueStudents.map(e => e.studentGpa || 0);
         
         // 调试：打印前3天的GPA数据
         if (i < 3 || i === dayCount) {
-          console.log(`第${i}天 (${currentDate.toLocaleDateString('zh-CN')}): 学生数=${studentsUntilNow.length}, 实际GPA值:`, studentGpas);
+          console.log(`第${i}天 (${currentDate.toLocaleDateString('zh-CN')}): 学生数=${uniqueStudents.length}, 实际GPA值:`, studentGpas);
         }
         
         this.studentCountHistory.push({
           date: currentDate.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }),
-          count: studentsUntilNow.length,
+          count: uniqueStudents.length,
           studentJoinDays: studentJoinDays, // 每个学生加入的天数
-          studentGpas: studentGpas // 每个学生的GPA
+          studentGpas: studentGpas, // 每个学生的GPA
+          studentEnrollments: uniqueStudents // 学生选课信息（已去重）
         });
       }
       
       console.log('生成了', this.studentCountHistory.length, '天的数据，最后一天学生数:', this.studentCountHistory[this.studentCountHistory.length - 1].count);
+      
+      // 保存所有学生选课信息供树木点击使用
+      this.allStudentEnrollments = sortedEnrollments;
     },
     /** 生成系列数据 */
     makeSeriesData(year, lineCount, negative) {
@@ -1191,24 +1319,24 @@ export default {
       
       this.burndownChartInstance = echarts.init(chartDom);
       
-      // 模拟12天的迭代周期数据
-      const days = [];
-      for (let i = 1; i <= 12; i++) {
-        days.push('第' + i + '天');
+      // 如果真实数据还未加载，显示加载状态
+      if (!this.realBurndownData) {
+        this.burndownChartInstance.showLoading({
+          text: '加载中...',
+          color: '#409EFF',
+          textColor: '#000',
+          maskColor: 'rgba(255, 255, 255, 0.8)',
+          zlevel: 0
+        });
+        return;
       }
-      
-      // 理想剩余课时（线性递减）
-      const totalHours = 260;
-      const idealData = [];
-      for (let i = 0; i <= 12; i++) {
-        idealData.push(Math.round(totalHours - (totalHours / 12) * i));
-      }
-      
-      // 实际剩余课时（模拟真实进度，有波动）
-      const actualData = [260, 245, 230, 210, 205, 180, 160, 115, null, null, null, null, null];
-      
-      // 预测剩余课时（基于实际进度预测）
-      const forecastData = [null, null, null, null, null, null, null, 115, 85, 55, 25, 5, 0];
+
+      // 使用真实数据
+      const days = this.realBurndownData.days;
+      const totalHours = this.realBurndownData.totalHours;
+      const idealData = this.realBurndownData.idealData;
+      const actualData = this.realBurndownData.actualData;
+      const forecastData = this.realBurndownData.forecastData;
       
       const option = {
         tooltip: {
@@ -1396,6 +1524,241 @@ export default {
       
       // 重新获取数据
       this.fetchKpErrorStats();
+    },
+    /** 加载真实燃尽图数据 */
+    async loadRealBurndownData() {
+      this.burndownDataLoading = true;
+      try {
+        const response = await sectionApi.getBurndownChartData();
+        if (response.code === 200) {
+          const data = response.data;
+          
+          // 解析真实数据
+          const days = [];
+          const idealData = [];
+          const actualData = [];
+          const forecastData = [];
+          
+          const totalHours = data.totalSections || 0;
+          const timeline = data.timeline || [];
+          
+          if (timeline.length === 0 || totalHours === 0) {
+            this.$message.warning('暂无课时数据');
+            return;
+          }
+          
+          // 获取当前日期
+          const today = new Date();
+          const currentYear = today.getFullYear();
+          const currentMonth = today.getMonth() + 1;
+          const currentDay = today.getDate();
+          
+          // 找到当前日期在timeline中的位置
+          let currentDateIndex = -1;
+          
+          // 生成日期标签并处理数据
+          timeline.forEach((item, index) => {
+            const dateStr = item.date; // 格式: "MM-DD"
+            const [month, day] = dateStr.split('-').map(Number);
+            
+            days.push(dateStr);
+            
+            // 理想剩余课时：线性递减
+            const idealRemaining = Math.max(0, Math.round(totalHours - (totalHours / (timeline.length - 1)) * index));
+            idealData.push(idealRemaining);
+            
+            // 判断这个日期是否在当前日期之前或当天
+            // 考虑跨年情况：如果月份比当前月份小很多（如1月 vs 12月），可能是明年
+            let itemYear = currentYear;
+            if (currentMonth === 12 && month <= 2) {
+              // 当前12月，但数据是1-2月，认为是明年
+              itemYear = currentYear + 1;
+            } else if (currentMonth <= 2 && month >= 11) {
+              // 当前1-2月，但数据是11-12月，认为是去年
+              itemYear = currentYear - 1;
+            }
+            
+            const itemDate = new Date(itemYear, month - 1, day);
+            const todayDate = new Date(currentYear, currentMonth - 1, currentDay);
+            
+            // 实际剩余课时：只显示到当前日期
+            if (itemDate <= todayDate) {
+              actualData.push(item.remaining);
+              currentDateIndex = index; // 更新当前日期索引
+            } else {
+              actualData.push(null);
+            }
+          });
+          
+          // 计算预测剩余课时：从当前日期开始到结束
+          if (currentDateIndex >= 0 && currentDateIndex < timeline.length - 1) {
+            const currentValue = actualData[currentDateIndex];
+            
+            if (currentValue !== null && currentValue !== undefined) {
+              // 使用改进的预测算法：基于最近趋势 + 理想完成曲线混合
+              
+              // 1. 计算最近趋势（取最近3-5个点的平均速率，如果数据足够的话）
+              let recentRate = 0;
+              const recentWindow = Math.min(5, currentDateIndex + 1); // 最近5个点或所有已有点
+              const startIdx = Math.max(0, currentDateIndex - recentWindow + 1);
+              
+              if (startIdx < currentDateIndex) {
+                const recentStartValue = actualData[startIdx];
+                const recentCompleted = recentStartValue - currentValue;
+                const recentPoints = currentDateIndex - startIdx;
+                recentRate = recentPoints > 0 ? recentCompleted / recentPoints : 0;
+              }
+              
+              // 2. 计算整体平均速率
+              const completedHours = totalHours - currentValue;
+              const elapsedPoints = currentDateIndex + 1;
+              const overallRate = elapsedPoints > 0 ? completedHours / elapsedPoints : 0;
+              
+              // 3. 计算理想速率（剩余课时需要均匀分配到剩余时间点）
+              const remainingPoints = timeline.length - currentDateIndex - 1;
+              const idealRate = remainingPoints > 0 ? currentValue / remainingPoints : 0;
+              
+              // 4. 混合预测：近期趋势占40%，整体速率占30%，理想速率占30%
+              let predictedRate = recentRate * 0.4 + overallRate * 0.3 + idealRate * 0.3;
+              
+              // 5. 如果进度落后（当前实际值 > 理想值），加速预测
+              const currentIdealValue = idealData[currentDateIndex];
+              if (currentValue > currentIdealValue * 1.1) {
+                // 落后超过10%，需要加速，增加预测速率
+                predictedRate = predictedRate * 1.2;
+              } else if (currentValue < currentIdealValue * 0.9) {
+                // 超前超过10%，可能会放缓，降低预测速率
+                predictedRate = predictedRate * 0.9;
+              }
+              
+              // 6. 生成预测曲线（带轻微加速效应，模拟期末冲刺）
+              for (let i = 0; i < timeline.length; i++) {
+                if (i < currentDateIndex) {
+                  forecastData.push(null);
+                } else if (i === currentDateIndex) {
+                  forecastData.push(currentValue);
+                } else {
+                  const pointsFromCurrent = i - currentDateIndex;
+                  const remainingFromI = timeline.length - i;
+                  
+                  // 越接近结束，加速因子越大（模拟期末冲刺，最多加速20%）
+                  const accelerationFactor = 1 + (0.2 * (1 - remainingFromI / remainingPoints));
+                  const adjustedRate = predictedRate * accelerationFactor;
+                  
+                  let predicted = currentValue - adjustedRate * pointsFromCurrent;
+                  
+                  // 确保预测曲线不会低于0，也不会高于当前值
+                  predicted = Math.max(0, Math.min(currentValue, Math.round(predicted)));
+                  
+                  // 确保最后一个点接近0（课程应该完成）
+                  if (i === timeline.length - 1 && predicted > totalHours * 0.1) {
+                    predicted = Math.round(totalHours * 0.05); // 最后保留5%左右
+                  }
+                  
+                  forecastData.push(predicted);
+                }
+              }
+            } else {
+              forecastData.push(...new Array(timeline.length).fill(null));
+            }
+          } else {
+            // 没有预测数据或已到达最后一个点
+            forecastData.push(...new Array(timeline.length).fill(null));
+          }
+          
+          this.realBurndownData = {
+            days,
+            totalHours,
+            idealData,
+            actualData,
+            forecastData
+          };
+          
+          // 加载完成后初始化图表
+          this.$nextTick(() => {
+            this.initBurndownChart();
+          });
+        } else {
+          this.$message.error(response.msg || '加载真实数据失败');
+        }
+      } catch (error) {
+        console.error('加载燃尽图真实数据失败:', error);
+        this.$message.error('加载真实数据失败');
+      } finally {
+        this.burndownDataLoading = false;
+      }
+    },
+    /** 处理树木点击事件 */
+    handleTreeClick(params) {
+      console.log('点击树木:', params.data);
+      const studentId = params.data.studentId;
+      const studentName = params.data.studentName;
+      
+      if (!studentId) {
+        this.$message.warning('暂无学生信息');
+        return;
+      }
+      
+      this.selectedStudent = {
+        id: studentId,
+        name: studentName
+      };
+      
+      // 获取该学生的选课列表
+      this.fetchStudentCourses(studentId);
+      
+      // 打开弹框
+      this.studentAnalysisDialogVisible = true;
+    },
+    /** 获取学生的选课列表 */
+    async fetchStudentCourses(studentId) {
+      try {
+        // 方案：遍历当前课程列表，查询学生在每个课程中的选课状态
+        const coursePromises = this.courseList.map(course => {
+          return request({
+            url: '/system/class/student/list',
+            method: 'get',
+            params: {
+              courseId: course.id,
+              status: 1  // 已批准
+            }
+          }).then(response => {
+            // 检查该课程的学生列表中是否包含目标学生
+            const hasStudent = response.rows && response.rows.some(enrollment => 
+              enrollment.studentUserId === studentId
+            );
+            return hasStudent ? course : null;
+          }).catch(error => {
+            console.error(`查询课程${course.id}失败:`, error);
+            return null;
+          });
+        });
+        
+        const results = await Promise.all(coursePromises);
+        const studentCourses = results.filter(course => course !== null);
+        
+        if (studentCourses.length > 0) {
+          this.studentCourseList = studentCourses.map(course => ({
+            id: course.id,
+            title: course.title,
+            status: course.status || '进行中'
+          }));
+          console.log('学生课程列表:', this.studentCourseList);
+        } else {
+          this.studentCourseList = [];
+          this.$message.warning('该学生暂未选课');
+        }
+      } catch (error) {
+        console.error('获取学生课程列表失败:', error);
+        this.studentCourseList = [];
+        this.$message.error('获取学生课程列表失败: ' + (error.message || '未知错误'));
+      }
+    },
+    /** 关闭学生学情弹框 */
+    handleStudentAnalysisClose() {
+      this.selectedStudent = { id: null, name: '' };
+      this.selectedStudentCourseId = null;
+      this.studentCourseList = [];
     },
     /** 渲染知识点错误排行榜 */
     renderErrorKpChart(allKpData) {
@@ -2069,5 +2432,58 @@ export default {
 
 .dialog-footer {
   text-align: right;
+}
+
+/* 学生学情弹框样式 */
+.student-analysis-dialog-content {
+  .student-info-header {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    background: #1E90FF;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    
+    .student-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 15px;
+      
+      i {
+        font-size: 32px;
+        color: white;
+      }
+    }
+    
+    .student-details {
+      flex: 1;
+      
+      h3 {
+        margin: 0 0 5px 0;
+        font-size: 20px;
+        color: white;
+        font-weight: 600;
+      }
+      
+      p {
+        margin: 0;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.8);
+      }
+    }
+  }
+  
+  .course-select-section {
+    margin-bottom: 20px;
+  }
+  
+  .student-analysis-content {
+    margin-top: 20px;
+  }
 }
 </style>

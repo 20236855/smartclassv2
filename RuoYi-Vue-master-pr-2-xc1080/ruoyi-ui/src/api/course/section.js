@@ -59,6 +59,14 @@ export function delSections(ids) {
   })
 }
 
+// 获取教师所有课程的课时燃尽图数据
+export function getBurndownChartData() {
+  return request({
+    url: '/section/burndown',
+    method: 'get'
+  })
+}
+
 // 为小节关联知识点
 export function setSectionKnowledgePoints(data) {
   return request({

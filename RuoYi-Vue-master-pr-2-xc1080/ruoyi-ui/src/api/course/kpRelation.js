@@ -68,6 +68,6 @@ export function generateKnowledgeGraph(courseId) {
   return request({
     url: '/kpRelation/generateGraph/' + courseId,
     method: 'post',
-    timeout: 180000  // 3分钟超时，AI处理需要时间
+    timeout: 600000  // 10分钟超时，AI处理需要较长时间
   })
 }

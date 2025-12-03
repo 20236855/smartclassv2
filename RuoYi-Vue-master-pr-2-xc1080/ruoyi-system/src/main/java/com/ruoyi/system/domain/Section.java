@@ -48,6 +48,10 @@ public class Section extends BaseEntity
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date updateTime;
 
+    /** 上课时间 */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date classTime;
+
     /** 是否删除 */
     private Integer isDeleted;
 
@@ -139,6 +143,14 @@ public class Section extends BaseEntity
         this.updateTime = updateTime;
     }
 
+    public Date getClassTime() {
+        return classTime;
+    }
+
+    public void setClassTime(Date classTime) {
+        this.classTime = classTime;
+    }
+
     public Integer getIsDeleted() {
         return isDeleted;
     }
@@ -199,6 +211,7 @@ public class Section extends BaseEntity
             .append("sortOrder", getSortOrder())
             .append("createTime", getCreateTime())
             .append("updateTime", getUpdateTime())
+            .append("classTime", getClassTime())
             .append("isDeleted", getIsDeleted())
             .append("deleteTime", getDeleteTime())
             .toString();

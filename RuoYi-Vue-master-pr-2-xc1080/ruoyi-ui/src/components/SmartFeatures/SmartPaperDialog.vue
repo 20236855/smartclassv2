@@ -5,6 +5,7 @@
     width="800px"
     :close-on-click-modal="false"
     :before-close="handleClose"
+    :append-to-body="true"
     custom-class="smart-paper-dialog"
   >
     <div class="chat-container">
@@ -315,6 +316,11 @@ export default {
     courseId: {
       type: [Number, String],
       required: true
+    },
+    // 预填充的考试数据
+    preFilledExamData: {
+      type: Object,
+      default: null
     }
   },
   data() {
@@ -785,14 +791,24 @@ export default {
         })
 
         this.loading = true
-        await resetConversationAPI(this.conversationId)
+        
+        // 关闭现有WebSocket连接
+        if (this.ws) {
+          try {
+            this.ws.close()
+            this.ws = null
+          } catch (error) {
+            console.warn('关闭WebSocket失败:', error)
+          }
+        }
         
         // 重置本地状态
         this.messages = []
-        this.stage = 'collecting'
+        this.stage = ''
         this.currentSpec = null
         this.sessionId = null
         this.assignmentId = null
+        this.conversationId = null
         
         // 重新初始化
         await this.initConversation()
@@ -827,15 +843,8 @@ export default {
     },
 
     async handleClose() {
-      if (this.conversationId && this.stage !== 'completed') {
-        try {
-          await cancelConversation(this.conversationId)
-        } catch (error) {
-          console.error('取消对话失败:', error)
-        }
-      }
-      
-      // 重置所有状态
+      // 直接重置所有状态，不调用后端API
+      // 后端会话会自动过期，不需要显式取消
       this.conversationId = null
       this.messages = []
       this.stage = ''
@@ -843,6 +852,16 @@ export default {
       this.sessionId = null
       this.assignmentId = null
       this.userInput = ''
+      
+      // 关闭WebSocket连接
+      if (this.ws) {
+        try {
+          this.ws.close()
+          this.ws = null
+        } catch (error) {
+          console.warn('关闭WebSocket失败:', error)
+        }
+      }
       
       this.dialogVisible = false
     },
@@ -978,6 +997,13 @@ export default {
       this.currentPublishResult = result
       this.currentPublishSessionId = sessionId
       
+      // 如果有预填充的考试数据，直接发布，不显示对话框
+      if (this.preFilledExamData) {
+        console.log('[发布试卷] 检测到预填充数据，直接发布:', this.preFilledExamData)
+        await this.publishWithPrefilledData()
+        return
+      }
+      
       // 设置默认标题
       const now = new Date()
       const dateStr = now.toLocaleDateString('zh-CN')
@@ -1092,6 +1118,94 @@ export default {
         
         // 触发发布成功事件
         this.$emit('published', assignmentId)
+        
+      } catch (error) {
+        console.error('[发布试卷] 发布失败:', error)
+        const errorMsg = error.message || error.msg || '发布失败，请重试'
+        this.$message.error(errorMsg)
+      } finally {
+        this.isPublishing = false
+      }
+    },
+
+    /**
+     * 使用预填充数据直接发布试卷（从考试编辑对话框调用）
+     */
+    async publishWithPrefilledData() {
+      if (!this.preFilledExamData) {
+        console.error('[发布试卷] 预填充数据为空')
+        this.$message.error('缺少考试信息')
+        return
+      }
+      
+      if (!this.currentPublishSessionId) {
+        console.error('[发布试卷] 缺少会话ID')
+        this.$message.warning('缺少会话信息，无法发布')
+        return
+      }
+      
+      this.isPublishing = true
+      
+      try {
+        // 获取当前用户信息
+        const userStr = sessionStorage.getItem('userInfo') || sessionStorage.getItem('user')
+        let userId = 20001 // 默认教师ID
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr)
+            userId = user.userId || user.id || 20001
+          } catch (e) {
+            console.warn('[发布试卷] 解析用户信息失败:', e)
+          }
+        }
+        
+        // 从预填充数据构建发布数据
+        const publishData = {
+          title: this.preFilledExamData.title,
+          publisher_user_id: userId,
+          assignment_type: 'exam', // 从考试编辑对话框来的都是考试类型
+          description: this.preFilledExamData.description || 'AI 智能助手自动生成',
+          start_time: `${this.preFilledExamData.examDate} ${this.preFilledExamData.startTime}`,
+          end_time: `${this.preFilledExamData.examDate} ${this.preFilledExamData.endTime}`,
+          mode: 'question' // 默认为题目模式
+        }
+        
+        // 如果有总分，添加总分（注意：后端API可能需要time_limit字段）
+        if (this.preFilledExamData.totalScore) {
+          publishData.total_score = this.preFilledExamData.totalScore
+        }
+        
+        console.log('[发布试卷] 使用预填充数据发布, sessionId:', this.currentPublishSessionId, 'data:', publishData)
+        
+        // 调用发布API
+        const response = await publishAssembleResult(this.currentPublishSessionId, publishData)
+        
+        console.log('[发布试卷] API返回:', response)
+        
+        if (!response || typeof response !== 'object') {
+          throw new Error('后端返回数据格式错误')
+        }
+        
+        const assignmentId = response.assignment_id || response.data?.assignment_id || 'N/A'
+        console.log('[发布试卷] 提取的assignmentId:', assignmentId)
+        
+        this.$message.success(`考试发布成功！作业ID: ${assignmentId}`)
+        
+        // 添加成功消息到对话
+        this.messages.push({
+          role: 'assistant',
+          text: `✅ 考试已成功发布！\n\n📋 **作业 ID**: ${assignmentId}\n📝 **标题**: ${this.preFilledExamData.title}\n📁 **类型**: 考试`,
+          time: new Date().toLocaleTimeString()
+        })
+        
+        this.scrollToBottom()
+        
+        // 更新状态
+        this.stage = 'completed'
+        this.assignmentId = assignmentId
+        
+        // 触发paper-published事件，通知exam.vue对话框关闭
+        this.$emit('paper-published', assignmentId)
         
       } catch (error) {
         console.error('[发布试卷] 发布失败:', error)

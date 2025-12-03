@@ -55,9 +55,9 @@ export function clearBusinessUserIdCache() {
 }
 
 // 智能功能模块专用的请求工具（调用8083端口后端）
-// 开发环境使用代理，生产环境直接指向后端
+// 开发环境直接访问8083端口，避免代理问题
 const smartService = axios.create({
-  baseURL: process.env.NODE_ENV === 'production' ? 'http://localhost:8083' : '/smart-api',
+  baseURL: 'http://localhost:8083',
   timeout: 30000,
   withCredentials: true, // 重要：携带 cookie，用于 session 认证
   headers: {
@@ -83,7 +83,6 @@ smartService.interceptors.request.use(
         config.headers = {}
       }
       config.headers['userId'] = String(businessUserId)
-      config.headers['userid'] = String(businessUserId) // 添加小写版本以防大小写问题
       
       console.log('[Smart API] 请求配置:', {
         baseURL: config.baseURL,
@@ -92,7 +91,6 @@ smartService.interceptors.request.use(
         method: config.method,
         businessUserId: businessUserId,
         'headers.userId': config.headers['userId'],
-        'headers.userid': config.headers['userid'],
         hasToken: !!token
       })
     } catch (error) {
@@ -101,7 +99,6 @@ smartService.interceptors.request.use(
         config.headers = {}
       }
       config.headers['userId'] = '37'
-      config.headers['userid'] = '37'
     }
     
     return config

@@ -246,6 +246,10 @@ export default {
     courseId: {
       type: Number,
       required: true
+    },
+    studentId: {
+      type: Number,
+      default: null
     }
   },
   data() {
@@ -336,12 +340,31 @@ export default {
           this.filters.courseId = newVal
           console.log('[Watch courseId] 开始加载学生列表和数据')
           this.fetchStudents()
-          this.reload()
+          // 如果没有传入studentId，正常加载数据
+          if (!this.studentId) {
+            this.reload()
+          }
         }
       }
     },
-    'filters.studentId'(newVal) {
-      if (newVal) {
+    studentId: {
+      immediate: true,
+      handler(newVal) {
+        console.log('[Watch studentId] 值变化:', newVal)
+        if (newVal) {
+          this.filters.studentId = newVal
+          this.activeTab = 'detailed'
+          // 如果courseId已经设置，立即加载数据
+          if (this.filters.courseId) {
+            console.log('[Watch studentId] courseId已设置，立即加载学生数据')
+            this.reload()
+          }
+        }
+      }
+    },
+    'filters.studentId'(newVal, oldVal) {
+      // 只有当studentId真正变化且不是从外部prop传入时才重新加载
+      if (newVal && newVal !== oldVal && !this.studentId) {
         this.reload()
       }
     },
@@ -521,49 +544,31 @@ export default {
       this.studentLoading = true
       this.studentError = ''
       try {
-        // 方案1: 优先尝试从RuoYi获取课程学生列表
-        try {
-          const response = await request({
-            url: '/system/class/student/list',
-            method: 'get',
-            params: { 
-              courseId: this.filters.courseId,
-              status: 1  // 只获取已批准的学生
-            }
-          })
-          
-          if (response.rows && response.rows.length > 0) {
-            // 从选课记录中提取学生信息
-            this.studentOptions = response.rows.map(enrollment => ({
-              id: enrollment.studentUserId,
-              name: enrollment.studentName || `学生${enrollment.studentUserId}`
-            }))
-            console.log('[fetchStudents] 成功从RuoYi加载学生:', this.studentOptions.length, '人')
-            return
+        // 从RuoYi获取该课程的选课学生列表
+        const response = await request({
+          url: '/system/class/student/list',
+          method: 'get',
+          params: { 
+            courseId: this.filters.courseId,
+            status: 1  // 只获取已批准的学生
           }
-        } catch (e) {
-          console.warn("RuoYi课程学生API调用失败，尝试备用方案:", e)
-        }
+        })
         
-        // 方案2: 备用方案 - 从8083获取所有学生（无课程筛选）
-        const url = `${BASE_URL}/api/ai-grading/users?pageSize=1000`
-        const resp = await fetch(url)
-        const data = await resp.json()
-        
-        if (data.code === 200 || data.code === 0) {
-          const allUsers = data.data?.records || data.data || []
-          const students = allUsers.filter(u => u.role === 'STUDENT')
-          
-          this.studentOptions = students.map(u => ({
-            id: u.id,
-            name: u.realName || u.username || `学生${u.id}`
+        if (response.rows && response.rows.length > 0) {
+          // 从选课记录中提取学生信息
+          this.studentOptions = response.rows.map(enrollment => ({
+            id: enrollment.studentUserId,
+            name: enrollment.studentName || `学生${enrollment.studentUserId}`
           }))
+          console.log('[fetchStudents] 成功加载课程学生:', this.studentOptions.length, '人')
         } else {
-          throw new Error(data.message || "获取学生列表失败")
+          // 课程没有学生，返回空列表
+          this.studentOptions = []
+          console.log('[fetchStudents] 该课程暂无选课学生')
         }
       } catch (e) {
         console.error("[fetchStudents] 加载失败:", e)
-        this.studentError = "获取学生列表失败，请检查网络"
+        this.studentError = "获取学生列表失败，请检查网络连接"
         this.studentOptions = []
       } finally {
         this.studentLoading = false

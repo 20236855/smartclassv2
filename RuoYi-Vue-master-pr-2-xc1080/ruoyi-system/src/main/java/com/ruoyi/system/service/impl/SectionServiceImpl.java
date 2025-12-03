@@ -1,7 +1,9 @@
 package com.ruoyi.system.service.impl;
 
 import java.io.File;
-import java.util.List;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -12,8 +14,10 @@ import com.ruoyi.system.domain.Video;
 import com.ruoyi.system.domain.CourseResource;
 import com.ruoyi.system.domain.SectionKp;
 import com.ruoyi.system.domain.Chapter;
+import com.ruoyi.system.domain.Course;
 import com.ruoyi.system.mapper.SectionMapper;
 import com.ruoyi.system.mapper.ChapterMapper;
+import com.ruoyi.system.mapper.CourseMapper;
 import com.ruoyi.system.service.ISectionService;
 import com.ruoyi.system.service.IVideoService;
 import com.ruoyi.system.service.ICourseResourceService;
@@ -34,6 +38,9 @@ public class SectionServiceImpl implements ISectionService
     
     @Autowired
     private ChapterMapper chapterMapper;
+    
+    @Autowired
+    private CourseMapper courseMapper;
     
     @Autowired
     private IVideoService videoService;
@@ -117,7 +124,8 @@ public class SectionServiceImpl implements ISectionService
         int result = sectionMapper.updateSection(section);
         
         // 如果视频URL有变化（新增或更新），则同步到video表和course_resource表
-        if (result > 0 && newVideoUrl != null && !newVideoUrl.equals(oldVideoUrl))
+        // 注意：如果newVideoUrl为空字符串，表示删除视频，不需要创建resource记录
+        if (result > 0 && newVideoUrl != null && !newVideoUrl.isEmpty() && !newVideoUrl.equals(oldVideoUrl))
         {
             // 获取章节信息以获取课程ID
             Chapter chapter = chapterMapper.selectChapterById(section.getChapterId());
@@ -225,5 +233,139 @@ public class SectionServiceImpl implements ISectionService
     public Section selectSectionByVideoUrl(String videoUrl)
     {
         return sectionMapper.selectSectionByVideoUrl(videoUrl);
+    }
+    
+    /**
+     * 获取课时燃尽图数据
+     * 统计教师所有课程的小节数量和上课时间
+     *
+     * @return 燃尽图数据
+     */
+    @Override
+    public Map<String, Object> getBurndownChartData()
+    {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // 获取当前教师ID
+            Long teacherId = BusinessUserUtils.getCurrentBusinessUserId();
+            if (teacherId == null) {
+                result.put("totalSections", 0);
+                result.put("timeline", new ArrayList<>());
+                return result;
+            }
+            
+            // 查询教师的所有课程
+            Course courseQuery = new Course();
+            courseQuery.setTeacherUserId(teacherId);
+            List<Course> courses = courseMapper.selectCourseList(courseQuery);
+            
+            if (courses == null || courses.isEmpty()) {
+                result.put("totalSections", 0);
+                result.put("timeline", new ArrayList<>());
+                return result;
+            }
+            
+            // 获取所有课程的章节ID
+            List<Long> courseIds = courses.stream().map(Course::getId).collect(Collectors.toList());
+            List<Long> chapterIds = new ArrayList<>();
+            for (Long courseId : courseIds) {
+                Chapter chapterQuery = new Chapter();
+                chapterQuery.setCourseId(courseId);
+                List<Chapter> chapters = chapterMapper.selectChapterList(chapterQuery);
+                chapterIds.addAll(chapters.stream().map(Chapter::getId).collect(Collectors.toList()));
+            }
+            
+            if (chapterIds.isEmpty()) {
+                result.put("totalSections", 0);
+                result.put("timeline", new ArrayList<>());
+                return result;
+            }
+            
+            // 查询所有小节
+            List<Section> allSections = new ArrayList<>();
+            for (Long chapterId : chapterIds) {
+                List<Section> sections = sectionMapper.selectSectionListByChapterId(chapterId);
+                allSections.addAll(sections);
+            }
+            
+            // 统计总小节数
+            int totalSections = allSections.size();
+            result.put("totalSections", totalSections);
+            
+            // 获取课程的开始和结束时间
+            Date startDate = null;
+            Date endDate = null;
+            
+            for (Course course : courses) {
+                if (course.getStartTime() != null) {
+                    if (startDate == null || course.getStartTime().before(startDate)) {
+                        startDate = course.getStartTime();
+                    }
+                }
+                if (course.getEndTime() != null) {
+                    if (endDate == null || course.getEndTime().after(endDate)) {
+                        endDate = course.getEndTime();
+                    }
+                }
+            }
+            
+            // 如果没有设置开始结束时间，使用默认值
+            Calendar cal = Calendar.getInstance();
+            if (startDate == null) {
+                cal.add(Calendar.MONTH, -3); // 默认3个月前
+                startDate = cal.getTime();
+            }
+            if (endDate == null) {
+                cal = Calendar.getInstance();
+                cal.add(Calendar.MONTH, 3); // 默认3个月后
+                endDate = cal.getTime();
+            }
+            
+            // 生成时间轴数据（按月日格式）
+            SimpleDateFormat sdf = new SimpleDateFormat("MM-dd");
+            List<Map<String, Object>> timeline = new ArrayList<>();
+            
+            cal = Calendar.getInstance();
+            cal.setTime(startDate);
+            Date currentDate = new Date();
+            
+            while (!cal.getTime().after(endDate)) {
+                Map<String, Object> point = new HashMap<>();
+                Date date = cal.getTime();
+                point.put("date", sdf.format(date));
+                
+                // 统计该日期之前有多少小节已上课
+                int completedCount = 0;
+                for (Section section : allSections) {
+                    if (section.getClassTime() != null && !section.getClassTime().after(date)) {
+                        completedCount++;
+                    }
+                }
+                
+                // 剩余课时 = 总课时 - 已上课时
+                int remaining = totalSections - completedCount;
+                point.put("remaining", remaining);
+                
+                timeline.add(point);
+                
+                // 增加天数（前期按周，后期按天）
+                long daysDiff = (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+                if (daysDiff < 30) {
+                    cal.add(Calendar.DAY_OF_MONTH, 7); // 第一个月按周
+                } else {
+                    cal.add(Calendar.DAY_OF_MONTH, 3); // 之后每3天一个点
+                }
+            }
+            
+            result.put("timeline", timeline);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            result.put("totalSections", 0);
+            result.put("timeline", new ArrayList<>());
+        }
+        
+        return result;
     }
 }
