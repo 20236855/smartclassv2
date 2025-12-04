@@ -47,6 +47,12 @@ export const constantRoutes = [
     hidden: true, // 关键：在侧边栏菜单中隐藏这个路由
     children: [
       {
+        path: '', // 访问 /course 时显示课程中心列表页
+        component: () => import('@/views/system/course/index'),
+        name: 'CourseCenter',
+        meta: { title: '课程中心', icon: 'education', noCache: true }
+      },
+      {
         path: 'chapter/:courseId(\\d+)', // 动态路由，匹配 /course/chapter/任意数字
         component: () => import('@/views/system/chapter/index'), // 指向我们改造后的课程章节页面
         name: 'CourseDetail', // 给路由起一个唯一的名字

@@ -751,11 +751,7 @@ export default {
   computed: {
     // 解析后的答案列表
     parsedAnswers() {
-      console.log('=== parsedAnswers 计算属性被调用 ===');
-      console.log('currentSubmission:', this.currentSubmission);
-
       if (!this.currentSubmission) {
-        console.log('currentSubmission 为空，返回空数组');
         return [];
       }
 
@@ -765,17 +761,11 @@ export default {
         || this.currentSubmission.answer_content
         || this.currentSubmission.answers;
 
-      console.log('提取的 content:', content);
-      console.log('content 类型:', typeof content);
-
       if (!content) {
-        console.log('content 为空，返回空数组');
         return [];
       }
 
-      const result = this.parseAnswerContent(content);
-      console.log('parsedAnswers 最终返回:', result);
-      return result;
+      return this.parseAnswerContent(content);
     }
   },
   created() {
@@ -1809,8 +1799,6 @@ export default {
             trimmedContent = trimmedContent.slice(1);
           }
 
-          console.log('开始解析答题内容:', trimmedContent);
-
           // 检查是否是特殊格式（如：80299:A,80332:11,80337:111 或 80299:A;80332:11;80337:111）
           if (!trimmedContent.startsWith('[') && !trimmedContent.startsWith('{')) {
             // 解析格式：questionId:answer,questionId:answer,... 或 questionId:answer;questionId:answer;...
@@ -1819,19 +1807,14 @@ export default {
             if (pairs.length === 1) {
               pairs = trimmedContent.split(',');
             }
-            console.log('分割后的答案对:', pairs);
 
             answers = pairs.map(pair => {
               const [questionId, answer] = pair.split(':');
-              const parsed = {
+              return {
                 questionId: parseInt(questionId.trim()),
                 answer: answer ? answer.trim() : ''
               };
-              console.log('解析答案对:', pair, '=>', parsed);
-              return parsed;
             }).filter(item => item.questionId && item.answer);
-
-            console.log('过滤后的答案数组:', answers);
           } else {
             // JSON 格式
             const firstBracket = trimmedContent.indexOf('[');
@@ -1856,14 +1839,10 @@ export default {
           return [];
         }
 
-        console.log('题目列表:', this.currentSubmissionQuestions);
-
         // 将答案与题目信息关联
         const result = answers.map((answerItem) => {
           const questionId = answerItem.questionId || answerItem.question_id;
           const question = this.currentSubmissionQuestions.find(q => q.questionId === questionId);
-
-          console.log(`匹配题目 ID ${questionId}:`, question ? '找到' : '未找到', question);
 
           return {
             questionId: questionId,
@@ -1873,7 +1852,6 @@ export default {
           };
         });
 
-        console.log('最终结果:', result);
         return result;
       } catch (error) {
         console.error('解析答案内容失败:', error.message, error);
