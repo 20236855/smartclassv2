@@ -28,6 +28,7 @@
     "axios": "0.28.1",
     "clipboard": "2.0.8",
     "core-js": "3.37.1",
+    "docx-preview": "^0.1.13",
     "echarts": "5.4.0",
     "element-ui": "2.15.14",
     "file-saver": "2.0.5",
@@ -48,7 +49,8 @@
     "vuedraggable": "2.24.3",
     "vuex": "3.6.0",
     "xgplayer": "^3.0.23",
-    "xgplayer-vue": "^1.1.5"
+    "xgplayer-vue": "^1.1.5",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "4.4.6",
