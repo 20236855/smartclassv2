@@ -1,6 +1,7 @@
 package com.exampl.smartcourse.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Configuration
+@Slf4j
 public class CorsConfig {
 
     @Autowired
@@ -61,7 +63,10 @@ public class CorsConfig {
                     String normalized = base.replace('\\', '/');
                     if (!normalized.endsWith("/")) normalized += "/";
                     String coursesLocation = "file:" + normalized + "courses/";
-                    registry.addResourceHandler("/courses/**").addResourceLocations(coursesLocation);
+                    String dataCoursesLocation = "file:d:/githubRepository/smartclassv2/RuoYi-Vue-master-pr-2-xc1080/SmartCourseThird/data/courses/";
+                    registry.addResourceHandler("/courses/**", "/api/courses/**")
+                            .addResourceLocations(coursesLocation, dataCoursesLocation);
+                    log.info("静态资源映射：/courses/**,/api/courses/** -> {}, {}", coursesLocation, dataCoursesLocation);
                 }
 
                 String uploadsBase = env.getProperty("file.upload.path", "");
@@ -69,7 +74,10 @@ public class CorsConfig {
                     String normalizedUploads = uploadsBase.replace('\\', '/');
                     if (!normalizedUploads.endsWith("/")) normalizedUploads += "/";
                     String uploadsLocation = "file:" + normalizedUploads;
-                    registry.addResourceHandler("/uploads/**").addResourceLocations(uploadsLocation);
+                    String uploadsSubLocation = "file:" + normalizedUploads + "uploads/";
+                    registry.addResourceHandler("/uploads/**", "/api/uploads/**")
+                            .addResourceLocations(uploadsLocation, uploadsSubLocation);
+                    log.info("静态资源映射：/uploads/**,/api/uploads/** -> {}, {}", uploadsLocation, uploadsSubLocation);
                 }
             }
         };

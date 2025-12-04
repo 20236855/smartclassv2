@@ -1,7 +1,7 @@
 <template>
-  <div>
-    <el-dialog :visible="visible" @close="onClose" :title="editData ? '修改作业' : '添加作业'" append-to-body :width="dialogWidth">
-      <el-form ref="elForm" :model="formData" :rules="rules" size="medium" label-width="100px">
+  <div class="homework-wrapper">
+    <el-dialog :visible="visible" @close="onClose" :title="editData ? '修改作业' : '添加作业'" append-to-body :width="dialogWidth" :close-on-click-modal="false" custom-class="homework-dialog">
+      <el-form ref="elForm" :model="formData" :rules="rules" size="medium" label-width="120px" class="homework-form">
         <el-form-item label="作业标题" prop="field103">
           <el-input v-model="formData.field103" placeholder="请输入作业标题" clearable :style="{width: '100%'}">
           </el-input>
@@ -38,10 +38,26 @@
             @change="handleKpChange"
           />
         </el-form-item>
+        <el-divider content-position="left">作业附件</el-divider>
+        <div class="attachments-container">
+          <el-empty v-if="!hasAttachments" description="暂无附件"></el-empty>
+          <div v-else class="attachments-list">
+            <el-row :gutter="10">
+              <el-col :span="24" v-for="(file, idx) in assignmentAttachments" :key="idx" class="attachment-item">
+                <el-card shadow="never" class="attachment-card">
+                  <div class="attachment-content">
+                    <a class="attachment-link" :href="buildAttachmentUrl(file.url)" target="_blank" rel="noopener" @click="downloadAttachment(file)">{{ file.name }}</a>
+                    <el-button type="text" icon="el-icon-download" @click="downloadAttachment(file)">下载</el-button>
+                  </div>
+                </el-card>
+              </el-col>
+            </el-row>
+          </div>
+        </div>
         <el-form-item label="上传" prop="field108">
-          <el-upload ref="field108" :file-list="field108fileList" :action="field108Action"
+          <el-upload ref="field108" :file-list="field108fileList" :action="field108Action" :data="field108ExtraData"
             :before-upload="field108BeforeUpload" :on-success="field108OnSuccess" :on-error="field108OnError" 
-            :on-remove="field108OnRemove" :headers="headers">
+            :on-remove="field108OnRemove" :on-preview="field108OnPreview" :headers="headers">
             <el-button size="small" type="primary" icon="el-icon-upload">点击上传</el-button>
           </el-upload>
         </el-form-item>
@@ -135,7 +151,8 @@ export default {
           trigger: 'blur'
         }],
       },
-      field108Action: process.env.VUE_APP_BASE_API + '/common/upload',
+      field108Action: '',
+      field108ExtraData: {},
       field108fileList: [],
       uploadedFiles: [], // 存储上传成功的文件信息
       field105Options: [], // 课程选项将动态加载
@@ -153,17 +170,24 @@ export default {
         "label": "上传型作业",
         "value": 2
       }],
+      assignmentAttachments: [],
+      smartCourseApiBase: (process.env.VUE_APP_SMARTCOURSE_API || 'http://localhost:8083')
     }
   },
   computed: {
     ...mapState({
       userId: state => state.user.id
-    })
+    }),
+    hasAttachments() {
+      return (this.assignmentAttachments && this.assignmentAttachments.length > 0) || (this.uploadedFiles && this.uploadedFiles.length > 0)
+    }
   },
   watch: {
     visible: {
       handler(newVal) {
         if (newVal) {
+          this.field108Action = this.getApiBase() + '/files/upload-to-courses'
+          this.field108ExtraData = { courseId: this.formData.field105, uploaderUserId: this.getSmartUserId() }
           // 加载课程列表（无论是否编辑模式都需要）
           this.loadCourses()
           
@@ -174,6 +198,9 @@ export default {
           
           if (this.editData) {
             this.loadEditData();
+            if (this.editData.id) {
+              this.fetchAssignmentAttachments(this.editData.id)
+            }
           } else {
             // 清空已上传的文件列表
             this.field108fileList = []
@@ -182,6 +209,7 @@ export default {
             this.availableKps = []
             this.selectedKpIds = []
             this.resetForm();
+            this.assignmentAttachments = []
           }
         }
       },
@@ -193,6 +221,9 @@ export default {
         if (newVal && this.visible) {
           console.log('editData变化，重新加载数据:', newVal);
           this.loadEditData();
+          if (newVal.id) {
+            this.fetchAssignmentAttachments(newVal.id)
+          }
         }
       },
       deep: true
@@ -201,6 +232,7 @@ export default {
     'formData.field105': {
       handler(newCourseId) {
         if (newCourseId) {
+          this.field108ExtraData = { courseId: newCourseId, uploaderUserId: this.getSmartUserId() }
           this.loadKnowledgePoints(newCourseId)
         } else {
           this.availableKps = []
@@ -212,6 +244,10 @@ export default {
   created() {},
   mounted() {},
   methods: {
+    getSmartUserId() {
+      const envId = Number(process.env.VUE_APP_SMARTCOURSE_USER_ID)
+      return envId && !isNaN(envId) ? envId : this.userId
+    },
     onOpen() {
       // 清空已上传的文件列表
       this.field108fileList = []
@@ -230,6 +266,7 @@ export default {
       this.$refs['elForm'].resetFields()
       this.editData = null
       this.$emit('close')
+      this.assignmentAttachments = []
     },
     close() {
       this.$emit('close')
@@ -323,37 +360,169 @@ export default {
             url: file.url,
             status: 'success'
           }))
+          this.assignmentAttachments = this.uploadedFiles.slice()
         } catch (e) {
           console.error('解析附件信息失败:', e)
           this.uploadedFiles = []
           this.field108fileList = []
+          this.assignmentAttachments = []
         }
       } else {
         this.uploadedFiles = []
         this.field108fileList = []
+        this.assignmentAttachments = []
       }
       
       // 加载已关联的知识点
       if (this.editData.id && this.formData.field105) {
         this.loadAssignmentKps(this.editData.id)
       }
-  
+
+    },
+    async fetchAssignmentAttachments(assignmentId) {
+      try {
+        const resp = await fetch(`${this.getApiBase()}/assignments/${assignmentId}`)
+        const json = await resp.json()
+        const data = json && (json.data || json.result || json)
+        const attachmentsStr = data && data.attachments
+        if (!attachmentsStr) {
+          this.assignmentAttachments = []
+          return
+        }
+        let arr = []
+        try {
+          arr = JSON.parse(attachmentsStr)
+        } catch (e) {
+          arr = []
+        }
+        this.assignmentAttachments = Array.isArray(arr) ? arr.map(it => ({
+          name: it.name,
+          url: it.url
+        })) : []
+      } catch (e) {
+        this.assignmentAttachments = []
+      }
+    },
+    buildAttachmentUrl(url) {
+      if (!url) return ''
+      if (/^https?:\/\//i.test(url)) return url
+      const u = url.startsWith('/') ? url : `/${url}`
+      let result = ''
+      if (/^\/(courses|uploads)\//.test(u)) {
+        const host = (this.smartCourseApiBase || '').replace(/\/?$/,'')
+        result = `${host}${u}`
+      } else if (/^\/api\//.test(u)) {
+        const host = (this.smartCourseApiBase || '').replace(/\/?$/,'')
+        result = `${host}${u}`
+      } else {
+        const base = this.getApiBase()
+        result = `${base}${u}`
+      }
+      try { console.log('[homework.vue] buildAttachmentUrl input=', url, 'output=', result) } catch (e) {}
+      return result
+    },
+    getApiBase() {
+      const base = (this.smartCourseApiBase || '').replace(/\/?$/,'')
+      return base.endsWith('/api') ? base : `${base}/api`
+    },
+    async downloadAttachment(file) {
+      const url = this.buildAttachmentUrl(file && file.url)
+      if (!url) return
+      try {
+        console.log('[homework.vue] start download:', { file, url })
+        const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + getToken(), Accept: 'application/octet-stream' }})
+        const ct = resp.headers.get('content-type') || ''
+        const ctLower = ct.toLowerCase()
+        console.log('[homework.vue] primary resp:', { status: resp.status, contentType: ct, ok: resp.ok })
+        if (resp.ok && !/text\/html/i.test(ctLower) && !/application\/json/i.test(ctLower)) {
+          const blob = await resp.blob()
+          const a = document.createElement('a')
+          const objectUrl = URL.createObjectURL(blob)
+          a.href = objectUrl
+          a.download = (file && file.name) ? file.name : 'download'
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(objectUrl)
+          console.log('[homework.vue] primary download success')
+          return
+        }
+        if (/application\/json/i.test(ctLower)) {
+          try {
+            const j = await resp.json()
+            console.log('[homework.vue] primary returned JSON:', j)
+          } catch (e) {
+            console.log('[homework.vue] primary JSON parse failed')
+          }
+        }
+        let raw = (file && file.url) || ''
+        let rel = ''
+        if (/^https?:\/\//i.test(raw)) {
+          try { rel = new URL(raw).pathname } catch (e) { rel = '' }
+        } else {
+          rel = raw.startsWith('/') ? raw : (raw ? '/' + raw : '')
+        }
+        if (!/^\/(courses|uploads)\//.test(rel)) {
+          console.log('[homework.vue] fallback skipped, unexpected rel path:', rel)
+          rel = ''
+        }
+        if (rel) {
+          const fallbackApi = `${this.getApiBase()}/files/download-from-courses?fileUrl=${encodeURIComponent(rel)}`
+          console.log('[homework.vue] try fallback api:', fallbackApi)
+          const r2 = await fetch(fallbackApi, { headers: { Authorization: 'Bearer ' + getToken(), Accept: 'application/octet-stream' }})
+          const ct2 = r2.headers.get('content-type') || ''
+          console.log('[homework.vue] fallback resp:', { status: r2.status, contentType: ct2, ok: r2.ok })
+          if (r2.ok) {
+            const b2 = await r2.blob()
+            const a2 = document.createElement('a')
+            const obj2 = URL.createObjectURL(b2)
+            a2.href = obj2
+            a2.download = (file && file.name) ? file.name : 'download'
+            document.body.appendChild(a2)
+            a2.click()
+            document.body.removeChild(a2)
+            URL.revokeObjectURL(obj2)
+            console.log('[homework.vue] fallback download success')
+            return
+          }
+        }
+      } catch (e) {}
+      const win = window.open(url, '_blank')
+      if (!win || win.closed || typeof win.closed === 'undefined') {
+        window.location.href = url
+      }
     },
     field108BeforeUpload(file) {
       let isRightSize = file.size / 1024 / 1024 < 2
       if (!isRightSize) {
         this.$message.error('文件大小超过 2MB')
       }
+      if (!this.formData.field105) {
+        this.$message.warning('请先选择课程')
+        return false
+      }
       return isRightSize
     },
     field108OnSuccess(response, file, fileList) {
       console.log('上传成功返回的数据:', response)
-      if (response.code === 200) {
-        // 保存上传成功的文件信息
-        this.uploadedFiles.push({
-          name: response.originalFilename,
-          url: response.url
-        })
+      let ok = false
+      let name = ''
+      let url = ''
+      if (response && response.code === 200 && response.originalFilename && response.url) {
+        ok = true
+        name = response.originalFilename
+        url = response.url
+      } else if (response && response.code === 200 && response.data && (response.data.fileUrl || response.data.fileName)) {
+        ok = true
+        name = response.data.fileName || file.name
+        url = response.data.fileUrl
+      }
+      if (ok) {
+        this.uploadedFiles.push({ name, url })
+        this.assignmentAttachments.push({ name, url })
+        file.name = name
+        file.url = url
+        this.field108fileList = fileList
         console.log('uploadedFiles数组:', this.uploadedFiles)
         this.$message.success('文件上传成功')
       } else {
@@ -376,12 +545,24 @@ export default {
       this.uploadedFiles = this.uploadedFiles.filter(f => {
         return f.name !== fileName && f.url !== fileUrl
       })
+      this.assignmentAttachments = this.assignmentAttachments.filter(f => {
+        return f.name !== fileName && f.url !== fileUrl
+      })
       
       // 更新fileList
       this.field108fileList = fileList
       
       console.log('移除后的uploadedFiles:', this.uploadedFiles)
       this.$message.success('文件已移除')
+    },
+    field108OnPreview(file) {
+      const fileName = file.response ? file.response.originalFilename : file.name
+      const fileUrl = file.response ? file.response.url : file.url
+      if (!fileUrl) {
+        this.$message.warning('无有效下载链接')
+        return
+      }
+      this.downloadAttachment({ name: fileName, url: fileUrl })
     },
     // 加载课程列表
     loadCourses() {
@@ -441,6 +622,29 @@ export default {
 
 </script>
 <style scoped>
+.homework-dialog {
+  padding-bottom: 10px;
+}
+.homework-form {
+  padding: 10px 20px;
+}
+.attachments-container {
+  padding: 0 20px 10px 20px;
+}
+.attachments-list {
+  margin-top: 8px;
+}
+.attachment-item {
+  margin-bottom: 8px;
+}
+.attachment-card {
+  border: 1px solid #ebeef5;
+}
+.attachment-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 /* 完全禁用文件上传列表的所有动画效果 */
 .el-upload-list__item {
   transition: none !important;
