@@ -19,17 +19,21 @@ public interface AnalysisMapper {
             SELECT
                 CAST(q.knowledge_point AS SIGNED) AS kpId,
                 kp.title AS kpTitle,
-                SUM(sa.score) / NULLIF(SUM(aq.score), 0) AS scoreRatio
-            FROM student_answer sa
-                     JOIN assignment_question aq ON aq.question_id = sa.question_id
-                        AND aq.assignment_id = sa.assignment_id
+                LEAST(SUM(sa_max.score) / NULLIF(SUM(aq.score), 0), 1) AS scoreRatio
+            FROM (
+                SELECT student_user_id, assignment_id, question_id, MAX(score) AS score
+                FROM student_answer
+                WHERE student_user_id = #{studentUserId}
+                  AND score IS NOT NULL
+                GROUP BY student_user_id, assignment_id, question_id
+            ) AS sa_max
+                     JOIN assignment_question aq ON aq.question_id = sa_max.question_id
+                        AND aq.assignment_id = sa_max.assignment_id
                      JOIN assignment a ON a.id = aq.assignment_id
                      JOIN question q ON q.id = aq.question_id
                      LEFT JOIN knowledge_point kp ON kp.id = CAST(q.knowledge_point AS SIGNED)
-            WHERE sa.student_user_id = #{studentUserId}
-              AND sa.score IS NOT NULL
             <if test="courseId != null">
-              AND a.course_id = #{courseId}
+              WHERE a.course_id = #{courseId}
             </if>
             GROUP BY CAST(q.knowledge_point AS SIGNED), kp.title
             </script>

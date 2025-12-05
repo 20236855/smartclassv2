@@ -410,7 +410,8 @@ export default {
     formatPercent(val) {
       if (val === undefined || val === null || Number.isNaN(val)) return 0
       const num = Number(val)
-      return num > 1 ? Number(num.toFixed(1)) : Number((num * 100).toFixed(1))
+      const v = num > 1 ? Number(num.toFixed(1)) : Number((num * 100).toFixed(1))
+      return Math.min(100, Math.max(0, v))
     },
     
     setTrendPeriod(period) {

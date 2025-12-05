@@ -72,7 +72,9 @@ public class AnalysisServiceImpl implements AnalysisService {
             KpScoreAggDO student = studentScoreMap.get(kpId);
             if (mastery != null) {
                 item.setKpTitle(mastery.getKpTitle());
-                item.setMasteryScore(roundToPercent(mastery.getMasteryScore()));
+                Double raw = mastery.getMasteryScore();
+                Double norm = raw == null ? null : (raw > 1 ? raw / 100D : raw);
+                item.setMasteryScore(norm == null ? null : roundToPercent(norm));
                 item.setTrend(mastery.getTrend());
             } else if (student != null) {
                 item.setKpTitle(student.getKpTitle());

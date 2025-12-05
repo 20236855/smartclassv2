@@ -71,7 +71,7 @@ public class MasteryServiceImpl implements MasteryService {
             List<StudentKPMasteryDO> values = entry.getValue();
             DoubleSummaryStatistics stats = values.stream()
                     .filter(item -> item.getMasteryScore() != null)
-                    .mapToDouble(StudentKPMasteryDO::getMasteryScore)
+                    .mapToDouble(item -> normalize(item.getMasteryScore()))
                     .summaryStatistics();
             double avg = round(stats.getAverage());
             double variance = 0D;
@@ -80,14 +80,14 @@ public class MasteryServiceImpl implements MasteryService {
                 variance = values.stream()
                         .filter(item -> item.getMasteryScore() != null)
                         .mapToDouble(item -> {
-                            double diff = item.getMasteryScore() - mean;
+                            double diff = normalize(item.getMasteryScore()) - mean;
                             return diff * diff;
                         })
                         .sum() / values.size();
             }
             double stddev = round(Math.sqrt(variance));
             int lowCount = (int) values.stream()
-                    .filter(item -> item.getMasteryScore() != null && item.getMasteryScore() < threshold)
+                    .filter(item -> item.getMasteryScore() != null && normalize(item.getMasteryScore()) < threshold)
                     .count();
             KPMasteryAggDTO agg = new KPMasteryAggDTO();
             agg.setKpId(kpId);
@@ -117,7 +117,7 @@ public class MasteryServiceImpl implements MasteryService {
                 .collect(Collectors.toList());
         DoubleSummaryStatistics overallStats = data.stream()
                 .filter(item -> item.getMasteryScore() != null)
-                .mapToDouble(StudentKPMasteryDO::getMasteryScore)
+                .mapToDouble(item -> normalize(item.getMasteryScore()))
                 .summaryStatistics();
         response.setKpStats(ranking);
         response.setWeakKps(weakKps);
@@ -130,13 +130,14 @@ public class MasteryServiceImpl implements MasteryService {
         MasteryDTO dto = new MasteryDTO();
         dto.setKpId(source.getKpId());
         dto.setKpTitle(source.getKpTitle());
-        dto.setMasteryScore(source.getMasteryScore());
+        dto.setMasteryScore(source.getMasteryScore() == null ? null : normalize(source.getMasteryScore()));
         dto.setMasteryStatus(source.getMasteryStatus());
         dto.setTrend(source.getTrend());
         dto.setUpdateTime(source.getUpdateTime());
         if (source.getMasteryScore() != null) {
-            dto.setAccuracyRate(round(source.getMasteryScore() * 100));
-            dto.setMasteryDescription(describeMastery(source.getMasteryScore()));
+            double s = normalize(source.getMasteryScore());
+            dto.setAccuracyRate(round(s * 100));
+            dto.setMasteryDescription(describeMastery(s));
         }
         return dto;
     }
@@ -176,6 +177,11 @@ public class MasteryServiceImpl implements MasteryService {
         }
         return "多数学生薄弱，应安排系统化讲解";
     }
+
+    private double normalize(double v) {
+        return v > 1 ? v / 100D : v;
+    }
+
 
     private List<String> buildSuggestions(List<KPMasteryAggDTO> ranking,
                                           List<KPMasteryAggDTO> weakKps,
